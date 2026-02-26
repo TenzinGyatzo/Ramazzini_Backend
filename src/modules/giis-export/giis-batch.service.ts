@@ -415,6 +415,14 @@ export class GiisBatchService {
         },
       },
     );
+    const afterCex = await this.getBatch(batchId);
+    if (isFirstGenerator && afterCex?.status === 'completed') {
+      const artifactCount = afterCex.artifacts?.length ?? 0;
+      const needsEncryption = (afterCex.artifacts ?? []).some((a) => !a.zipPath);
+      if (artifactCount >= 1 && needsEncryption) {
+        await this.encryptAndZipArtifacts(batchId);
+      }
+    }
     return this.getBatch(batchId);
   }
 
@@ -549,9 +557,18 @@ export class GiisBatchService {
 
     const completedBatch = await this.getBatch(batchId);
     if (completedBatch?.status === 'completed') {
-      await this.recordBatchCompletionAudit(completedBatch);
+      const needsEncryption = (completedBatch.artifacts ?? []).some(
+        (a) => !a.zipPath,
+      );
+      if (needsEncryption) {
+        await this.encryptAndZipArtifacts(batchId);
+      }
+      const batchForAudit = await this.getBatch(batchId);
+      if (batchForAudit) {
+        await this.recordBatchCompletionAudit(batchForAudit);
+      }
     }
-    return completedBatch;
+    return this.getBatch(batchId);
   }
 
   private async recordBatchCompletionAudit(batch: GiisBatch) {
@@ -594,26 +611,25 @@ export class GiisBatchService {
   }
 
   /**
-   * Phase 2B: Build deliverable (TXT → CIF → ZIP) for each artifact. Only when validationStatus is not has_blockers.
-   * Key from env GIIS_3DES_KEY_BASE64 (24 bytes, base64). Caller must ensure GIIS_ENCRYPTION_VALIDATED=true.
+   * Phase 6: Cifrar y empaquetar (TXT → CIF → ZIP) para cada artifact del batch.
+   * Invocado automáticamente al completar batch o como fallback vía build-deliverable.
+   * Valida: batch existe, status completed o generating, validationStatus !== 'has_blockers'.
+   * Clave obligatoria: GIIS_3DES_KEY_BASE64 (24 bytes base64).
    */
-  async buildDeliverable(
-    batchId: string,
-    confirmWarnings?: boolean,
-    usuarioGeneradorId?: string,
-  ): Promise<GiisBatch | null> {
+  private async encryptAndZipArtifacts(batchId: string): Promise<void> {
     const batch = await this.getBatch(batchId);
-    if (!batch || batch.status === 'failed') return null;
-
+    if (!batch) return;
+    if (batch.status === 'failed') return;
+    if (
+      batch.status !== 'completed' &&
+      batch.status !== 'generating'
+    ) {
+      return;
+    }
     const status = batch.validationStatus as string | undefined;
     if (status === 'has_blockers') {
       throw new ConflictException(
         'El batch tiene errores bloqueantes de validación; no se puede generar entregable.',
-      );
-    }
-    if (status === 'has_warnings' && !confirmWarnings) {
-      throw new ConflictException(
-        'El batch tiene advertencias; confirme para continuar con la generación del entregable.',
       );
     }
 
@@ -645,9 +661,16 @@ export class GiisBatchService {
       batch.yearMonth,
     );
     const artifacts = Array.isArray(batch.artifacts) ? batch.artifacts : [];
+    const needsAny = artifacts.some((a) => !a.zipPath);
+    if (!needsAny) return;
+
     const updatedArtifacts = [];
 
     for (const art of artifacts) {
+      if (art.zipPath) {
+        updatedArtifacts.push({ ...art });
+        continue;
+      }
       const guide = art.guide as string;
       const relPath = art.path as string;
       const fullPath = path.join(process.cwd(), relPath);
@@ -696,9 +719,10 @@ export class GiisBatchService {
       { $set: { artifacts: updatedArtifacts } },
     );
 
-    const updatedBatch = await this.getBatch(batchId);
     const cluesAudit = batch.establecimientoClues || '9998';
     const proveedorSaludId = batch.proveedorSaludId.toString();
+    const usuarioGeneradorId = (batch.options as { createdByUserId?: string })
+      ?.createdByUserId;
     for (const art of updatedArtifacts) {
       if (art.zipPath && art.hashSha256) {
         await this.giisExportAuditService.recordGenerationAudit({
@@ -714,6 +738,24 @@ export class GiisBatchService {
         });
       }
     }
-    return updatedBatch;
+  }
+
+  /**
+   * Phase 2B/6: Build deliverable (fallback). Delega en encryptAndZipArtifacts.
+   * Mantenido para reintentos manuales; el flujo normal cifra automáticamente al completar.
+   */
+  async buildDeliverable(
+    batchId: string,
+    _confirmWarnings?: boolean,
+    _usuarioGeneradorId?: string,
+  ): Promise<GiisBatch | null> {
+    const batch = await this.getBatch(batchId);
+    if (!batch || batch.status === 'failed') return null;
+
+    const needsEncryption = (batch.artifacts ?? []).some((a) => !a.zipPath);
+    if (needsEncryption) {
+      await this.encryptAndZipArtifacts(batchId);
+    }
+    return this.getBatch(batchId);
   }
 }
