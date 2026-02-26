@@ -48,6 +48,10 @@ import { GiisValidationService } from '../../src/modules/giis-export/validation/
 import { GiisCryptoService } from '../../src/modules/giis-export/crypto/giis-crypto.service';
 import { GiisExportAuditService } from '../../src/modules/giis-export/giis-export-audit.service';
 import { AuditService } from '../../src/modules/audit/audit.service';
+import { FirmanteHelper } from '../../src/modules/expedientes/helpers/firmante-helper';
+import { CatalogsService } from '../../src/modules/catalogs/catalogs.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const mockGiisValidationService = {
   validateAndFilterRows: jest.fn().mockImplementation(async (_guide, rows) => ({
@@ -101,6 +105,17 @@ describe('NOM-024 GIIS Batch (Phase 1A)', () => {
           provide: AuditService,
           useValue: { record: jest.fn().mockResolvedValue({}) },
         },
+        {
+          provide: FirmanteHelper,
+          useValue: {
+            getPrestadorDataFromUser: jest.fn().mockResolvedValue(null),
+            getFirmanteDataForLes: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
+          provide: CatalogsService,
+          useValue: { getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142) },
+        },
       ],
     }).compile();
     service = module.get<GiisBatchService>(GiisBatchService);
@@ -137,5 +152,132 @@ describe('NOM-024 GIIS Batch (Phase 1A)', () => {
       const found = await service.getBatch('invalid-id');
       expect(found).toBeNull();
     });
+  });
+});
+
+describe('NOM-024 GIIS Batch Phase 6 — automatic encryption', () => {
+  let service: GiisBatchService;
+  let mongoUri: string;
+  const KEY_BASE64 = Buffer.alloc(24, 0x01).toString('base64');
+  const proveedorId = new Types.ObjectId().toString();
+  const yearMonth = '2025-01';
+
+  beforeAll(async () => {
+    mongoUri = await startMongoMemoryServer();
+    process.env.GIIS_3DES_KEY_BASE64 = KEY_BASE64;
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [
+        ConfigModule.forRoot({ isGlobal: true }),
+        MongooseModule.forRoot(mongoUri),
+        MongooseModule.forFeature([
+          { name: GiisBatch.name, schema: GiisBatchSchema },
+          { name: Deteccion.name, schema: DeteccionSchema },
+          { name: NotaMedica.name, schema: NotaMedicaSchema },
+          { name: Lesion.name, schema: LesionSchema },
+          { name: Trabajador.name, schema: TrabajadorSchema },
+          { name: CentroTrabajo.name, schema: CentroTrabajoSchema },
+          { name: Empresa.name, schema: EmpresaSchema },
+        ]),
+      ],
+      providers: [
+        GiisBatchService,
+        GiisSerializerService,
+        {
+          provide: RegulatoryPolicyService,
+          useValue: { getRegulatoryPolicy: jest.fn() },
+        },
+        {
+          provide: ProveedoresSaludService,
+          useValue: { findOne: jest.fn() },
+        },
+        {
+          provide: GiisValidationService,
+          useValue: mockGiisValidationService,
+        },
+        GiisCryptoService,
+        {
+          provide: GiisExportAuditService,
+          useValue: { recordGenerationAudit: jest.fn().mockResolvedValue({}) },
+        },
+        {
+          provide: AuditService,
+          useValue: { record: jest.fn().mockResolvedValue({}) },
+        },
+        {
+          provide: FirmanteHelper,
+          useValue: {
+            getPrestadorDataFromUser: jest.fn().mockResolvedValue(null),
+            getFirmanteDataForLes: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
+          provide: CatalogsService,
+          useValue: { getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142) },
+        },
+      ],
+    }).compile();
+    service = module.get<GiisBatchService>(GiisBatchService);
+  }, 30000);
+
+  afterAll(async () => {
+    delete process.env.GIIS_3DES_KEY_BASE64;
+    delete process.env.GIIS_ENCRYPTION_VALIDATED;
+    await stopMongoMemoryServer();
+  }, 10000);
+
+  it('completing batch (CEX+LES) without blockers → artifacts have zipPath and ZIP exists', async () => {
+    process.env.GIIS_ENCRYPTION_VALIDATED = 'false';
+    const batch = await service.createBatch(proveedorId, yearMonth);
+    await service.generateBatchCex(batch._id.toString());
+    await service.generateBatchLes(batch._id.toString());
+
+    const updated = await service.getBatch(batch._id.toString());
+    expect(updated).toBeDefined();
+    expect(updated!.status).toBe('completed');
+    const cexArt = updated!.artifacts?.find((a) => a.guide === 'CEX');
+    const lesArt = updated!.artifacts?.find((a) => a.guide === 'LES');
+    expect(cexArt?.zipPath).toBeDefined();
+    expect(cexArt?.hashSha256).toBeDefined();
+    expect(lesArt?.zipPath).toBeDefined();
+    expect(lesArt?.hashSha256).toBeDefined();
+
+    const cwd = process.cwd();
+    expect(fs.existsSync(path.join(cwd, cexArt!.zipPath!))).toBe(true);
+    expect(fs.existsSync(path.join(cwd, lesArt!.zipPath!))).toBe(true);
+  });
+
+  it('with GIIS_ENCRYPTION_VALIDATED=false or undefined, encryption runs (no 409)', async () => {
+    delete process.env.GIIS_ENCRYPTION_VALIDATED;
+    const batch = await service.createBatch(proveedorId, '2025-02');
+    await service.generateBatchCex(batch._id.toString());
+    await service.generateBatchLes(batch._id.toString());
+
+    const updated = await service.getBatch(batch._id.toString());
+    const cex = updated!.artifacts?.find((a) => a.guide === 'CEX');
+    expect(cex?.zipPath).toBeDefined();
+  });
+
+  it('without GIIS_3DES_KEY_BASE64, completion throws ConflictException', async () => {
+    const savedKey = process.env.GIIS_3DES_KEY_BASE64;
+    delete process.env.GIIS_3DES_KEY_BASE64;
+
+    const batch = await service.createBatch(proveedorId, '2025-03');
+
+    await expect(service.generateBatchCex(batch._id.toString())).rejects.toThrow(
+      /GIIS_3DES_KEY_BASE64/,
+    );
+
+    process.env.GIIS_3DES_KEY_BASE64 = savedKey;
+  });
+
+  it('buildDeliverable (fallback) delegates to encryptAndZipArtifacts', async () => {
+    const batch = await service.createBatch(proveedorId, '2025-04');
+    await service.generateBatchCex(batch._id.toString());
+    await service.generateBatchLes(batch._id.toString());
+
+    const built = await service.buildDeliverable(batch._id.toString());
+    expect(built).toBeDefined();
+    const cex = built!.artifacts?.find((a) => a.guide === 'CEX');
+    expect(cex?.zipPath).toBeDefined();
   });
 });

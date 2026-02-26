@@ -48,6 +48,8 @@ import { UsersService } from '../../src/modules/users/users.service';
 import { GiisValidationService } from '../../src/modules/giis-export/validation/giis-validation.service';
 import { GiisCryptoService } from '../../src/modules/giis-export/crypto/giis-crypto.service';
 import { GiisExportAuditService } from '../../src/modules/giis-export/giis-export-audit.service';
+import { FirmanteHelper } from '../../src/modules/expedientes/helpers/firmante-helper';
+import { CatalogsService } from '../../src/modules/catalogs/catalogs.service';
 
 const mockGiisValidationService = {
   validateAndFilterRows: jest
@@ -74,6 +76,8 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
   beforeAll(async () => {
     mongoUri = await startMongoMemoryServer();
     process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
+    process.env.GIIS_3DES_KEY_BASE64 =
+      process.env.GIIS_3DES_KEY_BASE64 || Buffer.alloc(24, 0x01).toString('base64');
 
     const policySires = {
       getRegulatoryPolicy: jest
@@ -111,7 +115,7 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
           },
         },
         { provide: GiisValidationService, useValue: mockGiisValidationService },
-        { provide: GiisCryptoService, useValue: {} },
+        GiisCryptoService,
         {
           provide: GiisExportAuditService,
           useValue: { recordGenerationAudit: jest.fn().mockResolvedValue({}) },
@@ -119,6 +123,17 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
         {
           provide: AuditService,
           useValue: { record: jest.fn().mockResolvedValue({}) },
+        },
+        {
+          provide: FirmanteHelper,
+          useValue: {
+            getPrestadorDataFromUser: jest.fn().mockResolvedValue(null),
+            getFirmanteDataForLes: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
+          provide: CatalogsService,
+          useValue: { getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142) },
         },
         {
           provide: UsersService,
@@ -196,6 +211,28 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
     const firstLine = res.text.split('\n')[0];
     expect(firstLine).toContain('clues');
   });
+
+  it('GET /giis-export/batches/:batchId/download-deliverable/:guide → 200 and ZIP with Content-Disposition', async () => {
+    const batch = await giisBatchService.createBatchForExport(
+      proveedorId,
+      '2025-02',
+    );
+    await giisBatchService.generateBatchCex(batch._id.toString());
+    await giisBatchService.generateBatchLes(batch._id.toString());
+
+    const res = await request(app.getHttpServer())
+      .get(
+        `/api/giis-export/batches/${batch._id.toString()}/download-deliverable/CEX`,
+      )
+      .set('Authorization', `Bearer ${tokenForUser(userId)}`)
+      .expect(200);
+
+    expect(res.headers['content-type']).toContain('application/zip');
+    expect(res.headers['content-disposition']).toBeDefined();
+    expect(res.headers['content-disposition']).toContain('attachment');
+    expect(res.headers['content-disposition']).toContain('.ZIP');
+    expect(Buffer.isBuffer(res.body) || typeof res.body === 'object').toBe(true);
+  });
 });
 
 describe('GIIS Export gate SIRES', () => {
@@ -239,6 +276,17 @@ describe('GIIS Export gate SIRES', () => {
         {
           provide: AuditService,
           useValue: { record: jest.fn().mockResolvedValue({}) },
+        },
+        {
+          provide: FirmanteHelper,
+          useValue: {
+            getPrestadorDataFromUser: jest.fn().mockResolvedValue(null),
+            getFirmanteDataForLes: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
+          provide: CatalogsService,
+          useValue: { getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142) },
         },
       ],
     }).compile();
