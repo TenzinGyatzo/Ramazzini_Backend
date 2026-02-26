@@ -10,7 +10,6 @@ import {
   ForbiddenException,
   NotFoundException,
   UnauthorizedException,
-  ConflictException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { GiisBatchService } from './giis-batch.service';
@@ -31,8 +30,6 @@ import { AuditEventClass } from '../audit/constants/audit-event-class';
 
 const EXPORTS_BASE = 'exports/giis';
 const VALID_GUIDES = ['CEX', 'LES'] as const;
-const GIIS_ENCRYPTION_VALIDATED_MSG =
-  'Cifrado pendiente de validación DGIS; ver docs/nom-024/giis_encryption_spec.md';
 const DELIVERY_WARNING_9998 =
   'Anexo 3 NOM-024: Para el reporte de información forzosamente debe contar con una CLUES válida. Este archivo fue generado con CLUES 9998 y podría ser rechazado por la DGIS.';
 
@@ -228,11 +225,6 @@ export class GiisExportController {
     @Body() body: { confirmWarnings?: boolean },
     @Req() req: Request,
   ) {
-    const validated =
-      process.env.GIIS_ENCRYPTION_VALIDATED?.toLowerCase() === 'true';
-    if (!validated) {
-      throw new ConflictException(GIIS_ENCRYPTION_VALIDATED_MSG);
-    }
     const proveedorSaludId = await this.getProveedorSaludIdFromRequest(req);
     const batch = await this.giisBatchService.getBatch(batchId);
     if (!batch) {
@@ -285,7 +277,7 @@ export class GiisExportController {
     const zipPath = artifact?.zipPath;
     if (!zipPath) {
       throw new NotFoundException(
-        `No existe entregable ZIP para la guía ${guideUpper}. Ejecute build-deliverable primero.`,
+        `No existe entregable ZIP para la guía ${guideUpper}.`,
       );
     }
     const fullPath = path.join(process.cwd(), zipPath);
