@@ -51,7 +51,7 @@ export interface BatchListItem {
   establecimientoClues: string;
   errorMessage?: string;
   excludedReport?: { totalExcluded: number };
-  artifacts: { guide: string }[];
+  artifacts: { guide: string; path?: string; zipPath?: string }[];
 }
 
 interface LeanGiisBatchDoc {
@@ -224,9 +224,13 @@ export class GiisBatchService {
         excludedReport: d.excludedReport
           ? { totalExcluded: d.excludedReport.totalExcluded ?? 0 }
           : undefined,
-        artifacts: (d.artifacts ?? []).map((a: { guide: string }) => ({
-          guide: a.guide,
-        })),
+        artifacts: (d.artifacts ?? []).map(
+          (a: { guide: string; path?: string; zipPath?: string }) => ({
+            guide: a.guide,
+            path: a.path,
+            zipPath: a.zipPath,
+          }),
+        ),
       }));
 
     return items;
