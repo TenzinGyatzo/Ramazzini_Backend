@@ -151,7 +151,7 @@ Los informes GIIS que actualmente se generan en .txt deben cifrarse automáticam
 | 3 | UI SIRES — Generación de informes GIIS | UI generar/descargar informes GIIS (menú, listado, descargas) | — | Completed ✓ |
 | 4 | AuditTrail | Registro cronológico NOM-024, trazabilidad, no repudio, inalterabilidad | — | Completed ✓ |
 | 5 | Audit Trail — eventos usuarios y firmantes | Registro de eventos de gestión de usuarios y perfiles firmantes | — | Completed ✓ |
-| 6 | Cifrado de informes GIIS (txt → .cif) | Cifrado automático, TXT+ZIP descarga, CEX/LES | — | Planned |
+| 6 | Cifrado de informes GIIS (txt → .cif) | Cifrado automático, TXT+ZIP descarga, CEX/LES | — | Completed ✓ |
 
 **Total:** 6 phases | 2 requirements mapped ✓
 
