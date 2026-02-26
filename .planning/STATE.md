@@ -5,7 +5,7 @@
 See: `.planning/PROJECT.md` (updated 2026-02-04)
 
 **Core value:** Que un proveedor SIRES pueda exportar información según las 3 guías GIIS aplicables.  
-**Current focus:** Phase 6 — Cifrado de informes GIIS (txt → .cif). Siguiente fase en milestone.
+**Current focus:** Milestone SIRES_NOM024 completo (6 fases). Phase 6 verificada.
 
 ---
 
@@ -13,7 +13,7 @@ See: `.planning/PROJECT.md` (updated 2026-02-04)
 
 - **Milestone:** SIRES_NOM024 (features exclusivas para proveedores en régimen SIRES).
 - **Roadmap:** 6 phases (Exportación GIIS → … → Cifrado informes GIIS txt→.cif). Ver ROADMAP.md.
-- **Next Phase:** Phase 6 — Cifrado de informes GIIS (txt → .cif). Plan 06-02 completado. Phase 6 lista.
+- **Next Phase:** Milestone completo. Phase 6 verificada (06-VERIFICATION.md passed).
 - **Phase 5:** Completada (05-01 enums, 05-02 usuarios, 05-03 firmantes, 05-04 UI). **Verification:** `05-VERIFICATION.md` (passed).
 - **Phase 4:** Completada (04-01 cimientos … 04-07 deuda diferida). Tests NOM-024 en `test/nom024/audit-*.nom024.spec.ts`.
 - **Phase 3:** Completada (03-01 list batches, 03-02 menú + vista Exportación GIIS). **Verification:** `03-VERIFICATION.md` (passed). **UAT:** `03-UAT.md` — 10/10 tests passed.

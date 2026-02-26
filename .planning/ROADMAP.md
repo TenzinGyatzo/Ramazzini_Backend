@@ -137,6 +137,9 @@ Plans:
 - [x] 06-01 — Backend: Cifrado automático en completion, eliminar gate, mantener endpoints
 - [x] 06-02 — Frontend: Etiquetas "CEX Cifrado", "CEX.txt", "LES Cifrado", "LES.txt"
 
+**Status:** Completed  
+**Verification:** `phases/06-cifrado-informes-giis-txt-a-cif/06-VERIFICATION.md` (passed, 2026-02-26)
+
 **Details:**
 Los informes GIIS que actualmente se generan en .txt deben cifrarse automáticamente (TXT + CIF + ZIP) al completar el batch. Usuario puede descargar TXT y ZIP por cada guía. Alcance: solo CEX y LES.
 
