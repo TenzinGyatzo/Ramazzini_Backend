@@ -127,6 +127,21 @@ Contexto: `phases/05-audit-trail-eventos-usuarios-firmantes/05-CONTEXT.md`. Even
 
 ---
 
+## Phase 6: Cifrado de informes GIIS (txt → .cif)
+
+**Goal:** Cifrado automático de informes GIIS al completar batch; descarga TXT y ZIP (.CIF) disponibles; solo CEX y LES; sin gate GIIS_ENCRYPTION_VALIDATED.
+**Depends on:** Phase 5
+**Plans:** 2 plans (06-01, 06-02)
+
+Plans:
+- [x] 06-01 — Backend: Cifrado automático en completion, eliminar gate, mantener endpoints
+- [x] 06-02 — Frontend: Etiquetas "CEX Cifrado", "CEX.txt", "LES Cifrado", "LES.txt"
+
+**Details:**
+Los informes GIIS que actualmente se generan en .txt deben cifrarse automáticamente (TXT + CIF + ZIP) al completar el batch. Usuario puede descargar TXT y ZIP por cada guía. Alcance: solo CEX y LES.
+
+---
+
 ## Summary
 
 | # | Phase | Goal | Requirements | Status |
@@ -136,11 +151,12 @@ Contexto: `phases/05-audit-trail-eventos-usuarios-firmantes/05-CONTEXT.md`. Even
 | 3 | UI SIRES — Generación de informes GIIS | UI generar/descargar informes GIIS (menú, listado, descargas) | — | Completed ✓ |
 | 4 | AuditTrail | Registro cronológico NOM-024, trazabilidad, no repudio, inalterabilidad | — | Completed ✓ |
 | 5 | Audit Trail — eventos usuarios y firmantes | Registro de eventos de gestión de usuarios y perfiles firmantes | — | Completed ✓ |
+| 6 | Cifrado de informes GIIS (txt → .cif) | Cifrado automático, TXT+ZIP descarga, CEX/LES | — | Planned |
 
-**Total:** 5 phases | 2 requirements mapped ✓
+**Total:** 6 phases | 2 requirements mapped ✓
 
 ---
 
 ---
 
-*Last updated: 2026-02-09*
+*Last updated: 2026-02-26*

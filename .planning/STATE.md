@@ -13,13 +13,14 @@ See: `.planning/PROJECT.md` (updated 2026-02-04)
 
 - **Milestone:** SIRES_NOM024 (features exclusivas para proveedores en régimen SIRES).
 - **Roadmap:** 6 phases (Exportación GIIS → … → Cifrado informes GIIS txt→.cif). Ver ROADMAP.md.
-- **Next Phase:** Phase 6 — Cifrado de informes GIIS (txt → .cif). Plan 06-01 completado.
+- **Next Phase:** Phase 6 — Cifrado de informes GIIS (txt → .cif). Plan 06-02 completado. Phase 6 lista.
 - **Phase 5:** Completada (05-01 enums, 05-02 usuarios, 05-03 firmantes, 05-04 UI). **Verification:** `05-VERIFICATION.md` (passed).
 - **Phase 4:** Completada (04-01 cimientos … 04-07 deuda diferida). Tests NOM-024 en `test/nom024/audit-*.nom024.spec.ts`.
 - **Phase 3:** Completada (03-01 list batches, 03-02 menú + vista Exportación GIIS). **Verification:** `03-VERIFICATION.md` (passed). **UAT:** `03-UAT.md` — 10/10 tests passed.
 - **Phase 1:** Completada. Context: `.planning/phases/01-exportacion-giis/CONTEXT.md`. Planes 01-01 (1A) a 01-05 (1E). **Verification:** `01-VERIFICATION.md` (passed).
 - **Phase 2:** Completada (02-01 validación profunda, 02-02 naming/cifrado/ZIP, 02-03 auditoría y retención). **Verification:** `02-VERIFICATION.md` (passed). Deuda no crítica documentada: validación 3DES con DGIS pendiente; job de limpieza opcional.
 - **Phase 6 Plan 01:** Completada (06-01 cifrado automático, eliminación gate GIIS_ENCRYPTION_VALIDATED). **SUMMARY:** `.planning/phases/06-cifrado-informes-giis-txt-a-cif/06-01-SUMMARY.md`.
+- **Phase 6 Plan 02:** Completada (06-02 frontend etiquetas CEX Cifrado, CEX.txt, LES Cifrado, LES.txt). **SUMMARY:** `.planning/phases/06-cifrado-informes-giis-txt-a-cif/06-02-SUMMARY.md`.
 
 ---
 
@@ -55,7 +56,7 @@ See: `.planning/PROJECT.md` (updated 2026-02-04)
 *(Para reanudar tras pausa: qué se estaba haciendo, qué archivos tocar, siguiente paso.)*
 
 - Última sesión: 2026-02-26.
-- Completado: Plan 06-01 (cifrado automático, eliminación gate).
+- Completado: Plan 06-02 (frontend etiquetas CEX/LES Cifrado y txt).
 
 ---
 
