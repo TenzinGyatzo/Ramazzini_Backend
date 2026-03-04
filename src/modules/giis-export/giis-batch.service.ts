@@ -30,6 +30,7 @@ import type {
   GiisValidationStatus,
 } from './schemas/giis-batch.schema';
 import { GiisCryptoService } from './crypto/giis-crypto.service';
+import { DgisCifradoService } from './crypto/dgis-cifrado.service';
 import {
   getOfficialBaseName,
   getOfficialFileName,
@@ -86,6 +87,7 @@ export class GiisBatchService {
     private readonly proveedoresSaludService: ProveedoresSaludService,
     private readonly giisValidationService: GiisValidationService,
     private readonly giisCryptoService: GiisCryptoService,
+    private readonly dgisCifradoService: DgisCifradoService,
     private readonly giisExportAuditService: GiisExportAuditService,
     private readonly auditService: AuditService,
     private readonly firmanteHelper: FirmanteHelper,
@@ -618,7 +620,10 @@ export class GiisBatchService {
    * Phase 6: Cifrar y empaquetar (TXT → CIF → ZIP) para cada artifact del batch.
    * Invocado automáticamente al completar batch o como fallback vía build-deliverable.
    * Valida: batch existe, status completed o generating, validationStatus !== 'has_blockers'.
-   * Clave obligatoria: GIIS_3DES_KEY_BASE64 (24 bytes base64).
+   *
+   * Modo de cifrado (prioridad):
+   * 1. DGIS: Si DGIS_CIFRADO_DIR está configurado con cifrado.jar y keystore/transferencia.jks.
+   * 2. Node: Si GIIS_3DES_KEY_BASE64 está configurado (24 bytes base64).
    */
   private async encryptAndZipArtifacts(batchId: string): Promise<void> {
     const batch = await this.getBatch(batchId);
@@ -637,22 +642,26 @@ export class GiisBatchService {
       );
     }
 
-    const keyBase64 = process.env.GIIS_3DES_KEY_BASE64;
-    if (!keyBase64) {
-      throw new ConflictException(
-        'Clave 3DES no configurada (GIIS_3DES_KEY_BASE64). Ver docs/nom-024/giis_encryption_spec.md.',
-      );
-    }
-    let key: Buffer;
-    try {
-      key = Buffer.from(keyBase64, 'base64');
-    } catch {
-      throw new ConflictException('GIIS_3DES_KEY_BASE64 no es base64 válido.');
-    }
-    if (key.length !== 24) {
-      throw new ConflictException(
-        `La clave 3DES debe ser 24 bytes (base64), se recibieron ${key.length} bytes.`,
-      );
+    const useDgis = this.dgisCifradoService.isAvailable();
+    let key: Buffer | null = null;
+
+    if (!useDgis) {
+      const keyBase64 = process.env.GIIS_3DES_KEY_BASE64;
+      if (!keyBase64) {
+        throw new ConflictException(
+          'Configure DGIS_CIFRADO_DIR (con cifrado.jar y keystore/transferencia.jks) o GIIS_3DES_KEY_BASE64. Ver docs/nom-024/giis_encryption_spec.md.',
+        );
+      }
+      try {
+        key = Buffer.from(keyBase64, 'base64');
+      } catch {
+        throw new ConflictException('GIIS_3DES_KEY_BASE64 no es base64 válido.');
+      }
+      if (key.length !== 24) {
+        throw new ConflictException(
+          `La clave 3DES debe ser 24 bytes (base64), se recibieron ${key.length} bytes.`,
+        );
+      }
     }
 
     const [year, month] = batch.yearMonth.split('-').map(Number);
@@ -688,9 +697,22 @@ export class GiisBatchService {
         year,
         month,
       );
-      const txtContent = fs.readFileSync(fullPath, 'latin1');
-      const plainBuffer = Buffer.from(txtContent, 'latin1');
-      const cifBuffer = this.giisCryptoService.encryptToCif(plainBuffer, key);
+
+      let cifBuffer: Buffer;
+      if (useDgis) {
+        cifBuffer = await this.dgisCifradoService.encryptTxtToCif(
+          fullPath,
+          baseName,
+        );
+      } else {
+        const txtContent = fs.readFileSync(fullPath, 'latin1');
+        const plainBuffer = Buffer.from(txtContent, 'latin1');
+        cifBuffer = this.giisCryptoService.encryptToCif(
+          plainBuffer,
+          key as Buffer,
+        );
+      }
+
       const cifPath = path.join(dir, getOfficialFileName(baseName, 'CIF'));
       fs.writeFileSync(cifPath, cifBuffer);
 

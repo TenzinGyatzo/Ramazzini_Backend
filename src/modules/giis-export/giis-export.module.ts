@@ -6,6 +6,7 @@ import { GiisSerializerService } from './giis-serializer.service';
 import { GiisExportController } from './giis-export.controller';
 import { GiisValidationService } from './validation/giis-validation.service';
 import { GiisCryptoService } from './crypto/giis-crypto.service';
+import { DgisCifradoService } from './crypto/dgis-cifrado.service';
 import { GiisExportAuditService } from './giis-export-audit.service';
 import { GiisBatch, GiisBatchSchema } from './schemas/giis-batch.schema';
 import {
@@ -78,6 +79,7 @@ import { FirmanteHelperModule } from '../expedientes/firmante-helper.module';
     GiisSerializerService,
     GiisValidationService,
     GiisCryptoService,
+    DgisCifradoService,
     GiisExportAuditService,
   ],
   exports: [
@@ -86,6 +88,7 @@ import { FirmanteHelperModule } from '../expedientes/firmante-helper.module';
     GiisSerializerService,
     GiisValidationService,
     GiisCryptoService,
+    DgisCifradoService,
     GiisExportAuditService,
   ],
 })

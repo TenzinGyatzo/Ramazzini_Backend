@@ -110,6 +110,80 @@ export function extractCieCode(value: string | null | undefined): string {
 }
 
 /**
+ * Heurística: código crónico (DIA_CRONICOS) - Diabetes E11*, HTA I1*, Dislipidemia.
+ */
+function esCodigoCronico(codigo: string): boolean {
+  const c = codigo.toUpperCase().replace(/\./g, '');
+  return c.startsWith('E11') || c.startsWith('I1') || c.startsWith('E78');
+}
+
+/**
+ * Heurística: código cáncer infantil (DIA_CAINFANTIL) - C*.
+ */
+function esCodigoCancerInfantil(codigo: string): boolean {
+  return codigo.toUpperCase().replace(/\./g, '').startsWith('C');
+}
+
+/**
+ * Calcula edad en años entre fechaNacimiento y fechaConsulta.
+ */
+function calcularEdad(
+  fechaNacimiento?: Date | null,
+  fechaConsulta?: Date | null,
+): number | null {
+  if (!fechaNacimiento || !fechaConsulta) return null;
+  const fn = new Date(fechaNacimiento);
+  const fc = new Date(fechaConsulta);
+  if (isNaN(fn.getTime()) || isNaN(fc.getTime())) return null;
+  let edad = fc.getFullYear() - fn.getFullYear();
+  const m = fc.getMonth() - fn.getMonth();
+  if (m < 0 || (m === 0 && fc.getDate() < fn.getDate())) edad--;
+  return edad;
+}
+
+/**
+ * Fe de Erratas: confirmacionDiagnostica1 aplica solo cuando:
+ * - edad < 18 y DIA_CAINFANTIL=1, o
+ * - relacionTemporal=0, edad >= 20 y DIA_CRONICOS=1.
+ */
+function debeReportarConfirmacionDiagnostica1(
+  consulta: ConsultaExternaLike,
+  trabajador: TrabajadorLike | null | undefined,
+  codigo1: string,
+): boolean {
+  const edad = calcularEdad(
+    trabajador?.fechaNacimiento,
+    consulta.fechaNotaMedica,
+  );
+  if (edad === null) return false;
+  if (edad < 18) return esCodigoCancerInfantil(codigo1);
+  if (edad >= 20)
+    return consulta.relacionTemporal === 0 && esCodigoCronico(codigo1);
+  return false; // 18-19 años: no aplica según reglas
+}
+
+/**
+ * Fe de Erratas: confirmacionDiagnostica2 aplica solo cuando:
+ * - edad < 18 y DIA_CAINFANTIL=1, o
+ * - primeraVezDiagnostico2=1, edad >= 20 y DIA_CRONICOS=1.
+ */
+function debeReportarConfirmacionDiagnostica2(
+  consulta: ConsultaExternaLike,
+  trabajador: TrabajadorLike | null | undefined,
+  codigo2: string,
+): boolean {
+  const edad = calcularEdad(
+    trabajador?.fechaNacimiento,
+    consulta.fechaNotaMedica,
+  );
+  if (edad === null) return false;
+  if (edad < 18) return esCodigoCancerInfantil(codigo2);
+  if (edad >= 20)
+    return consulta.primeraVezDiagnostico2 === 1 && esCodigoCronico(codigo2);
+  return false;
+}
+
+/**
  * Collect all CIE-10 codes from a consulta (principal, all complementarios, codigoCIEDiagnostico2).
  */
 function getAllCieCodesFromConsulta(consulta: ConsultaExternaLike): string[] {
@@ -272,7 +346,15 @@ export function mapNotaMedicaToCexRow(
     primeraVezUneme: -1,
     relacionTemporal: consulta.relacionTemporal ?? 0,
     codigoCIEDiagnostico1: codigo1 || 'R69X',
-    confirmacionDiagnostica1: consulta.confirmacionDiagnostica ? 1 : 0,
+    confirmacionDiagnostica1: (() => {
+      const aplica = debeReportarConfirmacionDiagnostica1(
+        consulta,
+        trabajador,
+        codigo1 || '',
+      );
+      if (!aplica) return -1;
+      return consulta.confirmacionDiagnostica ? 1 : 0;
+    })(),
     primeraVezDiagnostico2:
       consulta.primeraVezDiagnostico2 === 1
         ? 1
@@ -280,12 +362,15 @@ export function mapNotaMedicaToCexRow(
           ? 0
           : -1,
     codigoCIEDiagnostico2: codigo2,
-    confirmacionDiagnostica2:
-      consulta.confirmacionDiagnostica2 === true
-        ? 1
-        : consulta.confirmacionDiagnostica2 === false
-          ? 0
-          : -1,
+    confirmacionDiagnostica2: (() => {
+      const aplica = debeReportarConfirmacionDiagnostica2(
+        consulta,
+        trabajador,
+        codigo2 || '',
+      );
+      if (!aplica) return -1;
+      return consulta.confirmacionDiagnostica2 === true ? 1 : 0;
+    })(),
     primeraVezDiagnostico3: -1,
     codigoCIEDiagnostico3: '',
     confirmacionDiagnostica3: -1,

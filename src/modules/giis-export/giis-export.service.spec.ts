@@ -58,14 +58,17 @@ describe('GIISExportService - Regulatory Policy Enforcement', () => {
     },
   });
 
-  // Create mock model factory
+  // Create mock model factory (chain: find/lean/exec)
   const createMockModel = () => ({
     find: jest.fn().mockReturnValue({
-      lean: jest.fn().mockResolvedValue([]),
+      lean: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([]),
+      }),
     }),
     findById: jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue(null),
-      lean: jest.fn().mockResolvedValue(null),
+      lean: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      }),
     }),
   });
 
@@ -134,7 +137,9 @@ describe('GIISExportService - Regulatory Policy Enforcement', () => {
         Model<Lesion>
       >;
       mockLesionModel.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([]),
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
       } as any);
 
       const result = await service.exportLesionesGIIS({ proveedorSaludId });

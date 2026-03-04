@@ -1,0 +1,232 @@
+Aquí tienes la matriz de Fe de Erratas extraída de la **Guía GIIS-B015-04-11 (Consulta Externa)**. La he formateado en bloques de texto claro y estructurado para que al copiar y pegar en un archivo `.txt` (como el Bloc de notas) conserve la legibilidad perfecta sin que se rompan las tablas.
+
+***
+
+### FE DE ERRATAS - GUÍA GIIS-B015-04-11 (CONSULTA EXTERNA)
+*Cambios realizados a la Guía para precisar, eliminar o adicionar reglas de validación.*
+
+--------------------------------------------------------------------------------
+**FECHA:** 28/08/2024
+**PÁGINA:** 15
+**VARIABLE:** programaSMyMG
+**COLUMNA:** Validación
+
+**DECÍA:**
+Si el valor registrado en la variable “clues”, en la columna de institucion es igual a “SSA” de acuerdo al catálogo de ESTABLECIMIENTO DE SALUD SIS…
+
+**DICE:**
+Si el valor registrado en la variable “clues”, en la columna de institucion es igual a “SSA” o “IMB” de acuerdo al catálogo de ESTABLECIMIENTO DE SALUD SIS…
+
+**COMENTARIOS:**
+Se agrega en la regla de validación el acrónimo de la institución “IMB” que corresponde al OPD IMSS BIENESTAR.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+**FECHA:** 18/04/2024
+**PÁGINA:** 27
+**VARIABLE:** confirmacionDiagnostica1
+**COLUMNA:** Descripción
+
+**DECÍA:**
+Identifica cuando padecimientos como Diabetes Mellitus tipo 2, Hipertensión Arterial Sistémica y Dislipidemia son confirmados durante la consulta.
+
+**DICE:**
+Identifica cuando padecimientos como: Diabetes Mellitus tipo 2, Hipertensión Arterial Sistémica y Dislipidemia; o cáncer en menores de 18 años, son confirmados durante la consulta.
+
+**COMENTARIOS:**
+Se complementa la descripción, incluyendo la confirmación en casos de cáncer en menores de 18 años.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+**FECHA:** 18/04/2024
+**PÁGINA:** 27
+**VARIABLE:** confirmacionDiagnostica1
+**COLUMNA:** Validación
+
+**DECÍA:**
+… el valor de la variable “relacionTemporal” es “0 – PRIMERA VEZ” y se cumple con una de las siguientes condiciones:
+* Si la edad del paciente es mayor o igual a 20 años y el valor de la celda asociada al código CIE registrado en la variable “codigoCIEDiagnostico1” en la columna DIA_CRONICOS del catálogo DIAGNOSTICO_SIS es “1 – SI”.
+* Si la edad del paciente es menor de 18 años y el valor de la celda asociada al código CIE registrado en la variable “codigoCIEDiagnostico1” en la columna DIA_CAINFANTIL del catálogo DIAGNOSTICO_SIS es “1 – SI”.
+…
+
+**DICE:**
+… y se cumple con una de las siguientes condiciones:
+* Si la edad del paciente es menor de 18 años y el valor de la celda asociada al código CIE registrado en la variable “codigoCIEDiagnostico1” en la columna DIA_CAINFANTIL del catálogo DIAGNOSTICO_SIS es “1 – SI”.
+* Si el valor de la variable “relacionTemporal” es “0 – PRIMERA VEZ”, la edad del paciente es mayor o igual a 20 años y el valor de la celda asociada al código CIE registrado en la variable “codigoCIEDiagnostico1” en la columna DIA_CRONICOS del catálogo DIAGNOSTICO_SIS es “1 – SI”.
+…
+
+**COMENTARIOS:**
+Se elimina la validación con respecto a la variable relacionTemporal en pacientes menores de 18 años de edad.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+**FECHA:** 18/04/2024
+**PÁGINA:** 27
+**VARIABLE:** codigoCIEDiagnostico2
+**COLUMNA:** Validación
+
+**DECÍA:**
+…
+* Si el valor de la variable “primeraVezDiagnostico2” es “1 – SI”, se debe validar que, el valor registrado en la variable “tipoPersonal” se encuentre en la relación de prestadores de la celda asociada al código CIE en la columna TIPO_PERSONAL_1VEZ_CE del catálogo DIAGNOSTICO_SIS.
+* Si el valor de la variable “primeraVezDiagnostico2” es “0 – NO”, se debe validar que, el valor registrado en la variable “tipoPersonal” se encuentre en la relación de prestadores de la celda asociada al código CIE en la columna TIPO_PERSONAL_SUBSEC_ CE del catálogo DIAGNOSTICO_SIS.
+…
+* Si al código CIE registrado le corresponde el valor “MT” o “CP” con respecto a la columna LETRA del catálogo DIAGNOSTICO_SIS, se debe validar lo siguiente:
+o Si el valor es "MT", se debe validar que el valor de la variable “tipoPersonal” sea “10 – MÉDICA (O) TRADICIONAL”.
+o Si el valor es "CP", se debe validar que el valor de la variable “tipoPersonal” sea “4 – MÉDICA(O) ESPECIALISTA”.
+…
+
+**DICE:**
+…
+* Si al código CIE registrado le corresponde el valor “MT” o “CP” con respecto a la columna LETRA del catálogo DIAGNOSTICO_SIS, se debe validar lo siguiente:
+o Si el valor es "MT", se debe validar que el valor de la variable “tipoPersonal” sea “10 – MÉDICA (O) TRADICIONAL”.
+o Si el valor es "CP", se debe validar que el valor de la variable “tipoPersonal” sea “4 – MÉDICA(O) ESPECIALISTA”.
+…
+
+**COMENTARIOS:**
+Se elimina la validación con respecto a la temporalidad TIPO_PERSONAL_1 VEZ_CE y TIPO_PERSONAL_ SUBSEC_CE. Se agrega la regla de validación con respecto a nuevos códigos catálogo DIAGNOSTICO_SIS y el valor que le corresponde de acuerdo a la columna LETRA de dicho catálogo.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+**FECHA:** 18/04/2024
+**PÁGINA:** 28
+**VARIABLE:** confirmacionDiagnostica2
+**COLUMNA:** Descripción
+
+**DECÍA:**
+Identifica cuando padecimientos como Diabetes Mellitus tipo 2, Hipertensión Arterial Sistémica y Dislipidemia son confirmados durante la consulta.
+
+**DICE:**
+Identifica cuando padecimientos como: Diabetes Mellitus tipo 2, Hipertensión Arterial Sistémica y Dislipidemia; o cáncer en menores de 18 años, son confirmados durante la consulta.
+
+**COMENTARIOS:**
+Se complementa la descripción, incluyendo la confirmación en casos de cáncer en menores de 18 años.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+**FECHA:** 18/04/2024
+**PÁGINA:** 28
+**VARIABLE:** confirmacionDiagnostica2
+**COLUMNA:** Validación
+
+**DECÍA:**
+… el valor de la variable “primeraVezDiagnostico2” es “1 – SI” y se cumple con una de las siguientes condiciones:
+* Si la edad del paciente es mayor o igual a 20 años y el valor de la celda asociada al código CIE registrado en la variable “codigoCIEDiagnostico2” en la columna DIA_CRONICOS del catálogo DIAGNOSTICO_SIS es “1 – SI”.
+* Si la edad del paciente es menor de 18 años y el valor de la celda asociada al código CIE registrado en la variable “codigoCIEDiagnostico2” en la columna DIA_CAINFANTIL del catálogo DIAGNOSTICO_SIS es “1 – SI”.
+…
+
+**DICE:**
+… y se cumple con una de las siguientes condiciones:
+* Si la edad del paciente es menor de 18 años y el valor de la celda asociada al código CIE registrado en la variable “codigoCIEDiagnostico2” en la columna DIA_CAINFANTIL del catálogo DIAGNOSTICO_SIS es “1 – SI”.
+* Si el valor de la variable “primeraVezDiagnostico2” es “1 – SI”, la edad del paciente es mayor o igual a 20 años y el valor de la celda asociada al código CIE registrado en la variable “codigoCIEDiagnostico2” en la columna DIA_CRONICOS del catálogo DIAGNOSTICO_SIS es “1 – SI”.
+…
+
+**COMENTARIOS:**
+Se elimina la validación con respecto a la variable primeraVezDiagnostico2 en pacientes menores de 18 años de edad.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+**FECHA:** 18/04/2024
+**PÁGINA:** 29
+**VARIABLE:** codigoCIEDiagnostico3
+**COLUMNA:** Validación
+
+**DECÍA:**
+…
+* Si el valor de la variable “primeraVezDiagnostico3” es “1 – SI”, se debe validar que, el valor registrado en la variable “tipoPersonal” se encuentre en la relación de prestadores de la celda asociada al código CIE en la columna TIPO_PERSONAL_1VEZ_CE del catálogo DIAGNOSTICO_SIS.
+* Si el valor de la variable “primeraVezDiagnostico3” es “0 – NO”, se debe validar que, el valor registrado en la variable “tipoPersonal” se encuentre en la relación de prestadores de la celda asociada al código CIE en la columna TIPO_PERSONAL_SUBSEC_ CE del catálogo DIAGNOSTICO_SIS.
+…
+* Si al código CIE registrado le corresponde el valor “MT” o “CP” con respecto a la columna LETRA del catálogo DIAGNOSTICO_SIS, se debe validar lo siguiente:
+o Si el valor es "MT", se debe validar que el valor de la variable “tipoPersonal” sea “10 – MÉDICA (O) TRADICIONAL”.
+o Si el valor es "CP", se debe validar que el valor de la variable “tipoPersonal” sea “4 – MÉDICA(O) ESPECIALISTA”.
+…
+
+**DICE:**
+…
+* Si al código CIE registrado le corresponde el valor “MT” o “CP” con respecto a la columna LETRA del catálogo DIAGNOSTICO_SIS, se debe validar lo siguiente:
+o Si el valor es "MT", se debe validar que el valor de la variable “tipoPersonal” sea “10 – MÉDICA (O) TRADICIONAL”.
+o Si el valor es "CP", se debe validar que el valor de la variable “tipoPersonal” sea “4 – MÉDICA(O) ESPECIALISTA”.
+…
+
+**COMENTARIOS:**
+Se elimina la validación con respecto a la temporalidad TIPO_PERSONAL_1 VEZ_CE y TIPO_PERSONAL_ SUBSEC_CE. Se agrega la regla de validación con respecto a nuevos códigos del catálogo DIAGNOSTICO_SIS y el valor que le corresponde de acuerdo a la columna LETRA de dicho catálogo.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+**FECHA:** 18/04/2024
+**PÁGINA:** 30
+**VARIABLE:** confirmacionDiagnostica3
+**COLUMNA:** Descripción
+
+**DECÍA:**
+Identifica cuando padecimientos como Diabetes Mellitus tipo 2, Hipertensión Arterial Sistémica y Dislipidemia son confirmados durante la consulta.
+
+**DICE:**
+Identifica cuando padecimientos como: Diabetes Mellitus tipo 2, Hipertensión Arterial Sistémica y Dislipidemia; o cáncer en menores de 18 años, son confirmados durante la consulta.
+
+**COMENTARIOS:**
+Se complementa la descripción, incluyendo la confirmación en casos de cáncer en menores de 18 años.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+**FECHA:** 18/04/2024
+**PÁGINA:** 30
+**VARIABLE:** confirmacionDiagnostica3
+**COLUMNA:** Validación
+
+**DECÍA:**
+… el valor de la variable “primeraVezDiagnostico3” es “1 – SI” y se cumple con una de las siguientes condiciones:
+* Si la edad del paciente es mayor o igual a 20 años y el valor de la celda asociada al código CIE registrado en la variable “codigoCIEDiagnostico3” en la columna DIA_CRONICOS del catálogo DIAGNOSTICO_SIS es “1 – SI”.
+* Si la edad del paciente es menor de 18 años y el valor de la celda asociada al código CIE registrado en la variable “codigoCIEDiagnostico3” en la columna DIA_CAINFANTIL del catálogo DIAGNOSTICO_SIS es “1 – SI”.
+…
+
+**DICE:**
+… y se cumple con una de las siguientes condiciones:
+* Si la edad del paciente es menor de 18 años y el valor de la celda asociada al código CIE registrado en la variable “codigoCIEDiagnostico3” en la columna DIA_CAINFANTIL del catálogo DIAGNOSTICO_SIS es “1 – SI”.
+* Si el valor de la variable “primeraVezDiagnostico3” es “1 – SI”, la edad del paciente es mayor o igual a 20 años y el valor de la celda asociada al código CIE registrado en la variable “codigoCIEDiagnostico3” en la columna DIA_CRONICOS del catálogo DIAGNOSTICO_SIS es “1 – SI”.
+…
+
+**COMENTARIOS:**
+Se elimina la validación con respecto a la variable primeraVezDiagnostico3 en pacientes menores de 18 años de edad.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+**FECHA:** 18/04/2024
+**PÁGINA:** 36
+**VARIABLE:** cancerMamario
+**COLUMNA:** Validación
+
+**DECÍA:**
+…
+* Se debe validar de acuerdo al catálogo ESTABLECIMIENTO DE SALUD SIS que el campo institucion sea “SSA” o “SME”; o que el campo tipo_unidad sea igual a “2 – DE HOSPITALIZACION” y el campo tip_abreviacion sea igual a “99”, “M”, “N” u “O”, o que el campo tipo_unidad sea igual a “1 – DE CONSULTA EXTERNA” y que en el campo sub_abreviacion sea igual a “T07”, “UNE05”, “UNE07”, “UNE11” o “UNE99”.
+…
+
+**DICE:**
+…
+* Se debe validar que, para la CLUES registrada, de acuerdo al catálogo ESTABLECIMIENTO DE SALUD SIS el campo institucion sea “SSA”, “IMB” o “SME” y se cumpla con una de las siguientes condiciones:
+* Que el campo tipo_unidad sea igual a “2 – DE HOSPITALIZACION” y el campo tip_abreviacion sea igual a “99”, “M”, “N” u “O”.
+* Que el campo tipo_unidad sea igual a “1 – DE CONSULTA EXTERNA” y que en el campo sub_abreviacion sea igual a “T07”, “UNE05”, “UNE07”, “UNE11” o “UNE99”.
+
+**COMENTARIOS:**
+Se realiza corrección en la regla relacionada con la identificación de los establecimientos de salud especializados. Se agrega en la regla de validación el acrónimo de la institución “IMB” que corresponde al OPD IMSS BIENESTAR.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+**FECHA:** 18/04/2024
+**PÁGINA:** 37
+**VARIABLE:** cancerCervicouterino
+**COLUMNA:** Validación
+
+**DECÍA:**
+...
+* Se debe validar de acuerdo al catálogo ESTABLECIMIENTO DE SALUD SIS que el campo institucion sea “SSA” o “SME”; o que el campo tipo_unidad sea igual a “2 – DE HOSPITALIZACION” y el campo tip_abreviacion sea igual a “99”, “M”, “N” u “O”, o que el campo tipo_unidad sea igual a “1 – DE CONSULTA EXTERNA” y que en el campo sub_abreviacion sea igual a “T07”, “UNE05”, “UNE07”, “UNE11” o “UNE99”.
+…
+
+**DICE:**
+…
+* Se debe validar que, para la CLUES registrada, de acuerdo al catálogo ESTABLECIMIENTO DE SALUD SIS el campo institucion sea “SSA”, “IMB” o “SME” y se cumpla con una de las siguientes condiciones:
+* Que el campo tipo_unidad sea igual a “2 – DE HOSPITALIZACION” y el campo tip_abreviacion sea igual a “99”, “M”, “N” u “O”.
+* Que el campo tipo_unidad sea igual a “1 – DE CONSULTA EXTERNA” y que en el campo sub_abreviacion sea igual a “T07”, “UNE05”, “UNE07”, “UNE11” o “UNE99”.
+
+**COMENTARIOS:**
+Se realiza corrección en la regla relacionada con la identificación de los establecimientos de salud especializados. Se agrega en la regla de validación el acrónimo de la institución “IMB” que corresponde al OPD IMSS BIENESTAR.
+--------------------------------------------------------------------------------
