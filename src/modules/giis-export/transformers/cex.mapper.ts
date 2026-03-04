@@ -35,6 +35,9 @@ export interface ConsultaExternaLike {
   codigoCIEDiagnostico2?: string;
   confirmacionDiagnostica?: boolean;
   confirmacionDiagnostica2?: boolean;
+  primeraVezDiagnostico3?: number; // 0=No, 1=Si
+  codigoCIEDiagnostico3?: string;
+  confirmacionDiagnostica3?: boolean;
   /** 1 = primera consulta del trabajador en el año, 0 = ya existía otra (solo NotaMedica). */
   primeraVezAnio?: number;
   [key: string]: unknown;
@@ -62,6 +65,14 @@ export interface PrestadorLike {
 const CEX_SCHEMA = loadGiisSchema('CEX');
 
 const DEFAULT_XX = 'XX';
+/** CEX: valor para "Se desconoce" en signos vitales */
+const CEX_UNKNOWN = 0;
+
+/** Mapea valor de signo vital a CEX: undefined/null → 0 (desconocido) */
+function toCexVital(value: number | undefined | null): number {
+  if (value == null) return CEX_UNKNOWN;
+  return value;
+}
 const DEFAULT_PAIS_MEXICO = 142;
 /** cat_pais "NO ESPECIFICADO" when nacionalidad has no mapping */
 const PAIS_NO_ESPECIFICADO = 248;
@@ -184,7 +195,28 @@ function debeReportarConfirmacionDiagnostica2(
 }
 
 /**
- * Collect all CIE-10 codes from a consulta (principal, all complementarios, codigoCIEDiagnostico2).
+ * Fe de Erratas: confirmacionDiagnostica3 aplica solo cuando:
+ * - edad < 18 y DIA_CAINFANTIL=1, o
+ * - primeraVezDiagnostico3=1, edad >= 20 y DIA_CRONICOS=1.
+ */
+function debeReportarConfirmacionDiagnostica3(
+  consulta: ConsultaExternaLike,
+  trabajador: TrabajadorLike | null | undefined,
+  codigo3: string,
+): boolean {
+  const edad = calcularEdad(
+    trabajador?.fechaNacimiento,
+    consulta.fechaNotaMedica,
+  );
+  if (edad === null) return false;
+  if (edad < 18) return esCodigoCancerInfantil(codigo3);
+  if (edad >= 20)
+    return consulta.primeraVezDiagnostico3 === 1 && esCodigoCronico(codigo3);
+  return false;
+}
+
+/**
+ * Collect all CIE-10 codes from a consulta (principal, all complementarios, codigoCIEDiagnostico2, codigoCIEDiagnostico3).
  */
 function getAllCieCodesFromConsulta(consulta: ConsultaExternaLike): string[] {
   const codes: string[] = [];
@@ -197,6 +229,8 @@ function getAllCieCodesFromConsulta(consulta: ConsultaExternaLike): string[] {
   }
   const diag2 = extractCieCode(consulta.codigoCIEDiagnostico2);
   if (diag2) codes.push(diag2);
+  const diag3 = extractCieCode(consulta.codigoCIEDiagnostico3);
+  if (diag3) codes.push(diag3);
   return codes;
 }
 
@@ -322,21 +356,27 @@ export function mapNotaMedicaToCexRow(
     peso: 999,
     talla: 999,
     circunferenciaCintura: 0,
-    // CEX: si diastolica=0, sistolica debe ser 0 (y viceversa)
+    // CEX: "Se desconoce" → 999; si diastolica desconocida, sistolica también (y viceversa)
     sistolica: (() => {
-      const s = consulta.tensionArterialSistolica ?? 0;
-      const d = consulta.tensionArterialDiastolica ?? 0;
-      return d === 0 ? 0 : s;
+      const s = consulta.tensionArterialSistolica;
+      const d = consulta.tensionArterialDiastolica;
+      const sUnknown = s == null || s === 0;
+      const dUnknown = d == null || d === 0;
+      if (sUnknown || dUnknown) return CEX_UNKNOWN;
+      return s;
     })(),
     diastolica: (() => {
-      const s = consulta.tensionArterialSistolica ?? 0;
-      const d = consulta.tensionArterialDiastolica ?? 0;
-      return s === 0 ? 0 : d;
+      const s = consulta.tensionArterialSistolica;
+      const d = consulta.tensionArterialDiastolica;
+      const sUnknown = s == null || s === 0;
+      const dUnknown = d == null || d === 0;
+      if (sUnknown || dUnknown) return CEX_UNKNOWN;
+      return d;
     })(),
-    frecuenciaCardiaca: consulta.frecuenciaCardiaca ?? 0,
-    frecuenciaRespiratoria: consulta.frecuenciaRespiratoria ?? 0,
-    temperatura: consulta.temperatura ?? 0,
-    saturacionOxigeno: consulta.saturacionOxigeno ?? 0,
+    frecuenciaCardiaca: toCexVital(consulta.frecuenciaCardiaca),
+    frecuenciaRespiratoria: toCexVital(consulta.frecuenciaRespiratoria),
+    temperatura: toCexVital(consulta.temperatura),
+    saturacionOxigeno: toCexVital(consulta.saturacionOxigeno),
     glucemia: 0,
     tipoMedicion: -1,
     resultadoObtenidoaTravesde: -1,
@@ -371,9 +411,36 @@ export function mapNotaMedicaToCexRow(
       if (!aplica) return -1;
       return consulta.confirmacionDiagnostica2 === true ? 1 : 0;
     })(),
-    primeraVezDiagnostico3: -1,
-    codigoCIEDiagnostico3: '',
-    confirmacionDiagnostica3: -1,
+    primeraVezDiagnostico3:
+      consulta.primeraVezDiagnostico3 === 1
+        ? 1
+        : consulta.primeraVezDiagnostico3 === 0
+          ? 0
+          : -1,
+    codigoCIEDiagnostico3: (() => {
+      const primeraVezDiag3 = consulta.primeraVezDiagnostico3;
+      if (primeraVezDiag3 === -1) return '';
+      const raw = consulta.codigoCIEDiagnostico3
+        ? extractCieCode(consulta.codigoCIEDiagnostico3 as string)
+        : '';
+      return raw || '';
+    })(),
+    confirmacionDiagnostica3: (() => {
+      const codigo3 = (() => {
+        const primeraVezDiag3 = consulta.primeraVezDiagnostico3;
+        if (primeraVezDiag3 === -1) return '';
+        return consulta.codigoCIEDiagnostico3
+          ? extractCieCode(consulta.codigoCIEDiagnostico3 as string)
+          : '';
+      })();
+      const aplica = debeReportarConfirmacionDiagnostica3(
+        consulta,
+        trabajador,
+        codigo3 || '',
+      );
+      if (!aplica) return -1;
+      return consulta.confirmacionDiagnostica3 === true ? 1 : 0;
+    })(),
     intervencionesSMyA: -1,
     atencionPregestacionalRT: -1,
     riesgo: '-1',

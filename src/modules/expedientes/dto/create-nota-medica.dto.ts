@@ -144,6 +144,24 @@ export class CreateNotaMedicaDto {
   confirmacionDiagnostica2?: boolean; // Flag para crónicos/cáncer <18 (diagnóstico 2)
 
   @IsOptional()
+  @IsNumber(
+    { maxDecimalPlaces: 0 },
+    { message: 'primeraVezDiagnostico3 debe ser un número' },
+  )
+  @IsIn([-1, 0, 1], {
+    message: 'primeraVezDiagnostico3 debe ser -1 (No aplica), 0 (No) o 1 (Sí)',
+  })
+  primeraVezDiagnostico3?: number; // -1=No aplica, 0=No, 1=Si
+
+  @IsOptional()
+  @IsString({ message: 'El código CIE-10 diagnóstico 3 debe ser un string' })
+  codigoCIEDiagnostico3?: string; // Formato: "A30 - LEPRA [ENFERMEDAD DE HANSEN]" o "A30"
+
+  @IsOptional()
+  @IsBoolean({ message: 'confirmacionDiagnostica3 debe ser un booleano' })
+  confirmacionDiagnostica3?: boolean; // Flag para crónicos/cáncer <18 (diagnóstico 3)
+
+  @IsOptional()
   @IsString({ message: 'La descripción complementaria debe ser un string' })
   diagnosticoTexto?: string; // Texto libre complementario al diagnóstico 2
 

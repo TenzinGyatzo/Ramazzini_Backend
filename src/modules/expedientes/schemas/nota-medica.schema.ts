@@ -79,6 +79,18 @@ export class NotaMedica extends Document {
   confirmacionDiagnostica2?: boolean; // Flag para crónicos/cáncer <18 (diagnóstico 2)
 
   @Prop({ required: false })
+  primeraVezDiagnostico3?: number; // 0=No, 1=Si
+
+  @Prop({
+    required: false,
+    // Formato: "A30 - LEPRA [ENFERMEDAD DE HANSEN]" o solo "A30"
+  })
+  codigoCIEDiagnostico3?: string; // Tercer diagnóstico
+
+  @Prop({ required: false })
+  confirmacionDiagnostica3?: boolean; // Flag para crónicos/cáncer <18 (diagnóstico 3)
+
+  @Prop({ required: false })
   diagnosticoTexto?: string; // Texto libre complementario al diagnóstico 2
 
   @Prop({

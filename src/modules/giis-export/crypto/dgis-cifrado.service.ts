@@ -76,18 +76,16 @@ export class DgisCifradoService {
       // El directorio se concatena con "transferencia.jks" para el keystore.
       // Salida: {nombre_base}.txt.cif en el directorio de trabajo.
       const dgisCifPathTxtCif = path.join(this.dgisDir, `${baseName}.txt.cif`);
-      const result = spawnSync('java', [
-        '-jar',
-        'cifrado.jar',
-        txtFileName,
-        'keystore/',
-        '',
-      ], {
-        cwd: this.dgisDir!,
-        encoding: 'utf-8',
-        timeout: 60000,
-        windowsHide: true,
-      });
+      const result = spawnSync(
+        'java',
+        ['-jar', 'cifrado.jar', txtFileName, 'keystore/', ''],
+        {
+          cwd: this.dgisDir!,
+          encoding: 'utf-8',
+          timeout: 60000,
+          windowsHide: true,
+        },
+      );
 
       const stdout = (result.stdout ?? '').trim();
       const stderr = (result.stderr ?? '').trim();
@@ -107,7 +105,8 @@ export class DgisCifradoService {
             ? dgisCifPathLower
             : null;
       if (!cifPath) {
-        const diag = [stdout, stderr].filter(Boolean).join(' | ') || '(sin salida)';
+        const diag =
+          [stdout, stderr].filter(Boolean).join(' | ') || '(sin salida)';
         throw new Error(
           `cifrado.jar no generó archivo .CIF. Salida del JAR: ${diag}. Verifique formato y encoding del TXT (Windows-1252).`,
         );

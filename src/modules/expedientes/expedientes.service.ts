@@ -21,10 +21,7 @@ import { Receta } from './schemas/receta.schema';
 import { Lesion } from './schemas/lesion.schema';
 import { Deteccion } from './schemas/deteccion.schema';
 import { FilesService } from '../files/files.service';
-import {
-  convertirFechaISOaDDMMYYYY,
-  convertirFechaADDMMAAAA,
-} from 'src/utils/dates';
+import { convertirFechaISOaDDMMYYYY } from 'src/utils/dates';
 import path from 'path';
 import { parseISO } from 'date-fns';
 import * as fs from 'fs/promises';
@@ -233,7 +230,7 @@ export class ExpedientesService {
     // Helper function to validate a single CIE-10 code
     const validateCIE10Code = async (
       codigo: string,
-      tipo: 'principal' | 'secundario' | 'diagnostico2',
+      tipo: 'principal' | 'secundario' | 'diagnostico2' | 'diagnostico3',
     ): Promise<void> => {
       if (!codigo || codigo.trim() === '') {
         return;
@@ -394,6 +391,48 @@ export class ExpedientesService {
       }
     }
 
+    // Validate tercer diagnóstico (codigoCIEDiagnostico3)
+    // IMPORTANTE: Esta validación solo aplica a notas médicas
+    if (documentType === 'notaMedica' && dto.primeraVezDiagnostico3 === 1) {
+      const codigoDiagnostico3Full = dto.codigoCIEDiagnostico3?.trim() || '';
+      if (!codigoDiagnostico3Full) {
+        errors.push(
+          'El código CIE-10 diagnóstico 3 es obligatorio cuando primeraVezDiagnostico3 es Sí (1)',
+        );
+      } else {
+        const codigoPrincipal = extractCodeFromFullText(codigoPrincipalFull);
+        const codigoDiagnostico3 = extractCodeFromFullText(
+          codigoDiagnostico3Full,
+        );
+        const codigoDiagnostico2 = extractCodeFromFullText(
+          dto.codigoCIEDiagnostico2?.trim() || '',
+        );
+        const comp = dto.codigosCIE10Complementarios || [];
+        const codigosComplementarios = comp
+          .filter((c) => c && c.trim() !== '')
+          .map((c) => extractCodeFromFullText(c.trim()).toUpperCase());
+        const codigo3Upper = codigoDiagnostico3.toUpperCase();
+        if (codigoPrincipal && codigoPrincipal.toUpperCase() === codigo3Upper) {
+          errors.push(
+            'El código CIE-10 diagnóstico 3 debe ser diferente al código CIE-10 principal',
+          );
+        } else if (
+          codigoDiagnostico2 &&
+          codigoDiagnostico2.toUpperCase() === codigo3Upper
+        ) {
+          errors.push(
+            'El código CIE-10 diagnóstico 3 debe ser diferente al código CIE-10 diagnóstico 2',
+          );
+        } else if (codigosComplementarios.some((c) => c === codigo3Upper)) {
+          errors.push(
+            'El código CIE-10 diagnóstico 3 debe ser diferente a los diagnósticos complementarios',
+          );
+        } else {
+          await validateCIE10Code(codigoDiagnostico3Full, 'diagnostico3');
+        }
+      }
+    }
+
     // Validar causa externa si se proporciona
     if (dto.codigoCIECausaExterna && dto.codigoCIECausaExterna.trim() !== '') {
       const codigoCausaFull = dto.codigoCIECausaExterna.trim();
@@ -487,6 +526,10 @@ export class ExpedientesService {
           {
             field: 'codigoCIEDiagnostico2',
             value: createDto.codigoCIEDiagnostico2,
+          },
+          {
+            field: 'codigoCIEDiagnostico3',
+            value: createDto.codigoCIEDiagnostico3,
           },
         ];
 
@@ -637,7 +680,27 @@ export class ExpedientesService {
       }
     }
 
-    const createdDocument = new model(createDto);
+    // notaMedica: omitir campos vitales con null ("Se desconoce") para no guardarlos en BD
+    const createPayload =
+      documentType === 'notaMedica'
+        ? (() => {
+            const VITAL_SIGNS = [
+              'tensionArterialSistolica',
+              'tensionArterialDiastolica',
+              'frecuenciaCardiaca',
+              'frecuenciaRespiratoria',
+              'temperatura',
+              'saturacionOxigeno',
+            ];
+            const payload = { ...createDto };
+            for (const field of VITAL_SIGNS) {
+              if (payload[field] === null) delete payload[field];
+            }
+            return payload;
+          })()
+        : createDto;
+
+    const createdDocument = new model(createPayload);
     const savedDocument = await createdDocument.save();
 
     // ✅ Actualizar el updatedAt del trabajador
@@ -1028,6 +1091,19 @@ export class ExpedientesService {
     // NOM-024: Validate vital signs before saving (MX strict, non-MX warnings)
     await this.validateVitalSignsForNOM024(updateDto, trabajadorId);
 
+    // Validate CIE-10 for notaMedica update (merged dto: updateDto overrides existing)
+    if (documentType === 'notaMedica' && trabajadorId) {
+      const mergedDto = {
+        ...existingDocument.toObject?.(),
+        ...updateDto,
+      };
+      await this.validateCIE10ForDocument(
+        documentType,
+        mergedDto,
+        trabajadorId,
+      );
+    }
+
     // Validación E1: fechaDocumento para notaMedica
     if (
       documentType === 'notaMedica' &&
@@ -1098,6 +1174,10 @@ export class ExpedientesService {
           updateDto.codigoCIEDiagnostico2 !== undefined
             ? updateDto.codigoCIEDiagnostico2
             : existingDocument.codigoCIEDiagnostico2;
+        const finalCodigoDiagnostico3 =
+          updateDto.codigoCIEDiagnostico3 !== undefined
+            ? updateDto.codigoCIEDiagnostico3
+            : existingDocument.codigoCIEDiagnostico3;
         const finalFechaNotaMedica =
           updateDto.fechaNotaMedica !== undefined
             ? updateDto.fechaNotaMedica
@@ -1116,6 +1196,10 @@ export class ExpedientesService {
           {
             field: 'codigoCIEDiagnostico2',
             value: finalCodigoDiagnostico2,
+          },
+          {
+            field: 'codigoCIEDiagnostico3',
+            value: finalCodigoDiagnostico3,
           },
         ];
 
@@ -1198,8 +1282,32 @@ export class ExpedientesService {
         }
       }
 
+      // notaMedica: $unset campos vitales con null ("Se desconoce")
+      const VITAL_SIGNS_FIELDS = [
+        'tensionArterialSistolica',
+        'tensionArterialDiastolica',
+        'frecuenciaCardiaca',
+        'frecuenciaRespiratoria',
+        'temperatura',
+        'saturacionOxigeno',
+      ];
+      let updatePayload: any = updateDto;
+      if (documentType === 'notaMedica') {
+        const unsetVitals: Record<string, 1> = {};
+        updatePayload = { ...updateDto };
+        for (const field of VITAL_SIGNS_FIELDS) {
+          if (updateDto[field] === null) {
+            delete updatePayload[field];
+            unsetVitals[field] = 1;
+          }
+        }
+        if (Object.keys(unsetVitals).length > 0) {
+          updatePayload = { ...updatePayload, $unset: unsetVitals };
+        }
+      }
+
       result = await model
-        .findByIdAndUpdate(id, updateDto, { new: true })
+        .findByIdAndUpdate(id, updatePayload, { new: true })
         .exec();
       const resolvedTrabajadorId =
         (

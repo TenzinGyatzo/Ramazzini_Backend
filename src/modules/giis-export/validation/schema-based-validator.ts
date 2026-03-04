@@ -87,7 +87,9 @@ export async function validateRowAgainstSchema(
     // Required (excepciones CEX: codigoCIEDiagnostico2/3 vacíos cuando primeraVezDiagnostico2/3 = -1)
     if (field.requiredColumn && isEmpty) {
       const allowEmptyCie3 =
-        guide === 'CEX' && field.name === 'codigoCIEDiagnostico3';
+        guide === 'CEX' &&
+        field.name === 'codigoCIEDiagnostico3' &&
+        getNum(row, 'primeraVezDiagnostico3') === -1;
       const allowEmptyCie2 =
         guide === 'CEX' &&
         field.name === 'codigoCIEDiagnostico2' &&

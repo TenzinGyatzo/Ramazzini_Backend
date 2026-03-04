@@ -77,7 +77,8 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
     mongoUri = await startMongoMemoryServer();
     process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
     process.env.GIIS_3DES_KEY_BASE64 =
-      process.env.GIIS_3DES_KEY_BASE64 || Buffer.alloc(24, 0x01).toString('base64');
+      process.env.GIIS_3DES_KEY_BASE64 ||
+      Buffer.alloc(24, 0x01).toString('base64');
 
     const policySires = {
       getRegulatoryPolicy: jest
@@ -133,7 +134,9 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
         },
         {
           provide: CatalogsService,
-          useValue: { getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142) },
+          useValue: {
+            getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
+          },
         },
         {
           provide: UsersService,
@@ -231,7 +234,9 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
     expect(res.headers['content-disposition']).toBeDefined();
     expect(res.headers['content-disposition']).toContain('attachment');
     expect(res.headers['content-disposition']).toContain('.ZIP');
-    expect(Buffer.isBuffer(res.body) || typeof res.body === 'object').toBe(true);
+    expect(Buffer.isBuffer(res.body) || typeof res.body === 'object').toBe(
+      true,
+    );
   });
 });
 
@@ -286,7 +291,9 @@ describe('GIIS Export gate SIRES', () => {
         },
         {
           provide: CatalogsService,
-          useValue: { getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142) },
+          useValue: {
+            getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
+          },
         },
       ],
     }).compile();

@@ -76,11 +76,17 @@ const createConditionalTableCell = (text: string): Content => ({
   color: text.toUpperCase() === 'POSITIVO' ? 'red' : 'black', // Aplica rojo si es "POSITIVO"
 });
 
-function construirSignosVitales(notaMedica): Content {
+function tieneValorReal(valor: unknown): boolean {
+  if (valor === undefined || valor === null || valor === '') return false;
+  if (typeof valor === 'number' && valor === 0) return false; // 0 = "Se desconoce"
+  return true;
+}
+
+function construirSignosVitales(notaMedica): Content | null {
   const signosVitales = [];
 
   const agregarDato = (etiqueta, valor, unidad) => {
-    if (valor !== undefined && valor !== null && valor !== '') {
+    if (tieneValorReal(valor)) {
       if (signosVitales.length > 0) {
         signosVitales.push({ text: '  |  ' }); // Agrega el separador solo si ya hay datos previos
       }
@@ -91,7 +97,8 @@ function construirSignosVitales(notaMedica): Content {
 
   agregarDato(
     'TA',
-    notaMedica.tensionArterialSistolica && notaMedica.tensionArterialDiastolica
+    tieneValorReal(notaMedica.tensionArterialSistolica) &&
+      tieneValorReal(notaMedica.tensionArterialDiastolica)
       ? `${notaMedica.tensionArterialSistolica}/${notaMedica.tensionArterialDiastolica}`
       : null,
     ' mmHg',
@@ -100,6 +107,8 @@ function construirSignosVitales(notaMedica): Content {
   agregarDato('FR', notaMedica.frecuenciaRespiratoria, ' lpm');
   agregarDato('Temp', notaMedica.temperatura, ' °C');
   agregarDato('SatO2', notaMedica.saturacionOxigeno, '%');
+
+  if (signosVitales.length === 0) return null;
 
   return {
     text: [{ text: 'Signos Vitales: ', bold: true }, ...signosVitales],
@@ -228,6 +237,20 @@ function requiereConfirmacionDiagnostica2(
   return esCronico || esCancer;
 }
 
+/**
+ * Determina si requiere confirmación diagnóstica 3 basado en el código CIE-10 diagnóstico 3
+ * Misma lógica que requiereConfirmacionDiagnostica (E11*, I1*, C*)
+ */
+function requiereConfirmacionDiagnostica3(
+  codigoCIEDiagnostico3?: string,
+): boolean {
+  if (!codigoCIEDiagnostico3) return false;
+  const codigo = extractCIE10Code(codigoCIEDiagnostico3).toUpperCase();
+  const esCronico = codigo.startsWith('E11') || codigo.startsWith('I1');
+  const esCancer = codigo.startsWith('C');
+  return esCronico || esCancer;
+}
+
 // ==================== INTERFACES ====================
 interface Trabajador {
   primerApellido: string;
@@ -263,6 +286,9 @@ interface NotaMedica {
   primeraVezDiagnostico2?: number; // 0=No, 1=Si
   codigoCIEDiagnostico2?: string;
   confirmacionDiagnostica2?: boolean;
+  primeraVezDiagnostico3?: number; // 0=No, 1=Si
+  codigoCIEDiagnostico3?: string;
+  confirmacionDiagnostica3?: boolean;
   diagnosticoTexto?: string;
   confirmacionDiagnostica?: boolean;
   codigoCIECausaExterna?: string;
@@ -752,6 +778,80 @@ export const notaMedicaInforme = (
                         {
                           text: ` ${(notaMedica.diagnostico || '').toUpperCase()} `,
                           bold: true,
+                        },
+                      ],
+                      margin: [0, 0, 0, 6] as [number, number, number, number],
+                      style: 'paragraph',
+                    }
+                  : null,
+              ].filter((item) => item !== null),
+              margin: [0, 0, 0, 10] as [number, number, number, number],
+            },
+          ]
+        : []),
+
+      // Diagnóstico 3 — grupo visual
+      ...((notaMedica.primeraVezDiagnostico3 !== undefined &&
+        notaMedica.primeraVezDiagnostico3 !== null) ||
+      notaMedica.codigoCIEDiagnostico3 ||
+      (requiereConfirmacionDiagnostica3(notaMedica.codigoCIEDiagnostico3) &&
+        notaMedica.confirmacionDiagnostica3 !== undefined)
+        ? [
+            {
+              stack: [
+                notaMedica.primeraVezDiagnostico3 !== undefined &&
+                notaMedica.primeraVezDiagnostico3 !== null
+                  ? {
+                      text: [
+                        {
+                          text: `Primera vez diagnóstico 3: `,
+                          bold: true,
+                        },
+                        {
+                          text: `${
+                            notaMedica.primeraVezDiagnostico3 === 1
+                              ? 'Sí'
+                              : 'No'
+                          } `,
+                        },
+                      ],
+                      margin: [0, 0, 0, 6] as [number, number, number, number],
+                      style: 'paragraph',
+                    }
+                  : null,
+                notaMedica.codigoCIEDiagnostico3
+                  ? {
+                      text: [
+                        {
+                          text: `Diagnóstico 3 (Comorbilidad clínica): `,
+                          bold: true,
+                        },
+                        {
+                          text: `${
+                            extractCIE10Description(
+                              notaMedica.codigoCIEDiagnostico3,
+                            ) ||
+                            extractCIE10Code(notaMedica.codigoCIEDiagnostico3)
+                          } `,
+                        },
+                      ],
+                      margin: [0, 0, 0, 6] as [number, number, number, number],
+                      style: 'paragraph',
+                    }
+                  : null,
+                requiereConfirmacionDiagnostica3(
+                  notaMedica.codigoCIEDiagnostico3,
+                ) && notaMedica.confirmacionDiagnostica3 !== undefined
+                  ? {
+                      text: [
+                        {
+                          text: `Confirmación Diagnóstica 3: `,
+                          bold: true,
+                        },
+                        {
+                          text: `${
+                            notaMedica.confirmacionDiagnostica3 ? 'Sí' : 'No'
+                          } `,
                         },
                       ],
                       margin: [0, 0, 0, 6] as [number, number, number, number],

@@ -114,7 +114,9 @@ describe('NOM-024 GIIS Batch (Phase 1A)', () => {
         },
         {
           provide: CatalogsService,
-          useValue: { getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142) },
+          useValue: {
+            getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
+          },
         },
       ],
     }).compile();
@@ -212,7 +214,9 @@ describe('NOM-024 GIIS Batch Phase 6 — automatic encryption', () => {
         },
         {
           provide: CatalogsService,
-          useValue: { getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142) },
+          useValue: {
+            getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
+          },
         },
       ],
     }).compile();
@@ -263,9 +267,9 @@ describe('NOM-024 GIIS Batch Phase 6 — automatic encryption', () => {
 
     const batch = await service.createBatch(proveedorId, '2025-03');
 
-    await expect(service.generateBatchCex(batch._id.toString())).rejects.toThrow(
-      /GIIS_3DES_KEY_BASE64/,
-    );
+    await expect(
+      service.generateBatchCex(batch._id.toString()),
+    ).rejects.toThrow(/GIIS_3DES_KEY_BASE64/);
 
     process.env.GIIS_3DES_KEY_BASE64 = savedKey;
   });

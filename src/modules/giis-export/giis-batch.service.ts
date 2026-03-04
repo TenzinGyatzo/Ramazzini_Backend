@@ -424,7 +424,9 @@ export class GiisBatchService {
     const afterCex = await this.getBatch(batchId);
     if (isFirstGenerator && afterCex?.status === 'completed') {
       const artifactCount = afterCex.artifacts?.length ?? 0;
-      const needsEncryption = (afterCex.artifacts ?? []).some((a) => !a.zipPath);
+      const needsEncryption = (afterCex.artifacts ?? []).some(
+        (a) => !a.zipPath,
+      );
       if (artifactCount >= 1 && needsEncryption) {
         await this.encryptAndZipArtifacts(batchId);
       }
@@ -629,10 +631,7 @@ export class GiisBatchService {
     const batch = await this.getBatch(batchId);
     if (!batch) return;
     if (batch.status === 'failed') return;
-    if (
-      batch.status !== 'completed' &&
-      batch.status !== 'generating'
-    ) {
+    if (batch.status !== 'completed' && batch.status !== 'generating') {
       return;
     }
     const status = batch.validationStatus as string | undefined;
@@ -655,7 +654,9 @@ export class GiisBatchService {
       try {
         key = Buffer.from(keyBase64, 'base64');
       } catch {
-        throw new ConflictException('GIIS_3DES_KEY_BASE64 no es base64 válido.');
+        throw new ConflictException(
+          'GIIS_3DES_KEY_BASE64 no es base64 válido.',
+        );
       }
       if (key.length !== 24) {
         throw new ConflictException(
