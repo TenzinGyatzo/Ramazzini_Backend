@@ -26,10 +26,6 @@ import {
   NotaMedicaSchema,
 } from '../../src/modules/expedientes/schemas/nota-medica.schema';
 import {
-  Lesion,
-  LesionSchema,
-} from '../../src/modules/expedientes/schemas/lesion.schema';
-import {
   Trabajador,
   TrabajadorSchema,
 } from '../../src/modules/trabajadores/schemas/trabajador.schema';
@@ -47,6 +43,7 @@ import { ProveedoresSaludService } from '../../src/modules/proveedores-salud/pro
 import { UsersService } from '../../src/modules/users/users.service';
 import { GiisValidationService } from '../../src/modules/giis-export/validation/giis-validation.service';
 import { GiisCryptoService } from '../../src/modules/giis-export/crypto/giis-crypto.service';
+import { DgisCifradoService } from '../../src/modules/giis-export/crypto/dgis-cifrado.service';
 import { GiisExportAuditService } from '../../src/modules/giis-export/giis-export-audit.service';
 import { FirmanteHelper } from '../../src/modules/expedientes/helpers/firmante-helper';
 import { CatalogsService } from '../../src/modules/catalogs/catalogs.service';
@@ -98,7 +95,6 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
         MongooseModule.forFeature([
           { name: GiisBatch.name, schema: GiisBatchSchema },
           { name: NotaMedica.name, schema: NotaMedicaSchema },
-          { name: Lesion.name, schema: LesionSchema },
           { name: Trabajador.name, schema: TrabajadorSchema },
           { name: CentroTrabajo.name, schema: CentroTrabajoSchema },
           { name: Empresa.name, schema: EmpresaSchema },
@@ -118,6 +114,10 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
         { provide: GiisValidationService, useValue: mockGiisValidationService },
         GiisCryptoService,
         {
+          provide: DgisCifradoService,
+          useValue: { isAvailable: () => false },
+        },
+        {
           provide: GiisExportAuditService,
           useValue: { recordGenerationAudit: jest.fn().mockResolvedValue({}) },
         },
@@ -129,7 +129,6 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
           provide: FirmanteHelper,
           useValue: {
             getPrestadorDataFromUser: jest.fn().mockResolvedValue(null),
-            getFirmanteDataForLes: jest.fn().mockResolvedValue(null),
           },
         },
         {
@@ -184,7 +183,6 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
       '2025-01',
     );
     await giisBatchService.generateBatchCex(batch._id.toString());
-    await giisBatchService.generateBatchLes(batch._id.toString());
 
     const res = await request(app.getHttpServer())
       .get(`/api/giis-export/batches/${batch._id.toString()}`)
@@ -194,9 +192,7 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
     expect(res.body.status).toBe('completed');
     expect(Array.isArray(res.body.artifacts)).toBe(true);
     const cex = res.body.artifacts.find((a: any) => a.guide === 'CEX');
-    const les = res.body.artifacts.find((a: any) => a.guide === 'LES');
     expect(cex).toBeDefined();
-    expect(les).toBeDefined();
   });
 
   it('GET /giis-export/batches/:batchId/download/CEX → 200 and header line', async () => {
@@ -221,7 +217,6 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
       '2025-02',
     );
     await giisBatchService.generateBatchCex(batch._id.toString());
-    await giisBatchService.generateBatchLes(batch._id.toString());
 
     const res = await request(app.getHttpServer())
       .get(
@@ -254,7 +249,6 @@ describe('GIIS Export gate SIRES', () => {
         MongooseModule.forFeature([
           { name: GiisBatch.name, schema: GiisBatchSchema },
           { name: NotaMedica.name, schema: NotaMedicaSchema },
-          { name: Lesion.name, schema: LesionSchema },
           { name: Trabajador.name, schema: TrabajadorSchema },
           { name: CentroTrabajo.name, schema: CentroTrabajoSchema },
           { name: Empresa.name, schema: EmpresaSchema },
@@ -275,6 +269,10 @@ describe('GIIS Export gate SIRES', () => {
         { provide: GiisValidationService, useValue: mockGiisValidationService },
         { provide: GiisCryptoService, useValue: {} },
         {
+          provide: DgisCifradoService,
+          useValue: { isAvailable: () => false },
+        },
+        {
           provide: GiisExportAuditService,
           useValue: { recordGenerationAudit: jest.fn().mockResolvedValue({}) },
         },
@@ -286,7 +284,6 @@ describe('GIIS Export gate SIRES', () => {
           provide: FirmanteHelper,
           useValue: {
             getPrestadorDataFromUser: jest.fn().mockResolvedValue(null),
-            getFirmanteDataForLes: jest.fn().mockResolvedValue(null),
           },
         },
         {

@@ -25,9 +25,9 @@ describe('NOM-024 GIIS Naming (Phase 2B)', () => {
   });
 
   describe('getOfficialBaseName', () => {
-    it('should produce LES-DFSSA-2201 for LES, DFSSA000864, 2022, 1', () => {
-      expect(getOfficialBaseName('LES', 'DFSSA000864', 2022, 1)).toBe(
-        'LES-DFSSA-2201',
+    it('should produce CEX-DFSSA-2201 for CEX, DFSSA000864, 2022, 1', () => {
+      expect(getOfficialBaseName('CEX', 'DFSSA000864', 2022, 1)).toBe(
+        'CEX-DFSSA-2201',
       );
     });
     it('should produce CEX-99SMP-2410 for CEX, 9998, 2024, 10', () => {
@@ -44,14 +44,14 @@ describe('NOM-024 GIIS Naming (Phase 2B)', () => {
 
   describe('getOfficialFileName', () => {
     it('should append .TXT, .CIF, .ZIP', () => {
-      expect(getOfficialFileName('LES-DFSSA-2201', 'TXT')).toBe(
-        'LES-DFSSA-2201.TXT',
+      expect(getOfficialFileName('CEX-DFSSA-2201', 'TXT')).toBe(
+        'CEX-DFSSA-2201.TXT',
       );
-      expect(getOfficialFileName('LES-DFSSA-2201', 'CIF')).toBe(
-        'LES-DFSSA-2201.CIF',
+      expect(getOfficialFileName('CEX-DFSSA-2201', 'CIF')).toBe(
+        'CEX-DFSSA-2201.CIF',
       );
-      expect(getOfficialFileName('LES-DFSSA-2201', 'ZIP')).toBe(
-        'LES-DFSSA-2201.ZIP',
+      expect(getOfficialFileName('CEX-DFSSA-2201', 'ZIP')).toBe(
+        'CEX-DFSSA-2201.ZIP',
       );
     });
   });

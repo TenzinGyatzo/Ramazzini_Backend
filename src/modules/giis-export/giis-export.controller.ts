@@ -29,7 +29,7 @@ import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
 
 const EXPORTS_BASE = 'exports/giis';
-const VALID_GUIDES = ['CEX', 'LES'] as const;
+const VALID_GUIDES = ['CEX'] as const;
 const DELIVERY_WARNING_9998 =
   'Anexo 3 NOM-024: Para el reporte de información forzosamente debe contar con una CLUES válida. Este archivo fue generado con CLUES 9998 y podría ser rechazado por la DGIS.';
 
@@ -99,7 +99,6 @@ export class GiisExportController {
     );
 
     await this.giisBatchService.generateBatchCex(batch._id.toString());
-    await this.giisBatchService.generateBatchLes(batch._id.toString());
 
     const updated = await this.giisBatchService.getBatch(batch._id.toString());
     return {
@@ -149,12 +148,12 @@ export class GiisExportController {
         'La exportación GIIS solo está disponible para proveedores con régimen SIRES_NOM024.',
       );
     }
-    const guides = (body.guides ?? ['CEX', 'LES']).filter((g) =>
+    const guides = (body.guides ?? ['CEX']).filter((g) =>
       VALID_GUIDES.includes(g as (typeof VALID_GUIDES)[number]),
     ) as (typeof VALID_GUIDES)[number][];
     if (guides.length === 0) {
       throw new ForbiddenException(
-        'Debe indicar al menos una guía: CEX o LES.',
+        'Debe indicar al menos una guía: CEX.',
       );
     }
     const result = await this.giisValidationService.preValidate(
@@ -350,7 +349,7 @@ export class GiisExportController {
 
     const [year, month] = batch.yearMonth.split('-').map(Number);
     const baseName = getOfficialBaseName(
-      guideUpper as 'CEX' | 'LES',
+      guideUpper as 'CEX',
       batch.establecimientoClues ?? '',
       year,
       month,

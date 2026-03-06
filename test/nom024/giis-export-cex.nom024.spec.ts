@@ -29,10 +29,6 @@ import {
 } from '../../src/modules/expedientes/schemas/nota-medica.schema';
 import { DocumentoEstado } from '../../src/modules/expedientes/enums/documento-estado.enum';
 import {
-  Lesion,
-  LesionSchema,
-} from '../../src/modules/expedientes/schemas/lesion.schema';
-import {
   Trabajador,
   TrabajadorSchema,
 } from '../../src/modules/trabajadores/schemas/trabajador.schema';
@@ -49,8 +45,10 @@ import { AuditService } from '../../src/modules/audit/audit.service';
 import { ProveedoresSaludService } from '../../src/modules/proveedores-salud/proveedores-salud.service';
 import { GiisValidationService } from '../../src/modules/giis-export/validation/giis-validation.service';
 import { GiisCryptoService } from '../../src/modules/giis-export/crypto/giis-crypto.service';
+import { DgisCifradoService } from '../../src/modules/giis-export/crypto/dgis-cifrado.service';
 import { GiisExportAuditService } from '../../src/modules/giis-export/giis-export-audit.service';
 import { FirmanteHelper } from '../../src/modules/expedientes/helpers/firmante-helper';
+import { CatalogsService } from '../../src/modules/catalogs/catalogs.service';
 import { validNotaMedicaCex } from '../fixtures/nota-medica.fixtures';
 
 const mockGiisValidationService = {
@@ -81,6 +79,9 @@ describe('NOM-024 GIIS Export CEX (Phase 1C)', () => {
 
   beforeAll(async () => {
     mongoUri = await startMongoMemoryServer();
+    process.env.GIIS_3DES_KEY_BASE64 =
+      process.env.GIIS_3DES_KEY_BASE64 ||
+      Buffer.alloc(24, 0x01).toString('base64');
     testingModule = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ isGlobal: true }),
@@ -89,7 +90,6 @@ describe('NOM-024 GIIS Export CEX (Phase 1C)', () => {
           { name: GiisBatch.name, schema: GiisBatchSchema },
           { name: Deteccion.name, schema: DeteccionSchema },
           { name: NotaMedica.name, schema: NotaMedicaSchema },
-          { name: Lesion.name, schema: LesionSchema },
           { name: Trabajador.name, schema: TrabajadorSchema },
           { name: CentroTrabajo.name, schema: CentroTrabajoSchema },
           { name: Empresa.name, schema: EmpresaSchema },
@@ -104,7 +104,11 @@ describe('NOM-024 GIIS Export CEX (Phase 1C)', () => {
         },
         { provide: ProveedoresSaludService, useValue: { findOne: jest.fn() } },
         { provide: GiisValidationService, useValue: mockGiisValidationService },
-        { provide: GiisCryptoService, useValue: {} },
+        GiisCryptoService,
+        {
+          provide: DgisCifradoService,
+          useValue: { isAvailable: () => false },
+        },
         {
           provide: GiisExportAuditService,
           useValue: { recordGenerationAudit: jest.fn().mockResolvedValue({}) },
@@ -119,6 +123,12 @@ describe('NOM-024 GIIS Export CEX (Phase 1C)', () => {
             getPrestadorDataFromUser: jest.fn().mockResolvedValue(null),
           },
         },
+        {
+          provide: CatalogsService,
+          useValue: {
+            getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
+          },
+        },
       ],
     }).compile();
     service = testingModule.get<GiisBatchService>(GiisBatchService);
@@ -127,6 +137,7 @@ describe('NOM-024 GIIS Export CEX (Phase 1C)', () => {
   }, 30000);
 
   afterAll(async () => {
+    delete process.env.GIIS_3DES_KEY_BASE64;
     await stopMongoMemoryServer();
   }, 10000);
 

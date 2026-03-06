@@ -24,12 +24,6 @@ import {
   formatCLUES,
   formatResultEnum,
 } from '../../src/modules/giis-export/formatters/field.formatter';
-import { transformLesionToGIIS } from '../../src/modules/giis-export/transformers/lesion.transformer';
-
-import * as lesionFixtures from '../fixtures/lesion.fixtures';
-import * as trabajadorFixtures from '../fixtures/trabajador.fixtures';
-import * as proveedorFixtures from '../fixtures/proveedor-salud.fixtures';
-
 describe('NOM-024 GIIS Export Transformation (Task 16)', () => {
   describe('Date Formatter', () => {
     describe('toAAAAMMDD', () => {
@@ -236,90 +230,6 @@ describe('NOM-024 GIIS Export Transformation (Task 16)', () => {
         expect(formatResultEnum(null)).toBe('');
         expect(formatResultEnum(undefined)).toBe('');
       });
-    });
-  });
-
-  describe('Lesion Transformer (GIIS-B013)', () => {
-    it('should produce pipe-delimited output', () => {
-      const lesion = lesionFixtures.validLesionAccidental;
-      const trabajador = trabajadorFixtures.validMXTrabajador;
-      const proveedor = proveedorFixtures.validMXProvider;
-
-      const output = transformLesionToGIIS(lesion, trabajador, proveedor);
-
-      expect(typeof output).toBe('string');
-      expect(output.includes('|')).toBe(true);
-    });
-
-    it('should have correct pipe count (78 fields = 77 pipes)', () => {
-      const lesion = lesionFixtures.validLesionAccidental;
-      const trabajador = trabajadorFixtures.validMXTrabajador;
-      const proveedor = proveedorFixtures.validMXProvider;
-
-      const output = transformLesionToGIIS(lesion, trabajador, proveedor);
-      const pipeCount = (output.match(/\|/g) || []).length;
-
-      // 78 fields means 77 delimiters
-      expect(pipeCount).toBe(77);
-    });
-
-    it('should include CLUES in output', () => {
-      const lesion = lesionFixtures.validLesionAccidental;
-      const trabajador = trabajadorFixtures.validMXTrabajador;
-      const proveedor = proveedorFixtures.validMXProvider;
-
-      const output = transformLesionToGIIS(lesion, trabajador, proveedor);
-
-      expect(output.includes(proveedor.clues)).toBe(true);
-    });
-
-    it('should include CURP paciente in output', () => {
-      const lesion = lesionFixtures.validLesionAccidental;
-      const trabajador = trabajadorFixtures.validMXTrabajador;
-      const proveedor = proveedorFixtures.validMXProvider;
-
-      const output = transformLesionToGIIS(lesion, trabajador, proveedor);
-
-      expect(output.includes(lesion.curpPaciente)).toBe(true);
-    });
-
-    it('should format dates correctly', () => {
-      const lesion = lesionFixtures.validLesionAccidental;
-      const trabajador = trabajadorFixtures.validMXTrabajador;
-      const proveedor = proveedorFixtures.validMXProvider;
-
-      const output = transformLesionToGIIS(lesion, trabajador, proveedor);
-
-      // Should contain YYYYMMDD formatted dates
-      expect(output).toMatch(/\d{8}/);
-    });
-
-    it('should handle null fields as empty strings', () => {
-      const lesion = {
-        ...lesionFixtures.validLesionAccidental,
-        horaEvento: null,
-        horaAtencion: null,
-      };
-      const trabajador = trabajadorFixtures.validMXTrabajador;
-      const proveedor = proveedorFixtures.validMXProvider;
-
-      const output = transformLesionToGIIS(lesion, trabajador, proveedor);
-
-      // Should not contain 'null' string
-      expect(output.includes('null')).toBe(false);
-    });
-  });
-
-  describe('Deterministic Output', () => {
-    it('should produce same output for same input (Lesion)', () => {
-      const lesion = lesionFixtures.validLesionAccidental;
-      const trabajador = trabajadorFixtures.validMXTrabajador;
-      const proveedor = proveedorFixtures.validMXProvider;
-
-      const output1 = transformLesionToGIIS(lesion, trabajador, proveedor);
-      const output2 = transformLesionToGIIS(lesion, trabajador, proveedor);
-
-      expect(output1).toBe(output2);
     });
   });
 });

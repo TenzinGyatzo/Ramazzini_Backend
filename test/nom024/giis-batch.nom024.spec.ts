@@ -27,10 +27,6 @@ import {
   NotaMedicaSchema,
 } from '../../src/modules/expedientes/schemas/nota-medica.schema';
 import {
-  Lesion,
-  LesionSchema,
-} from '../../src/modules/expedientes/schemas/lesion.schema';
-import {
   Trabajador,
   TrabajadorSchema,
 } from '../../src/modules/trabajadores/schemas/trabajador.schema';
@@ -46,6 +42,7 @@ import { RegulatoryPolicyService } from '../../src/utils/regulatory-policy.servi
 import { ProveedoresSaludService } from '../../src/modules/proveedores-salud/proveedores-salud.service';
 import { GiisValidationService } from '../../src/modules/giis-export/validation/giis-validation.service';
 import { GiisCryptoService } from '../../src/modules/giis-export/crypto/giis-crypto.service';
+import { DgisCifradoService } from '../../src/modules/giis-export/crypto/dgis-cifrado.service';
 import { GiisExportAuditService } from '../../src/modules/giis-export/giis-export-audit.service';
 import { AuditService } from '../../src/modules/audit/audit.service';
 import { FirmanteHelper } from '../../src/modules/expedientes/helpers/firmante-helper';
@@ -75,7 +72,6 @@ describe('NOM-024 GIIS Batch (Phase 1A)', () => {
           { name: GiisBatch.name, schema: GiisBatchSchema },
           { name: Deteccion.name, schema: DeteccionSchema },
           { name: NotaMedica.name, schema: NotaMedicaSchema },
-          { name: Lesion.name, schema: LesionSchema },
           { name: Trabajador.name, schema: TrabajadorSchema },
           { name: CentroTrabajo.name, schema: CentroTrabajoSchema },
           { name: Empresa.name, schema: EmpresaSchema },
@@ -98,6 +94,10 @@ describe('NOM-024 GIIS Batch (Phase 1A)', () => {
         },
         { provide: GiisCryptoService, useValue: {} },
         {
+          provide: DgisCifradoService,
+          useValue: { isAvailable: () => false },
+        },
+        {
           provide: GiisExportAuditService,
           useValue: { recordGenerationAudit: jest.fn().mockResolvedValue({}) },
         },
@@ -109,7 +109,6 @@ describe('NOM-024 GIIS Batch (Phase 1A)', () => {
           provide: FirmanteHelper,
           useValue: {
             getPrestadorDataFromUser: jest.fn().mockResolvedValue(null),
-            getFirmanteDataForLes: jest.fn().mockResolvedValue(null),
           },
         },
         {
@@ -175,7 +174,6 @@ describe('NOM-024 GIIS Batch Phase 6 — automatic encryption', () => {
           { name: GiisBatch.name, schema: GiisBatchSchema },
           { name: Deteccion.name, schema: DeteccionSchema },
           { name: NotaMedica.name, schema: NotaMedicaSchema },
-          { name: Lesion.name, schema: LesionSchema },
           { name: Trabajador.name, schema: TrabajadorSchema },
           { name: CentroTrabajo.name, schema: CentroTrabajoSchema },
           { name: Empresa.name, schema: EmpresaSchema },
@@ -198,6 +196,10 @@ describe('NOM-024 GIIS Batch Phase 6 — automatic encryption', () => {
         },
         GiisCryptoService,
         {
+          provide: DgisCifradoService,
+          useValue: { isAvailable: () => false },
+        },
+        {
           provide: GiisExportAuditService,
           useValue: { recordGenerationAudit: jest.fn().mockResolvedValue({}) },
         },
@@ -209,7 +211,6 @@ describe('NOM-024 GIIS Batch Phase 6 — automatic encryption', () => {
           provide: FirmanteHelper,
           useValue: {
             getPrestadorDataFromUser: jest.fn().mockResolvedValue(null),
-            getFirmanteDataForLes: jest.fn().mockResolvedValue(null),
           },
         },
         {
@@ -229,32 +230,26 @@ describe('NOM-024 GIIS Batch Phase 6 — automatic encryption', () => {
     await stopMongoMemoryServer();
   }, 10000);
 
-  it('completing batch (CEX+LES) without blockers → artifacts have zipPath and ZIP exists', async () => {
+  it('completing batch (CEX) without blockers → artifacts have zipPath and ZIP exists', async () => {
     process.env.GIIS_ENCRYPTION_VALIDATED = 'false';
     const batch = await service.createBatch(proveedorId, yearMonth);
     await service.generateBatchCex(batch._id.toString());
-    await service.generateBatchLes(batch._id.toString());
 
     const updated = await service.getBatch(batch._id.toString());
     expect(updated).toBeDefined();
     expect(updated!.status).toBe('completed');
     const cexArt = updated!.artifacts?.find((a) => a.guide === 'CEX');
-    const lesArt = updated!.artifacts?.find((a) => a.guide === 'LES');
     expect(cexArt?.zipPath).toBeDefined();
     expect(cexArt?.hashSha256).toBeDefined();
-    expect(lesArt?.zipPath).toBeDefined();
-    expect(lesArt?.hashSha256).toBeDefined();
 
     const cwd = process.cwd();
     expect(fs.existsSync(path.join(cwd, cexArt!.zipPath!))).toBe(true);
-    expect(fs.existsSync(path.join(cwd, lesArt!.zipPath!))).toBe(true);
   });
 
   it('with GIIS_ENCRYPTION_VALIDATED=false or undefined, encryption runs (no 409)', async () => {
     delete process.env.GIIS_ENCRYPTION_VALIDATED;
     const batch = await service.createBatch(proveedorId, '2025-02');
     await service.generateBatchCex(batch._id.toString());
-    await service.generateBatchLes(batch._id.toString());
 
     const updated = await service.getBatch(batch._id.toString());
     const cex = updated!.artifacts?.find((a) => a.guide === 'CEX');
@@ -277,7 +272,6 @@ describe('NOM-024 GIIS Batch Phase 6 — automatic encryption', () => {
   it('buildDeliverable (fallback) delegates to encryptAndZipArtifacts', async () => {
     const batch = await service.createBatch(proveedorId, '2025-04');
     await service.generateBatchCex(batch._id.toString());
-    await service.generateBatchLes(batch._id.toString());
 
     const built = await service.buildDeliverable(batch._id.toString());
     expect(built).toBeDefined();

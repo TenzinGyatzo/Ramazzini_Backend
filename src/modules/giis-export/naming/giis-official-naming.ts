@@ -3,7 +3,7 @@
  * ENTIDAD+INST = first 5 chars of CLUES, or 99SMP when clues is 9998 or empty.
  */
 
-export type GiisGuideType = 'CEX' | 'LES';
+export type GiisGuideType = 'CEX';
 export type GiisFileExt = 'TXT' | 'CIF' | 'ZIP';
 
 /**

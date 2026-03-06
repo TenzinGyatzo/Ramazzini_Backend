@@ -25,8 +25,8 @@ export class GiisExportAudit extends Document {
   @Prop({ default: false })
   cluesEs9998: boolean;
 
-  @Prop({ required: true, enum: ['CEX', 'LES'] })
-  tipoGuia: 'CEX' | 'LES';
+  @Prop({ required: true, enum: ['CEX'] })
+  tipoGuia: 'CEX';
 
   @Prop({ default: '' })
   nombreArchivoOficial: string;

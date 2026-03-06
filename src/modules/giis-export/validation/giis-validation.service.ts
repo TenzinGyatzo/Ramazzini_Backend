@@ -9,10 +9,8 @@ import { Types } from 'mongoose';
 import { NotaMedica } from '../../expedientes/schemas/nota-medica.schema';
 import { DocumentoEstado } from '../../expedientes/enums/documento-estado.enum';
 import { FirmanteHelper } from '../../expedientes/helpers/firmante-helper';
-import { Lesion } from '../../expedientes/schemas/lesion.schema';
 import { loadGiisSchema } from '../schema-loader';
 import { mapNotaMedicaToCexRow } from '../transformers/cex.mapper';
-import { mapLesionToLesRow } from '../transformers/les.mapper';
 import { CatalogsService } from '../../catalogs/catalogs.service';
 import {
   ValidationError,
@@ -29,14 +27,13 @@ import { GiisSchema } from '../schema-loader';
 import { ProveedoresSaludService } from '../../proveedores-salud/proveedores-salud.service';
 import { formatCLUES } from '../formatters/field.formatter';
 
-type Guide = 'CEX' | 'LES';
+type Guide = 'CEX';
 
 @Injectable()
 export class GiisValidationService {
   constructor(
     @InjectModel(NotaMedica.name)
     private readonly notaMedicaModel: Model<NotaMedica>,
-    @InjectModel(Lesion.name) private readonly lesionModel: Model<Lesion>,
     private readonly catalogsService: CatalogsService,
     private readonly proveedoresSaludService: ProveedoresSaludService,
     private readonly firmanteHelper: FirmanteHelper,
@@ -188,56 +185,6 @@ export class GiisValidationService {
       for (let i = 0; i < rows.length; i++) {
         const errs = await validateRowAgainstSchema(
           'CEX',
-          schema,
-          rows[i],
-          i,
-          catalogLookup,
-        );
-        allErrors.push(...errs);
-      }
-    }
-
-    if (guides.includes('LES')) {
-      const proveedorId = new Types.ObjectId(proveedorSaludId);
-      const lesiones = await this.lesionModel
-        .find({
-          estado: DocumentoEstado.FINALIZADO,
-          fechaAtencion: { $gte: startOfMonth, $lte: endOfMonth },
-          idProveedorSalud: proveedorId,
-        })
-        .populate('idTrabajador')
-        .lean()
-        .exec();
-      const lesContext = {
-        clues,
-        getPaisCatalogKeyFromNacionalidad: (clave: string) =>
-          this.catalogsService.getPaisCatalogKeyFromNacionalidad(clave),
-      };
-      const schema = loadGiisSchema('LES');
-      const rows: Record<string, string | number>[] = [];
-      for (const doc of lesiones as any[]) {
-        const trabajador = doc.idTrabajador || null;
-        const firmanteUserId = (
-          doc.finalizadoPor?._id ||
-          doc.finalizadoPor ||
-          doc.createdBy?._id ||
-          doc.createdBy
-        )?.toString();
-        const firmanteData = firmanteUserId
-          ? await this.firmanteHelper.getFirmanteDataForLes(firmanteUserId)
-          : null;
-        const row = mapLesionToLesRow(
-          doc,
-          lesContext,
-          trabajador,
-          firmanteData,
-        );
-        rows.push(row);
-      }
-      totalRows += rows.length;
-      for (let i = 0; i < rows.length; i++) {
-        const errs = await validateRowAgainstSchema(
-          'LES',
           schema,
           rows[i],
           i,

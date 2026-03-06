@@ -1,6 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { GIISExportService } from './giis-export.service';
 import { GiisBatchService } from './giis-batch.service';
 import { GiisSerializerService } from './giis-serializer.service';
 import { GiisExportController } from './giis-export.controller';
@@ -13,7 +12,6 @@ import {
   GiisExportAudit,
   GiisExportAuditSchema,
 } from './schemas/giis-export-audit.schema';
-import { Lesion, LesionSchema } from '../expedientes/schemas/lesion.schema';
 import {
   NotaMedica,
   NotaMedicaSchema,
@@ -43,9 +41,8 @@ import { FirmanteHelperModule } from '../expedientes/firmante-helper.module';
  * to GIIS pipe-delimited format for NOM-024 compliance.
  *
  * CAPABILITIES:
- * - Transform Lesion documents to GIIS-B013 format
- * - Filter by MX providers only
- * - Date range filtering
+ * - Transform NotaMedica (consulta externa) to GIIS-B015 CEX format
+ * - Batch generation, validation, encryption (CIF/ZIP)
  *
  * LIMITATIONS (by design):
  * - Does NOT implement file creation
@@ -60,7 +57,6 @@ import { FirmanteHelperModule } from '../expedientes/firmante-helper.module';
     MongooseModule.forFeature([
       { name: GiisBatch.name, schema: GiisBatchSchema },
       { name: GiisExportAudit.name, schema: GiisExportAuditSchema },
-      { name: Lesion.name, schema: LesionSchema },
       { name: NotaMedica.name, schema: NotaMedicaSchema },
       { name: Trabajador.name, schema: TrabajadorSchema },
       { name: ProveedorSalud.name, schema: ProveedorSaludSchema },
@@ -74,7 +70,6 @@ import { FirmanteHelperModule } from '../expedientes/firmante-helper.module';
   ],
   controllers: [GiisExportController],
   providers: [
-    GIISExportService,
     GiisBatchService,
     GiisSerializerService,
     GiisValidationService,
@@ -83,7 +78,6 @@ import { FirmanteHelperModule } from '../expedientes/firmante-helper.module';
     GiisExportAuditService,
   ],
   exports: [
-    GIISExportService,
     GiisBatchService,
     GiisSerializerService,
     GiisValidationService,

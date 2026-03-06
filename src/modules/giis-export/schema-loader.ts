@@ -28,7 +28,7 @@ const SCHEMAS_DIR = 'docs/nom-024/giis_schemas';
  * Path is resolved from process.cwd() (backend root).
  * Fields are returned in order of id.
  */
-export function loadGiisSchema(guide: 'CEX' | 'LES'): GiisSchema {
+export function loadGiisSchema(guide: 'CEX'): GiisSchema {
   const baseDir = process.cwd();
   const schemaPath = path.join(baseDir, SCHEMAS_DIR, `${guide}.schema.json`);
   const raw = fs.readFileSync(schemaPath, 'utf-8');

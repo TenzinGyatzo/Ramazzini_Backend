@@ -4,7 +4,7 @@ import { Document, Types } from 'mongoose';
 export type GiisBatchStatus = 'pending' | 'generating' | 'completed' | 'failed';
 
 export interface GiisBatchArtifact {
-  guide: 'CEX' | 'LES';
+  guide: 'CEX';
   path: string;
   rowCount?: number;
   /** Phase 2B: path to ZIP deliverable (only .CIF inside) */
