@@ -27,6 +27,7 @@ import {
   getProveedorSaludIdFromTrabajador,
 } from '../helpers/daily-consent.helper';
 import { isValidObjectId } from 'mongoose';
+import { WorkerFusionService } from '../../modules/trabajadores/worker-fusion.service';
 
 /**
  * Guard para enforcement de consentimiento informado diario
@@ -59,6 +60,7 @@ export class DailyConsentGuard implements CanActivate {
     private empresaModel: Model<Empresa>,
     private readonly regulatoryPolicyService: RegulatoryPolicyService,
     private readonly proveedoresSaludService: ProveedoresSaludService,
+    private readonly workerFusionService: WorkerFusionService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -91,6 +93,12 @@ export class DailyConsentGuard implements CanActivate {
     if (!isValidObjectId(trabajadorId)) {
       throw new BadRequestException('El ID del trabajador no es válido');
     }
+
+    // 2.5 NOM-024: Resolver a trabajador canónico (fusión de registros)
+    // El consentimiento se asocia al canónico; si se accede desde un duplicado,
+    // debemos buscar el consentimiento del canónico para no pedirlo de nuevo
+    const canonicalTrabajadorId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
 
     // 3. Obtener proveedorSaludId desde trabajador
     const proveedorSaludId = await getProveedorSaludIdFromTrabajador(
@@ -131,13 +139,13 @@ export class DailyConsentGuard implements CanActivate {
       );
     }
 
-    // 7. Buscar consentimiento existente
+    // 7. Buscar consentimiento existente (usar canonicalTrabajadorId para fusión)
     let consentimiento;
     try {
       consentimiento = await this.consentimientoDiarioModel
         .findOne({
           proveedorSaludId: new Types.ObjectId(proveedorSaludId),
-          trabajadorId: new Types.ObjectId(trabajadorId),
+          trabajadorId: new Types.ObjectId(canonicalTrabajadorId),
           dateKey: dateKey,
         })
         .lean();

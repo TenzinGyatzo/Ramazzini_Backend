@@ -59,6 +59,7 @@ import { AuditEventClass } from '../audit/constants/audit-event-class';
 import { UsersService } from '../users/users.service';
 import { hasCIE10Min4Chars } from '../../utils/cie10.util';
 import { isCieAfeccionLesionAllowedRanges } from '../giis-export/utils/cie-lesion.utils';
+import { WorkerFusionService } from '../trabajadores/worker-fusion.service';
 
 @Injectable()
 export class ExpedientesService {
@@ -110,6 +111,7 @@ export class ExpedientesService {
     private readonly regulatoryPolicyService: RegulatoryPolicyService,
     private readonly auditService: AuditService,
     private readonly usersService: UsersService,
+    private readonly workerFusionService: WorkerFusionService,
   ) {
     this.models = {
       antidoping: this.antidopingModel,
@@ -471,6 +473,14 @@ export class ExpedientesService {
       throw new BadRequestException(
         `Tipo de documento ${documentType} no soportado`,
       );
+    }
+
+    // NOM-024: Resolver a trabajador canónico (fusión de registros)
+    if (createDto.idTrabajador) {
+      createDto.idTrabajador =
+        await this.workerFusionService.getCanonicalTrabajadorId(
+          createDto.idTrabajador,
+        );
     }
 
     // Validate CIE-10 codes for MX providers
@@ -1044,7 +1054,7 @@ export class ExpedientesService {
     }
 
     const newFecha = parseISO(updateDto[dateField]); // Convertimos a Date
-    const trabajadorId = updateDto.idTrabajador;
+    let trabajadorId = updateDto.idTrabajador;
 
     if (!newFecha) {
       throw new BadRequestException(
@@ -1055,6 +1065,11 @@ export class ExpedientesService {
     if (!trabajadorId) {
       throw new BadRequestException('El campo idTrabajador es requerido');
     }
+
+    // NOM-024: Resolver a trabajador canónico (fusión de registros)
+    trabajadorId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+    updateDto.idTrabajador = trabajadorId;
 
     const existingDocument = await model.findById(id).exec();
 
@@ -1980,8 +1995,10 @@ export class ExpedientesService {
    * GIIS-B013: Find all Lesions for a trabajador
    */
   async findLesionesByTrabajador(trabajadorId: string): Promise<any[]> {
+    const canonicalId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
     return this.lesionModel
-      .find({ idTrabajador: trabajadorId })
+      .find({ idTrabajador: canonicalId })
       .sort({ fechaAtencion: -1 })
       .exec();
   }
@@ -2078,6 +2095,14 @@ export class ExpedientesService {
   async uploadDocument(createDto: any): Promise<any> {
     const model = this.models['documentoExterno'];
 
+    // NOM-024: Resolver a trabajador canónico (fusión de registros)
+    if (createDto.idTrabajador) {
+      createDto.idTrabajador =
+        await this.workerFusionService.getCanonicalTrabajadorId(
+          createDto.idTrabajador,
+        );
+    }
+
     const fechaDocumento = createDto.fechaDocumento;
     const nombreDocumento = createDto.nombreDocumento;
     const trabajadorId = createDto.idTrabajador;
@@ -2111,6 +2136,10 @@ export class ExpedientesService {
     documentType: string,
     trabajadorId: string,
   ): Promise<any[]> {
+    // NOM-024: Resolver a trabajador canónico (fusión de registros)
+    const canonicalId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+
     const model = this.models[documentType];
     if (!model) {
       throw new BadRequestException(
@@ -2118,7 +2147,7 @@ export class ExpedientesService {
       );
     }
     const query = model
-      .find({ idTrabajador: trabajadorId })
+      .find({ idTrabajador: canonicalId })
       .populate('createdBy', '_id username role')
       .populate('finalizadoPor', 'username')
       .populate('anuladoPor', 'username');
@@ -2139,7 +2168,7 @@ export class ExpedientesService {
 
     // Enriquecer lesiones con rutaPDF cuando falte (para vincular con PDFs existentes)
     if (documentType === 'lesion') {
-      return this.enriquecerLesionesConRutaPDF(docs, trabajadorId);
+      return this.enriquecerLesionesConRutaPDF(docs, canonicalId);
     }
 
     return docs;
@@ -2528,10 +2557,12 @@ export class ExpedientesService {
   async getAlturaDisponible(
     trabajadorId: string,
   ): Promise<{ altura: number | null; fuente: string | null }> {
+    const canonicalId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
     try {
       // 1. Buscar en exploración física (más reciente)
       const exploracionFisica = await this.exploracionFisicaModel
-        .findOne({ idTrabajador: trabajadorId })
+        .findOne({ idTrabajador: canonicalId })
         .sort({ fechaExploracionFisica: -1 })
         .select('altura')
         .exec();
@@ -2545,7 +2576,7 @@ export class ExpedientesService {
 
       // 2. Buscar en control prenatal (más reciente)
       const controlPrenatal = await this.controlPrenatalModel
-        .findOne({ idTrabajador: trabajadorId })
+        .findOne({ idTrabajador: canonicalId })
         .sort({ fechaInicioControlPrenatal: -1 })
         .select('altura')
         .exec();
@@ -2564,9 +2595,11 @@ export class ExpedientesService {
   async getMotivoExamenReciente(
     trabajadorId: string,
   ): Promise<{ motivoExamen: string | null }> {
+    const canonicalId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
     try {
       const historiaClinica = await this.historiaClinicaModel
-        .findOne({ idTrabajador: trabajadorId })
+        .findOne({ idTrabajador: canonicalId })
         .sort({ fechaHistoriaClinica: -1 })
         .select('motivoExamen')
         .exec();
@@ -2987,8 +3020,10 @@ export class ExpedientesService {
    * GIIS-B019: Find all Detecciones for a trabajador
    */
   async findDeteccionesByTrabajador(trabajadorId: string): Promise<any[]> {
+    const canonicalId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
     return this.deteccionModel
-      .find({ idTrabajador: trabajadorId })
+      .find({ idTrabajador: canonicalId })
       .sort({ fechaDeteccion: -1 })
       .exec();
   }

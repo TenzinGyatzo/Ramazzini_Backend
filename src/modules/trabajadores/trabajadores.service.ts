@@ -49,6 +49,8 @@ import { User } from '../users/schemas/user.schema';
 import { Empresa } from '../empresas/schemas/empresa.schema';
 import { Receta } from '../expedientes/schemas/receta.schema';
 import { ConstanciaAptitud } from '../expedientes/schemas/constancia-aptitud.schema';
+import { generateFolioFromWorkerData } from 'src/utils/folio-generator.util';
+import { WorkerFusionService } from './worker-fusion.service';
 
 @Injectable()
 export class TrabajadoresService {
@@ -88,6 +90,7 @@ export class TrabajadoresService {
     private catalogsService: CatalogsService,
     private geographyValidator: GeographyValidator,
     private regulatoryPolicyService: RegulatoryPolicyService,
+    private workerFusionService: WorkerFusionService,
   ) {}
 
   /**
@@ -548,6 +551,25 @@ export class TrabajadoresService {
       normalizedDto.entidadResidencia = normalizedDto.entidadResidencia
         .trim()
         .toUpperCase();
+    }
+
+    // NOM-024: Generar folio alfanumérico 18 caracteres (solo nuevos, no retroactivo)
+    const folio = generateFolioFromWorkerData({
+      nombre: normalizedDto.nombre,
+      primerApellido: normalizedDto.primerApellido,
+      segundoApellido: normalizedDto.segundoApellido,
+      fechaNacimiento: normalizedDto.fechaNacimiento,
+      sexo: normalizedDto.sexo,
+    });
+    (normalizedDto as any).folio = folio;
+
+    // NOM-024: Fusión de registros - detectar duplicado en misma empresa
+    const duplicate = await this.workerFusionService.findDuplicateInEmpresa(
+      { ...normalizedDto, folio } as any,
+      normalizedDto.idCentroTrabajo,
+    );
+    if (duplicate) {
+      (normalizedDto as any).idTrabajadorCanonico = duplicate._id;
     }
 
     try {

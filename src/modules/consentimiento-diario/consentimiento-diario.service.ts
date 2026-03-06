@@ -23,6 +23,7 @@ import { calculateDateKey } from '../../utils/date-key.util';
 import { CONSENT_TEXT } from './constants/consent-text.constants';
 import { ProveedoresSaludService } from '../proveedores-salud/proveedores-salud.service';
 import { isValidObjectId } from 'mongoose';
+import { WorkerFusionService } from '../trabajadores/worker-fusion.service';
 
 @Injectable()
 export class ConsentimientoDiarioService {
@@ -37,6 +38,7 @@ export class ConsentimientoDiarioService {
     private empresaModel: Model<Empresa>,
     private readonly regulatoryPolicyService: RegulatoryPolicyService,
     private readonly proveedoresSaludService: ProveedoresSaludService,
+    private readonly workerFusionService: WorkerFusionService,
   ) {}
 
   /**
@@ -87,26 +89,32 @@ export class ConsentimientoDiarioService {
       throw new BadRequestException('El ID del trabajador no es válido');
     }
 
-    // 2. Obtener trabajador y validar existencia
-    const trabajador = await this.trabajadorModel.findById(trabajadorId).lean();
+    // 2. NOM-024: Resolver a trabajador canónico (fusión de registros)
+    const canonicalTrabajadorId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+
+    // 3. Obtener trabajador y validar existencia
+    const trabajador = await this.trabajadorModel
+      .findById(canonicalTrabajadorId)
+      .lean();
     if (!trabajador) {
       throw new NotFoundException('Trabajador no encontrado');
     }
 
-    // 3. Obtener proveedorSaludId desde trabajador
+    // 4. Obtener proveedorSaludId desde trabajador
     const proveedorSaludId =
-      await this.getProveedorSaludIdFromTrabajador(trabajadorId);
+      await this.getProveedorSaludIdFromTrabajador(canonicalTrabajadorId);
     if (!proveedorSaludId) {
       throw new ForbiddenException(
         'No se pudo determinar el proveedor de salud del trabajador',
       );
     }
 
-    // 4. Obtener policy
+    // 5. Obtener policy
     const policy =
       await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
 
-    // 5. Gate SIRES-only: Si dailyConsentEnabled es false → throw CONSENT_NOT_ENABLED
+    // 6. Gate SIRES-only: Si dailyConsentEnabled es false → throw CONSENT_NOT_ENABLED
     if (!policy.features.dailyConsentEnabled) {
       throw createRegulatoryError({
         errorCode: RegulatoryErrorCode.CONSENT_NOT_ENABLED,
@@ -114,7 +122,7 @@ export class ConsentimientoDiarioService {
       });
     }
 
-    // 6. Calcular dateKey si no se proporciona
+    // 7. Calcular dateKey si no se proporciona
     let finalDateKey: string;
     if (dateKey) {
       // Validar formato YYYY-MM-DD
@@ -131,16 +139,16 @@ export class ConsentimientoDiarioService {
       finalDateKey = calculateDateKey((proveedor as any) || null);
     }
 
-    // 7. Buscar consentimiento existente
+    // 8. Buscar consentimiento existente (usar canonical para fusión)
     const consentimiento = await this.consentimientoDiarioModel
       .findOne({
         proveedorSaludId: new Types.ObjectId(proveedorSaludId),
-        trabajadorId: new Types.ObjectId(trabajadorId),
+        trabajadorId: new Types.ObjectId(canonicalTrabajadorId),
         dateKey: finalDateKey,
       })
       .lean();
 
-    // 8. Retornar respuesta
+    // 9. Retornar respuesta
     if (consentimiento) {
       return {
         hasConsent: true,
@@ -172,17 +180,22 @@ export class ConsentimientoDiarioService {
       throw new BadRequestException('El ID del trabajador no es válido');
     }
 
-    // 2. Obtener trabajador
+    // 2. NOM-024: Resolver a trabajador canónico (fusión de registros)
+    // Siempre guardar consentimiento con el canónico para que aplique desde cualquier registro
+    const canonicalTrabajadorId =
+      await this.workerFusionService.getCanonicalTrabajadorId(dto.trabajadorId);
+
+    // 3. Obtener trabajador
     const trabajador = await this.trabajadorModel
-      .findById(dto.trabajadorId)
+      .findById(canonicalTrabajadorId)
       .lean();
     if (!trabajador) {
       throw new NotFoundException('Trabajador no encontrado');
     }
 
-    // 3. Obtener proveedorSaludId desde trabajador
+    // 4. Obtener proveedorSaludId desde trabajador
     const proveedorSaludId = await this.getProveedorSaludIdFromTrabajador(
-      dto.trabajadorId,
+      canonicalTrabajadorId,
     );
     if (!proveedorSaludId) {
       throw new ForbiddenException(
@@ -217,11 +230,11 @@ export class ConsentimientoDiarioService {
       finalDateKey = calculateDateKey((proveedor as any) || null);
     }
 
-    // 6. Validar unicidad: Buscar consentimiento existente
+    // 6. Validar unicidad: Buscar consentimiento existente (usar canonical)
     const existingConsent = await this.consentimientoDiarioModel
       .findOne({
         proveedorSaludId: new Types.ObjectId(proveedorSaludId),
-        trabajadorId: new Types.ObjectId(dto.trabajadorId),
+        trabajadorId: new Types.ObjectId(canonicalTrabajadorId),
         dateKey: finalDateKey,
       })
       .lean();
@@ -235,10 +248,10 @@ export class ConsentimientoDiarioService {
     // 7. Obtener texto del consentimiento desde constante
     // (ya está importado como CONSENT_TEXT)
 
-    // 8. Crear registro
+    // 8. Crear registro (siempre con canonical para fusión)
     const consentimiento = new this.consentimientoDiarioModel({
       proveedorSaludId: new Types.ObjectId(proveedorSaludId),
-      trabajadorId: new Types.ObjectId(dto.trabajadorId),
+      trabajadorId: new Types.ObjectId(canonicalTrabajadorId),
       dateKey: finalDateKey,
       acceptedAt: new Date(), // Server timestamp
       acceptedByUserId: new Types.ObjectId(userId),

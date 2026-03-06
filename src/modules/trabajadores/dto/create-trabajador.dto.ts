@@ -296,4 +296,19 @@ export class CreateTrabajadorDto {
   @IsMongoId({ message: 'El ID de "updatedBy" no es válido' })
   @IsNotEmpty({ message: 'El ID de "updatedBy" no puede estar vacío' })
   updatedBy: string;
+
+  // NOM-024: Folio alfanumérico 18 caracteres. Generado por backend, no enviado por cliente
+  @ApiProperty({ description: 'Folio (generado por backend)', required: false })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z0-9]{18}$/, {
+    message: 'El folio debe tener exactamente 18 caracteres alfanuméricos',
+  })
+  folio?: string;
+
+  // Referencia al trabajador canónico (fusión). Asignado por backend, no modificable
+  @ApiProperty({ description: 'ID trabajador canónico (asignado por backend)', required: false })
+  @IsOptional()
+  @IsMongoId()
+  idTrabajadorCanonico?: string;
 }

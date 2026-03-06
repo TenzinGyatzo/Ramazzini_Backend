@@ -136,6 +136,19 @@ export class Trabajador extends Document {
 
   @Prop({ required: false })
   fechaTransferencia: Date;
+
+  // NOM-024-SSA3-2012: Folio alfanumérico de 18 caracteres (Identificador en la UM)
+  // Generado por backend al crear. Null para trabajadores existentes (no retroactivo)
+  @Prop({
+    required: false,
+    match: /^[A-Za-z0-9]{18}$/,
+  })
+  folio?: string;
+
+  // Referencia al trabajador canónico cuando este registro es duplicado (fusión)
+  // El expediente se asocia al canónico; acceso desde cualquier registro del grupo muestra lo mismo
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Trabajador', required: false })
+  idTrabajadorCanonico?: MongooseSchema.Types.ObjectId;
 }
 
 export const TrabajadorSchema = SchemaFactory.createForClass(Trabajador).set(
@@ -146,3 +159,4 @@ export const TrabajadorSchema = SchemaFactory.createForClass(Trabajador).set(
 TrabajadorSchema.index({ idCentroTrabajo: 1 });
 TrabajadorSchema.index({ numeroEmpleado: 1 });
 TrabajadorSchema.index({ estadoLaboral: 1 });
+TrabajadorSchema.index({ folio: 1 });

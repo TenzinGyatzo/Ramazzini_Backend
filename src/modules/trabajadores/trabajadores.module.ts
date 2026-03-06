@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { TrabajadoresService } from './trabajadores.service';
 import { TrabajadoresController } from './trabajadores.controller';
+import { WorkerFusionService } from './worker-fusion.service';
 import { TransferenciasController } from './transferencias.controller';
 import { Trabajador, TrabajadorSchema } from './schemas/trabajador.schema';
 import { NOM024ComplianceModule } from '../nom024-compliance/nom024-compliance.module';
@@ -101,7 +102,7 @@ import { Empresa, EmpresaSchema } from '../empresas/schemas/empresa.schema';
     forwardRef(() => ProveedoresSaludModule),
   ],
   controllers: [TrabajadoresController, TransferenciasController],
-  providers: [TrabajadoresService],
-  exports: [TrabajadoresService],
+  providers: [TrabajadoresService, WorkerFusionService],
+  exports: [TrabajadoresService, WorkerFusionService],
 })
 export class TrabajadoresModule {}

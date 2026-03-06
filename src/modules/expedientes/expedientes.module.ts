@@ -74,6 +74,7 @@ import {
 import { DailyConsentGuard } from '../../utils/guards/daily-consent.guard';
 import { AuditModule } from '../audit/audit.module';
 import { UsersModule } from '../users/users.module';
+import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
 
 @Module({
   controllers: [ExpedientesController],
@@ -116,6 +117,7 @@ import { UsersModule } from '../users/users.module';
     ConsentimientoDiarioModule,
     AuditModule,
     UsersModule,
+    TrabajadoresModule,
   ],
   exports: [ExpedientesService],
 })
