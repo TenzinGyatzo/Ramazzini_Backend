@@ -220,19 +220,23 @@ export class ExpedientesService {
     if (!model) {
       throw new BadRequestException(`Tipo de documento ${documentType} no soportado`);
     }
-    
+
+    const baseQuery = model
+      .findById(id)
+      .populate('createdBy', 'username')
+      .populate('updatedBy', 'username');
+
     // Si es documentoExterno, incluir populate de resultadoClinico
     if (documentType === 'documentoExterno') {
-      return model
-        .findById(id)
+      return baseQuery
         .populate({
           path: 'idResultadoClinico',
           select: 'tipoEstudio fechaEstudio resultadoGlobal',
         })
         .exec();
     }
-    
-    return model.findById(id).exec();
+
+    return baseQuery.exec();
   }
   
   async upsertDocumentoExterno(id: string | null, updateDto: any): Promise<any> {
