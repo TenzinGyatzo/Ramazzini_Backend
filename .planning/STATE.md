@@ -5,15 +5,16 @@
 See: `.planning/PROJECT.md` (updated 2026-02-04)
 
 **Core value:** Que un proveedor SIRES pueda exportar información según las 3 guías GIIS aplicables.  
-**Current focus:** Milestone SIRES_NOM024 completo (6 fases). Phase 6 verificada.
+**Current focus:** Phase 7 — Campos CEX en Nota Médica (8 campos: género, derechohabiencia, peso, talla, circunferencia cintura, glucemia, tipoMedicion, resultadoObtenidoaTravesde).
 
 ---
 
 ## Current Position
 
 - **Milestone:** SIRES_NOM024 (features exclusivas para proveedores en régimen SIRES).
-- **Roadmap:** 6 phases (Exportación GIIS → … → Cifrado informes GIIS txt→.cif). Ver ROADMAP.md.
-- **Next Phase:** Milestone completo. Phase 6 verificada (06-VERIFICATION.md passed).
+- **Roadmap:** 7 phases (Exportación GIIS → … → Campos CEX en Nota Médica). Ver ROADMAP.md.
+- **Phase 7 Plan 01:** Completada (07-01 backend schema + DTO, 11 campos CEX). **SUMMARY:** `.planning/phases/07-campos-cex-nota-medica/07-01-SUMMARY.md`.
+- **Next:** Phase 7 Plans 02-03 pendientes (Wave 1: 07-02 frontend; Wave 2: 07-03 mapper CEX).
 - **Phase 5:** Completada (05-01 enums, 05-02 usuarios, 05-03 firmantes, 05-04 UI). **Verification:** `05-VERIFICATION.md` (passed).
 - **Phase 4:** Completada (04-01 cimientos … 04-07 deuda diferida). Tests NOM-024 en `test/nom024/audit-*.nom024.spec.ts`.
 - **Phase 3:** Completada (03-01 list batches, 03-02 menú + vista Exportación GIIS). **Verification:** `03-VERIFICATION.md` (passed). **UAT:** `03-UAT.md` — 10/10 tests passed.
@@ -40,6 +41,7 @@ See: `.planning/PROJECT.md` (updated 2026-02-04)
 - Phase 4 added: AuditTrail (NOM-024: registro cronológico, trazabilidad/autoría, reconstrucción de estados, inalterabilidad post-resguardo, no repudio).
 - Phase 5 added: Audit Trail — eventos de usuarios y perfiles firmantes (gestión de usuarios y firmantes; detalles en fase de discusión).
 - Phase 6 added: Cifrado de informes GIIS (txt → .cif) — informes .txt cifrados con extensión .cif, misma experiencia de descarga.
+- Phase 7 added: Campos CEX en Nota Médica — 8 campos CEX (género, derechohabiencia, peso, talla, circunferencia cintura, glucemia, tipoMedicion, resultadoObtenidoaTravesde) agregados a la nota médica, con 3 nuevos steps en el formulario y renumeración de steps existentes (11 → 14).
 
 ---
 
@@ -48,6 +50,7 @@ See: `.planning/PROJECT.md` (updated 2026-02-04)
 - Cambio de régimen a SIRES sin exigencia retroactiva.
 - Prioridad: exportación GIIS (3 guías) antes que Audit Trail.
 - Phase 6: Cifrado obligatorio y automático al completar batch; gate GIIS_ENCRYPTION_VALIDATED eliminado.
+- Phase 7: 8 campos CEX agrupados en 3 nuevos steps (Género/Derechohabiencia, Somatometría, Glucemia); steps existentes renumerados de 11 a 14. Step7 (Somatometría) replica patrón de `exploracionFisicaSteps/Step2.vue`. **SIRES-only:** los 3 nuevos steps solo se muestran para SIRES_NOM024; SIN_REGIMEN mantiene 11 steps idénticos. Género/derechohabiencia en PDF y visualizador. IMC/categorías guardadas en BD. Genero pre-seleccionado desde trabajador.sexo.
 
 ---
 
@@ -55,9 +58,12 @@ See: `.planning/PROJECT.md` (updated 2026-02-04)
 
 *(Para reanudar tras pausa: qué se estaba haciendo, qué archivos tocar, siguiente paso.)*
 
-- Última sesión: 2026-02-26.
-- Completado: Plan 06-02 (frontend etiquetas CEX/LES Cifrado y txt).
+- Última sesión: 2026-03-17.
+- Phase 7 Plan 01 completado: backend schema + DTO con 11 campos CEX.
+- Siguiente paso: Ejecutar 07-02 (frontend forms, Wave 1) y luego 07-03 (mapper CEX, Wave 2).
+- Contexto: `phases/07-campos-cex-nota-medica/CONTEXT.md`.
+- Plans: `07-01-PLAN.md` ✅, `07-02-PLAN.md` pendiente, `07-03-PLAN.md` pendiente.
 
 ---
 
-*Last updated: 2026-02-26*
+*Last updated: 2026-03-17 — 07-01 complete*
