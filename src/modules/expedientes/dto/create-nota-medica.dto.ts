@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min,
   IsArray,
@@ -95,6 +96,79 @@ export class CreateNotaMedicaDto {
   @Min(1)
   @Max(100)
   saturacionOxigeno?: number;
+
+  // CEX: Datos demográficos
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @IsIn([0, 1, 2, 3, 4, 5, 6, 88], {
+    message: 'genero: valor no válido (0-6, 88)',
+  })
+  genero?: number;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^(\d{1,2})(&\d{1,2}){0,8}$/, {
+    message: 'derechohabiencia: formato inválido (ej: "2&3&5")',
+  })
+  derechohabiencia?: string;
+
+  // CEX: Somatometría
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @ValidateIf((o) => o.peso != null && o.peso !== 999)
+  @Min(1, { message: 'CEX: peso mínimo 1 kg' })
+  @Max(400, { message: 'CEX: peso máximo 400 kg' })
+  peso?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @ValidateIf((o) => o.talla != null && o.talla !== 999)
+  @Min(30, { message: 'CEX: talla mínima 30 cm' })
+  @Max(220, { message: 'CEX: talla máxima 220 cm' })
+  talla?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @ValidateIf(
+    (o) => o.circunferenciaCintura != null && o.circunferenciaCintura !== 0,
+  )
+  @Min(20, { message: 'CEX: circunferencia cintura mínima 20 cm' })
+  @Max(300, { message: 'CEX: circunferencia cintura máxima 300 cm' })
+  circunferenciaCintura?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  indiceMasaCorporal?: number;
+
+  @IsOptional()
+  @IsString()
+  categoriaIMC?: string;
+
+  @IsOptional()
+  @IsString()
+  categoriaCircunferenciaCintura?: string;
+
+  // CEX: Glucemia
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @ValidateIf((o) => o.glucemia != null && o.glucemia !== 0)
+  @Min(20, { message: 'CEX: glucemia mínima 20 mg/dl' })
+  @Max(999, { message: 'CEX: glucemia máxima 999 mg/dl' })
+  glucemia?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @ValidateIf((o) => o.glucemia != null && o.glucemia !== 0)
+  @IsIn([0, 1], { message: 'tipoMedicion: 0=No ayunas, 1=Ayunas' })
+  tipoMedicion?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @ValidateIf((o) => o.glucemia != null && o.glucemia !== 0)
+  @IsIn([1, 2], {
+    message: 'resultadoObtenidoaTravesde: 1=Laboratorio, 2=Tira glucosa',
+  })
+  resultadoObtenidoaTravesde?: number;
 
   @IsOptional()
   @IsString({ message: 'El diagnóstico debe ser un string' })
