@@ -14,7 +14,8 @@ See: `.planning/PROJECT.md` (updated 2026-02-04)
 - **Milestone:** SIRES_NOM024 (features exclusivas para proveedores en régimen SIRES).
 - **Roadmap:** 7 phases (Exportación GIIS → … → Campos CEX en Nota Médica). Ver ROADMAP.md.
 - **Phase 7 Plan 01:** Completada (07-01 backend schema + DTO, 11 campos CEX). **SUMMARY:** `.planning/phases/07-campos-cex-nota-medica/07-01-SUMMARY.md`.
-- **Next:** Phase 7 Plans 02-03 pendientes (Wave 1: 07-02 frontend; Wave 2: 07-03 mapper CEX).
+- **Phase 7 Plan 02:** Completada (07-02 frontend: 3 nuevos steps SIRES, renumeración 11→14, FormStepper condicional, visualizador dinámico, validación dinámica). **SUMMARY:** `.planning/phases/07-campos-cex-nota-medica/07-02-SUMMARY.md`.
+- **Next:** Phase 7 Plan 03 — Mapeo CEX/PDF (Wave 2).
 - **Phase 5:** Completada (05-01 enums, 05-02 usuarios, 05-03 firmantes, 05-04 UI). **Verification:** `05-VERIFICATION.md` (passed).
 - **Phase 4:** Completada (04-01 cimientos … 04-07 deuda diferida). Tests NOM-024 en `test/nom024/audit-*.nom024.spec.ts`.
 - **Phase 3:** Completada (03-01 list batches, 03-02 menú + vista Exportación GIIS). **Verification:** `03-VERIFICATION.md` (passed). **UAT:** `03-UAT.md` — 10/10 tests passed.
@@ -59,11 +60,11 @@ See: `.planning/PROJECT.md` (updated 2026-02-04)
 *(Para reanudar tras pausa: qué se estaba haciendo, qué archivos tocar, siguiente paso.)*
 
 - Última sesión: 2026-03-17.
-- Phase 7 Plan 01 completado: backend schema + DTO con 11 campos CEX.
-- Siguiente paso: Ejecutar 07-02 (frontend forms, Wave 1) y luego 07-03 (mapper CEX, Wave 2).
+- Phase 7: Wave 1 completada (07-01 backend + 07-02 frontend). Wave 2 pendiente (07-03 mapeo CEX/PDF).
+- Siguiente paso: Ejecutar 07-03-PLAN.md (Wave 2: mapeo CEX export + PDF nota médica).
 - Contexto: `phases/07-campos-cex-nota-medica/CONTEXT.md`.
-- Plans: `07-01-PLAN.md` ✅, `07-02-PLAN.md` pendiente, `07-03-PLAN.md` pendiente.
+- Plans: `07-01-SUMMARY.md` ✅, `07-02-SUMMARY.md` ✅, `07-03-PLAN.md` pendiente.
 
 ---
 
-*Last updated: 2026-03-17 — 07-01 complete*
+*Last updated: 2026-03-17 — 07-02 complete (Wave 1 done)*
