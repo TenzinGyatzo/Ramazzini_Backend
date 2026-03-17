@@ -5,7 +5,7 @@
 See: `.planning/PROJECT.md` (updated 2026-02-04)
 
 **Core value:** Que un proveedor SIRES pueda exportar información según las 3 guías GIIS aplicables.  
-**Current focus:** Phase 7 — Campos CEX en Nota Médica (8 campos: género, derechohabiencia, peso, talla, circunferencia cintura, glucemia, tipoMedicion, resultadoObtenidoaTravesde).
+**Current focus:** Phase 7 — Campos CEX en Nota Médica — COMPLETADA.
 
 ---
 
@@ -15,7 +15,8 @@ See: `.planning/PROJECT.md` (updated 2026-02-04)
 - **Roadmap:** 7 phases (Exportación GIIS → … → Campos CEX en Nota Médica). Ver ROADMAP.md.
 - **Phase 7 Plan 01:** Completada (07-01 backend schema + DTO, 11 campos CEX). **SUMMARY:** `.planning/phases/07-campos-cex-nota-medica/07-01-SUMMARY.md`.
 - **Phase 7 Plan 02:** Completada (07-02 frontend: 3 nuevos steps SIRES, renumeración 11→14, FormStepper condicional, visualizador dinámico, validación dinámica). **SUMMARY:** `.planning/phases/07-campos-cex-nota-medica/07-02-SUMMARY.md`.
-- **Next:** Phase 7 Plan 03 — Mapeo CEX/PDF (Wave 2).
+- **Phase 7 Plan 03:** Completada (07-03 mapper CEX lee 8 campos de consulta con fallbacks; PDF nota médica con secciones somatometría, glucemia, datos demográficos). **SUMMARY:** `.planning/phases/07-campos-cex-nota-medica/07-03-SUMMARY.md`.
+- **Phase 7:** COMPLETADA ✅ — Todos los planes ejecutados (07-01, 07-02, 07-03).
 - **Phase 5:** Completada (05-01 enums, 05-02 usuarios, 05-03 firmantes, 05-04 UI). **Verification:** `05-VERIFICATION.md` (passed).
 - **Phase 4:** Completada (04-01 cimientos … 04-07 deuda diferida). Tests NOM-024 en `test/nom024/audit-*.nom024.spec.ts`.
 - **Phase 3:** Completada (03-01 list batches, 03-02 menú + vista Exportación GIIS). **Verification:** `03-VERIFICATION.md` (passed). **UAT:** `03-UAT.md` — 10/10 tests passed.
@@ -23,6 +24,8 @@ See: `.planning/PROJECT.md` (updated 2026-02-04)
 - **Phase 2:** Completada (02-01 validación profunda, 02-02 naming/cifrado/ZIP, 02-03 auditoría y retención). **Verification:** `02-VERIFICATION.md` (passed). Deuda no crítica documentada: validación 3DES con DGIS pendiente; job de limpieza opcional.
 - **Phase 6 Plan 01:** Completada (06-01 cifrado automático, eliminación gate GIIS_ENCRYPTION_VALIDATED). **SUMMARY:** `.planning/phases/06-cifrado-informes-giis-txt-a-cif/06-01-SUMMARY.md`.
 - **Phase 6 Plan 02:** Completada (06-02 frontend etiquetas CEX Cifrado, CEX.txt, LES Cifrado, LES.txt). **SUMMARY:** `.planning/phases/06-cifrado-informes-giis-txt-a-cif/06-02-SUMMARY.md`.
+
+Progress: ███████████████████████████████████████████████████ 100% (7/7 phases)
 
 ---
 
@@ -52,6 +55,7 @@ See: `.planning/PROJECT.md` (updated 2026-02-04)
 - Prioridad: exportación GIIS (3 guías) antes que Audit Trail.
 - Phase 6: Cifrado obligatorio y automático al completar batch; gate GIIS_ENCRYPTION_VALIDATED eliminado.
 - Phase 7: 8 campos CEX agrupados en 3 nuevos steps (Género/Derechohabiencia, Somatometría, Glucemia); steps existentes renumerados de 11 a 14. Step7 (Somatometría) replica patrón de `exploracionFisicaSteps/Step2.vue`. **SIRES-only:** los 3 nuevos steps solo se muestran para SIRES_NOM024; SIN_REGIMEN mantiene 11 steps idénticos. Género/derechohabiencia en PDF y visualizador. IMC/categorías guardadas en BD. Genero pre-seleccionado desde trabajador.sexo.
+- Phase 7 Plan 03: tipoMedicion/resultadoObtenidoaTravesde condicionados a glucemia != 0; derechohabiencia usa `||` (no `??`) para fallback de string vacío.
 
 ---
 
@@ -60,11 +64,10 @@ See: `.planning/PROJECT.md` (updated 2026-02-04)
 *(Para reanudar tras pausa: qué se estaba haciendo, qué archivos tocar, siguiente paso.)*
 
 - Última sesión: 2026-03-17.
-- Phase 7: Wave 1 completada (07-01 backend + 07-02 frontend). Wave 2 pendiente (07-03 mapeo CEX/PDF).
-- Siguiente paso: Ejecutar 07-03-PLAN.md (Wave 2: mapeo CEX export + PDF nota médica).
-- Contexto: `phases/07-campos-cex-nota-medica/CONTEXT.md`.
-- Plans: `07-01-SUMMARY.md` ✅, `07-02-SUMMARY.md` ✅, `07-03-PLAN.md` pendiente.
+- Phase 7: COMPLETADA — Wave 1 (07-01 backend + 07-02 frontend) y Wave 2 (07-03 mapper/PDF) terminadas.
+- Milestone SIRES_NOM024: Todas las 7 fases completadas.
+- Siguiente paso: Ninguno pendiente en el roadmap actual. Considerar verificación E2E o nuevas fases.
 
 ---
 
-*Last updated: 2026-03-17 — 07-02 complete (Wave 1 done)*
+*Last updated: 2026-03-17 — 07-03 complete (Phase 7 done, all 7 phases complete)*
