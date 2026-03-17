@@ -41,6 +41,42 @@ export class NotaMedica extends Document {
   @Prop()
   saturacionOxigeno: number;
 
+  // CEX: Datos demográficos
+  @Prop({ required: false })
+  genero?: number;
+
+  @Prop({ required: false })
+  derechohabiencia?: string;
+
+  // CEX: Somatometría
+  @Prop({ required: false })
+  peso?: number;
+
+  @Prop({ required: false })
+  talla?: number;
+
+  @Prop({ required: false })
+  circunferenciaCintura?: number;
+
+  @Prop({ required: false })
+  indiceMasaCorporal?: number;
+
+  @Prop({ required: false })
+  categoriaIMC?: string;
+
+  @Prop({ required: false })
+  categoriaCircunferenciaCintura?: string;
+
+  // CEX: Glucemia
+  @Prop({ required: false })
+  glucemia?: number;
+
+  @Prop({ required: false })
+  tipoMedicion?: number;
+
+  @Prop({ required: false })
+  resultadoObtenidoaTravesde?: number;
+
   @Prop()
   diagnostico: string; // Free-text diagnosis (kept for backward compatibility)
 
