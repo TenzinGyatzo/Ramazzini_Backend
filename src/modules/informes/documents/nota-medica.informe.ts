@@ -296,6 +296,17 @@ interface NotaMedica {
   tratamiento: string[];
   recomendaciones: string[];
   observaciones: string;
+  genero?: number;
+  derechohabiencia?: string;
+  peso?: number;
+  talla?: number;
+  circunferenciaCintura?: number;
+  indiceMasaCorporal?: number;
+  categoriaIMC?: string;
+  categoriaCircunferenciaCintura?: string;
+  glucemia?: number;
+  tipoMedicion?: number;
+  resultadoObtenidoaTravesde?: number;
 }
 
 interface MedicoFirmante {
@@ -341,6 +352,106 @@ interface ProveedorSalud {
   correoElectronico: string;
   sitioWeb: string;
   colorInforme: string;
+}
+
+function construirDatosDemograficos(notaMedica: NotaMedica): Content | null {
+  const datos: Array<{ text: string; bold?: boolean }> = [];
+
+  if (notaMedica.genero != null && notaMedica.genero !== 0) {
+    const etiquetasGenero: Record<number, string> = {
+      1: 'Masculino', 2: 'Femenino', 3: 'Transgénero',
+      4: 'Transexual', 5: 'Travesti', 6: 'Intersexual', 88: 'Otro',
+    };
+    datos.push({ text: 'Género: ', bold: true });
+    datos.push({ text: etiquetasGenero[notaMedica.genero] || 'No especificado' });
+  }
+
+  if (notaMedica.derechohabiencia && notaMedica.derechohabiencia !== '0' && notaMedica.derechohabiencia !== '99') {
+    const catalogoDerechohabiencia: Record<string, string> = {
+      '1': 'Ninguna', '2': 'IMSS', '3': 'ISSSTE', '4': 'PEMEX',
+      '5': 'SEDENA', '6': 'SEMAR', '8': 'Otra', '10': 'IMSS Bienestar',
+      '11': 'ISSFAM', '14': 'OPD IMSS BIENESTAR',
+    };
+    const etiquetas = notaMedica.derechohabiencia.split('&')
+      .map(v => catalogoDerechohabiencia[v] || v)
+      .join(', ');
+    if (datos.length > 0) datos.push({ text: '  |  ' });
+    datos.push({ text: 'Derechohabiencia: ', bold: true });
+    datos.push({ text: etiquetas });
+  }
+
+  if (datos.length === 0) return null;
+  return {
+    text: datos,
+    margin: [0, 0, 0, 10],
+    style: 'paragraph',
+  };
+}
+
+function construirSomatometria(notaMedica: NotaMedica): Content | null {
+  const datos: Array<{ text: string; bold?: boolean; fontSize?: number }> = [];
+
+  const agregarDato = (etiqueta: string, valor: number | undefined | null, unidad: string, desconoce: number) => {
+    if (valor != null && valor !== desconoce) {
+      if (datos.length > 0) datos.push({ text: '  |  ' });
+      datos.push({ text: `${etiqueta}: `, bold: true });
+      datos.push({ text: `${valor}${unidad}` });
+    }
+  };
+
+  agregarDato('Peso', notaMedica.peso, ' kg', 999);
+  agregarDato('Talla', notaMedica.talla, ' cm', 999);
+
+  if (notaMedica.indiceMasaCorporal != null && notaMedica.indiceMasaCorporal > 0) {
+    if (datos.length > 0) datos.push({ text: '  |  ' });
+    datos.push({ text: 'IMC: ', bold: true });
+    datos.push({ text: `${notaMedica.indiceMasaCorporal.toFixed(1)}` });
+    if (notaMedica.categoriaIMC) {
+      datos.push({ text: ` (${notaMedica.categoriaIMC})` });
+    }
+  }
+
+  if (notaMedica.circunferenciaCintura != null && notaMedica.circunferenciaCintura > 0) {
+    if (datos.length > 0) datos.push({ text: '  |  ' });
+    datos.push({ text: 'C. Cintura: ', bold: true });
+    datos.push({ text: `${notaMedica.circunferenciaCintura} cm` });
+    if (notaMedica.categoriaCircunferenciaCintura) {
+      datos.push({ text: ` (${notaMedica.categoriaCircunferenciaCintura})` });
+    }
+  }
+
+  if (datos.length === 0) return null;
+  return {
+    text: [{ text: 'Somatometría: ', bold: true, fontSize: 11 }, ...datos],
+    margin: [0, 0, 0, 10],
+    style: 'paragraph',
+  };
+}
+
+function construirGlucemia(notaMedica: NotaMedica): Content | null {
+  if (notaMedica.glucemia == null || notaMedica.glucemia === 0) return null;
+
+  const datos: Array<{ text: string; bold?: boolean; fontSize?: number }> = [];
+  datos.push({ text: 'Glucemia: ', bold: true, fontSize: 11 });
+  datos.push({ text: `${notaMedica.glucemia} mg/dl` });
+
+  if (notaMedica.tipoMedicion != null && notaMedica.tipoMedicion !== -1) {
+    datos.push({ text: '  |  ' });
+    datos.push({ text: 'Ayunas: ', bold: true });
+    datos.push({ text: notaMedica.tipoMedicion === 1 ? 'Sí' : 'No' });
+  }
+
+  if (notaMedica.resultadoObtenidoaTravesde != null && notaMedica.resultadoObtenidoaTravesde !== -1) {
+    datos.push({ text: '  |  ' });
+    datos.push({ text: 'Medido por: ', bold: true });
+    datos.push({ text: notaMedica.resultadoObtenidoaTravesde === 1 ? 'Laboratorio' : 'Tira de glucosa capilar' });
+  }
+
+  return {
+    text: datos,
+    margin: [0, 0, 0, 10],
+    style: 'paragraph',
+  };
 }
 
 // ==================== INFORME PRINCIPAL ====================
@@ -553,8 +664,17 @@ export const notaMedicaInforme = (
         style: 'paragraph',
       },
 
+      // Datos demográficos SIRES
+      construirDatosDemograficos(notaMedica),
+
       // Signos Vitales
       construirSignosVitales(notaMedica),
+
+      // Somatometría SIRES
+      construirSomatometria(notaMedica),
+
+      // Glucemia SIRES
+      construirGlucemia(notaMedica),
 
       // Diagnóstico Principal y Complementarios (NOM-024) — grupo visual
       ...(notaMedica.codigoCIE10Principal ||
