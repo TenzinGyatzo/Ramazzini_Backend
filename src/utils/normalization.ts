@@ -254,6 +254,13 @@ export function normalizeMedicoFirmanteData(
     normalizedDto.curp = dto.curp.trim().toUpperCase();
   }
 
+  // País de nacimiento (CATALOG_KEY de cat_pais): parsear a número si viene como string
+  if ('paisNacimiento' in dto && dto.paisNacimiento != null && String(dto.paisNacimiento) !== '') {
+    const val = dto.paisNacimiento;
+    normalizedDto.paisNacimiento = typeof val === 'number' ? val : Number(val);
+    if (Number.isNaN(normalizedDto.paisNacimiento)) delete normalizedDto.paisNacimiento;
+  }
+
   // ✅ Verificar y eliminar idUser si está vacío
   if (!dto.idUser || dto.idUser.trim() === '') {
     delete normalizedDto.idUser;
@@ -301,6 +308,13 @@ export function normalizeEnfermeraFirmanteData(
   // NOM-024: Normalize CURP to uppercase
   if ('curp' in dto && dto.curp) {
     normalizedDto.curp = dto.curp.trim().toUpperCase();
+  }
+
+  // País de nacimiento (CATALOG_KEY de cat_pais): parsear a número si viene como string
+  if ('paisNacimiento' in dto && dto.paisNacimiento != null && String(dto.paisNacimiento) !== '') {
+    const val = dto.paisNacimiento;
+    normalizedDto.paisNacimiento = typeof val === 'number' ? val : Number(val);
+    if (Number.isNaN(normalizedDto.paisNacimiento)) delete normalizedDto.paisNacimiento;
   }
 
   // ✅ Verificar y eliminar idUser si está vacío

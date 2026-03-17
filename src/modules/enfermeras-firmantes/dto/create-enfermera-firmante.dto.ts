@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsMongoId,
   IsOptional,
+  IsNumber,
   Matches,
 } from 'class-validator';
 
@@ -65,6 +66,13 @@ export class CreateEnfermeraFirmanteDto {
       'CURP debe tener exactamente 18 caracteres con el formato: 4 letras, 6 dígitos, H/M, 5 letras, 1 alfanumérico, 1 dígito',
   })
   curp?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) =>
+    value === '' || value == null ? undefined : Number(value),
+  )
+  paisNacimiento?: number;
 
   static firma: { data: string; contentType: string };
 }

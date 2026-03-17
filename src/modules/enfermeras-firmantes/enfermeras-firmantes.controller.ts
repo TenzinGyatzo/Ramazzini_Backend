@@ -40,23 +40,19 @@ export class EnfermerasFirmantesController {
   @UseInterceptors(
     FileInterceptor('firma', {
       storage: diskStorage({
-        destination: path.resolve(
-          __dirname,
-          `../../../../${process.env.SIGNATORIES_UPLOADS_DIR}`,
+        destination: path.join(
+          process.cwd(),
+          process.env.SIGNATORIES_UPLOADS_DIR || 'assets/signatories',
         ),
         filename: (req, file, callback) => {
-          // Genera un nombre de archivo único basado en el nombre del médico firmante
           const sanitizedDoctorName = req.body.nombre
-            .replace(/\s+/g, '-') // Reemplaza espacios por guiones
-            .replace(/[^a-zA-Z0-9\-]/g, '') // Elimina caracteres especiales
-            .toLowerCase(); // Convierte a minúsculas
-
-          // Forma el nombre del archivo dependiendo del campo enviado
+            .replace(/\s+/g, '-')
+            .replace(/[^a-zA-Z0-9\-]/g, '')
+            .toLowerCase();
           let uniqueFilename = `${sanitizedDoctorName}-firma${path.extname(file.originalname)}`;
           if (file.fieldname === 'firmaConAntefirma') {
             uniqueFilename = `${sanitizedDoctorName}-firma-con-antefirma${path.extname(file.originalname)}`;
           }
-
           callback(null, uniqueFilename);
         },
       }),
@@ -160,23 +156,19 @@ export class EnfermerasFirmantesController {
   @UseInterceptors(
     FileInterceptor('firma', {
       storage: diskStorage({
-        destination: path.resolve(
-          __dirname,
-          `../../../../${process.env.SIGNATORIES_UPLOADS_DIR}`,
+        destination: path.join(
+          process.cwd(),
+          process.env.SIGNATORIES_UPLOADS_DIR || 'assets/signatories',
         ),
         filename: (req, file, callback) => {
-          // Genera un nombre de archivo único basado en el nombre del médico firmante
           const sanitizedDoctorName = req.body.nombre
-            .replace(/\s+/g, '-') // Reemplaza espacios por guiones
-            .replace(/[^a-zA-Z0-9\-]/g, '') // Elimina caracteres especiales
-            .toLowerCase(); // Convierte a minúsculas
-
-          // Forma el nombre del archivo dependiendo del campo enviado
+            .replace(/\s+/g, '-')
+            .replace(/[^a-zA-Z0-9\-]/g, '')
+            .toLowerCase();
           let uniqueFilename = `${sanitizedDoctorName}-firma${path.extname(file.originalname)}`;
           if (file.fieldname === 'firmaConAntefirma') {
             uniqueFilename = `${sanitizedDoctorName}-firma-con-antefirma${path.extname(file.originalname)}`;
           }
-
           callback(null, uniqueFilename);
         },
       }),

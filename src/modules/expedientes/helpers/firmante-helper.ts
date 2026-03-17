@@ -20,6 +20,7 @@ export interface PrestadorDataForCex {
   curp?: string;
   nombre: string;
   tipoPersonal: number;
+  paisNacimiento?: number;
 }
 
 @Injectable()
@@ -152,6 +153,7 @@ export class FirmanteHelper {
           curp: (medico as any).curp,
           nombre: (medico as any).nombre ?? '',
           tipoPersonal,
+          paisNacimiento: (medico as any).paisNacimiento,
         };
       }
       if (enfermera) {
@@ -159,6 +161,7 @@ export class FirmanteHelper {
           curp: (enfermera as any).curp,
           nombre: (enfermera as any).nombre ?? '',
           tipoPersonal: TIPO_PERSONAL_CEX_ENFERMERA,
+          paisNacimiento: (enfermera as any).paisNacimiento,
         };
       }
       return null;
@@ -188,6 +191,7 @@ export class FirmanteHelper {
           curp: (firmante as any).curp,
           nombre: (firmante as any).nombre ?? '',
           tipoPersonal,
+          paisNacimiento: (firmante as any).paisNacimiento,
         };
       }
 
@@ -200,6 +204,7 @@ export class FirmanteHelper {
           curp: (firmante as any).curp,
           nombre: (firmante as any).nombre ?? '',
           tipoPersonal: TIPO_PERSONAL_CEX_ENFERMERA,
+          paisNacimiento: (firmante as any).paisNacimiento,
         };
       }
 

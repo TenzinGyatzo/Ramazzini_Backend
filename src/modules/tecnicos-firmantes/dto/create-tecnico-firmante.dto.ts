@@ -3,6 +3,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsNumber,
   Matches,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
@@ -75,4 +76,15 @@ export class CreateTecnicoFirmanteDto {
       'CURP debe tener exactamente 18 caracteres con el formato: 4 letras, 6 dígitos, H/M, 5 letras, 1 alfanumérico, 1 dígito',
   })
   curp?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'País de nacimiento (CATALOG_KEY de cat_pais)',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) =>
+    value === '' || value == null ? undefined : Number(value),
+  )
+  paisNacimiento?: number;
 }

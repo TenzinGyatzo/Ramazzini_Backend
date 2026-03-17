@@ -246,6 +246,38 @@ export class CatalogsController {
     return entry;
   }
 
+  @Get('paises/search')
+  async searchPaises(
+    @Query('q') query: string,
+    @Query('limit') limit?: number,
+  ) {
+    if (!query || query.trim() === '') {
+      throw new BadRequestException('Query parameter "q" is required');
+    }
+    const searchLimit = limit
+      ? Math.min(Math.max(1, parseInt(limit.toString())), 100)
+      : 50;
+    return await this.catalogsService.searchCatalog(
+      CatalogType.PAIS,
+      query.trim(),
+      searchLimit,
+    );
+  }
+
+  @Get('paises/:catalogKey')
+  async getPaisByCatalogKey(@Param('catalogKey') catalogKey: string) {
+    const entry = await this.catalogsService.getCatalogEntry(
+      CatalogType.PAIS,
+      catalogKey,
+    );
+    if (!entry) {
+      throw new NotFoundException(
+        `País with catalog key ${catalogKey} not found`,
+      );
+    }
+    return entry;
+  }
+
   @Get('giis/:catalogType/list')
   async listGIISCatalog(
     @Param('catalogType') catalogType: string,
@@ -259,6 +291,7 @@ export class CatalogsController {
       CatalogType.TIPO_PERSONAL,
       CatalogType.TIPO_VIALIDAD,
       CatalogType.TIPO_ASENTAMIENTO,
+      CatalogType.PAIS,
     ];
     const catalog = catalogType as CatalogType;
     if (!allowed.includes(catalog)) {

@@ -60,6 +60,8 @@ export interface PrestadorLike {
   curp?: string;
   nombre?: string;
   tipoPersonal?: number;
+  /** CATALOG_KEY de cat_pais (ej. 142=México) */
+  paisNacimiento?: number;
 }
 
 const CEX_SCHEMA = loadGiisSchema('CEX');
@@ -309,9 +311,15 @@ export function mapNotaMedicaToCexRow(
         ? PAIS_NO_ESPECIFICADO
         : DEFAULT_PAIS_MEXICO;
 
+  const paisNacimientoPrestador =
+    prestador?.paisNacimiento != null &&
+    Number.isFinite(prestador.paisNacimiento)
+      ? prestador.paisNacimiento
+      : DEFAULT_PAIS_MEXICO;
+
   const valueByField: Record<string, string | number> = {
     clues,
-    paisNacimiento: DEFAULT_PAIS_MEXICO,
+    paisNacimiento: paisNacimientoPrestador,
     curpPrestador,
     nombrePrestador,
     primerApellidoPrestador,

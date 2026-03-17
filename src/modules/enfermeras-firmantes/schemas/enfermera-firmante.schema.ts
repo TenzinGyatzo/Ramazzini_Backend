@@ -33,6 +33,10 @@ export class EnfermeraFirmante extends Document {
   // NOM-024 GIIS-B015: Tipo de personal de salud (código numérico oficial DGIS)
   @Prop({ required: false })
   tipoPersonalId?: number; // Código numérico oficial DGIS (ej: 1, 15, 30)
+
+  // NOM-024 GIIS: País de nacimiento (CATALOG_KEY de cat_pais)
+  @Prop({ required: false })
+  paisNacimiento?: number;
 }
 
 export const EnfermeraFirmanteSchema =
