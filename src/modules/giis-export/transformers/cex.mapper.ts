@@ -40,6 +40,14 @@ export interface ConsultaExternaLike {
   confirmacionDiagnostica3?: boolean;
   /** 1 = primera consulta del trabajador en el año, 0 = ya existía otra (solo NotaMedica). */
   primeraVezAnio?: number;
+  genero?: number;
+  derechohabiencia?: string;
+  peso?: number;
+  talla?: number;
+  circunferenciaCintura?: number;
+  glucemia?: number;
+  tipoMedicion?: number;
+  resultadoObtenidoaTravesde?: number;
   [key: string]: unknown;
 }
 
@@ -344,8 +352,8 @@ export function mapNotaMedicaToCexRow(
     seConsideraIndigena: -1,
     migrante: -1,
     paisProcedencia: -1,
-    genero: genero ?? 0,
-    derechohabiencia: '99',
+    genero: consulta.genero ?? genero ?? 0,
+    derechohabiencia: consulta.derechohabiencia || '99',
     // CEX: fechaConsulta no posterior al día de registro; si es futura, normalizar a hoy
     fechaConsulta: (() => {
       const d = consulta.fechaNotaMedica
@@ -361,9 +369,9 @@ export function mapNotaMedicaToCexRow(
       return toDDMMAAAA(useDate) || '';
     })(),
     servicioAtencion: 4, // 4 = Consulta Externa General
-    peso: 999,
-    talla: 999,
-    circunferenciaCintura: 0,
+    peso: consulta.peso ?? 999,
+    talla: consulta.talla ?? 999,
+    circunferenciaCintura: consulta.circunferenciaCintura ?? 0,
     // CEX: "Se desconoce" → 999; si diastolica desconocida, sistolica también (y viceversa)
     sistolica: (() => {
       const s = consulta.tensionArterialSistolica;
@@ -385,9 +393,13 @@ export function mapNotaMedicaToCexRow(
     frecuenciaRespiratoria: toCexVital(consulta.frecuenciaRespiratoria),
     temperatura: toCexVital(consulta.temperatura),
     saturacionOxigeno: toCexVital(consulta.saturacionOxigeno),
-    glucemia: 0,
-    tipoMedicion: -1,
-    resultadoObtenidoaTravesde: -1,
+    glucemia: consulta.glucemia ?? 0,
+    tipoMedicion: (consulta.glucemia != null && consulta.glucemia !== 0)
+      ? (consulta.tipoMedicion ?? -1)
+      : -1,
+    resultadoObtenidoaTravesde: (consulta.glucemia != null && consulta.glucemia !== 0)
+      ? (consulta.resultadoObtenidoaTravesde ?? -1)
+      : -1,
     embarazadaSinDiabetes: 0,
     sintomaticoRespiratorioTb,
     primeraVezAnio: consulta.primeraVezAnio ?? 0,
