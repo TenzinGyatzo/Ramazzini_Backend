@@ -145,6 +145,27 @@ Los informes GIIS que actualmente se generan en .txt deben cifrarse automáticam
 
 ---
 
+## Phase 7: Campos CEX en Nota Médica
+
+**Goal:** Agregar 8 campos requeridos por la guía GIIS CEX a la creación/edición de nota médica (género, derechohabiencia, peso, talla, circunferencia de cintura, glucemia, tipo de medición, resultado obtenido a través de), organizados en 3 nuevos steps del formulario, con renumeración de steps existentes (11 → 14 steps).
+
+**Depends on:** Phase 6
+
+**Plans:** 3 plans (07-01, 07-02, 07-03) in 2 waves
+
+Plans:
+- [x] 07-01 — Backend: schema Mongoose + DTO validaciones (11 campos: 8 CEX + 3 calculados) [Wave 1]
+- [x] 07-02 — Frontend: 3 nuevos steps (Género/Derechohabiencia, Somatometría, Glucemia) + renumeración 11→14 steps + FormStepper + validacionCampos [Wave 1]
+- [x] 07-03 — Mapeo GIIS CEX (leer campos reales con fallback) + PDF (3 secciones nuevas) [Wave 2, depends: 07-01]
+
+**Status:** Completed  
+**Verification:** `phases/07-campos-cex-nota-medica/07-VERIFICATION.md` (passed, 2026-03-17)
+
+**Details:**
+Campos CEX: genero (id 22), derechohabiencia (id 23), peso (id 26), talla (id 27), circunferenciaCintura (id 28), glucemia (id 35), tipoMedicion (id 36), resultadoObtenidoaTravesde (id 37). Nuevos steps: Step3 (Género/Derechohabiencia), Step7 (Somatometría — replica patrón de `exploracionFisicaSteps/Step2.vue`), Step8 (Glucemia). Contexto: `phases/07-campos-cex-nota-medica/CONTEXT.md`.
+
+---
+
 ## Summary
 
 | # | Phase | Goal | Requirements | Status |
@@ -155,11 +176,12 @@ Los informes GIIS que actualmente se generan en .txt deben cifrarse automáticam
 | 4 | AuditTrail | Registro cronológico NOM-024, trazabilidad, no repudio, inalterabilidad | — | Completed ✓ |
 | 5 | Audit Trail — eventos usuarios y firmantes | Registro de eventos de gestión de usuarios y perfiles firmantes | — | Completed ✓ |
 | 6 | Cifrado de informes GIIS (txt → .cif) | Cifrado automático, TXT+ZIP descarga, CEX/LES | — | Completed ✓ |
+| 7 | Campos CEX en Nota Médica | 8 campos CEX (género, derechohabiencia, somatometría, glucemia) en nota médica | — | Completed ✓ |
 
-**Total:** 6 phases | 2 requirements mapped ✓
+**Total:** 7 phases | 2 requirements mapped ✓
 
 ---
 
 ---
 
-*Last updated: 2026-02-26*
+*Last updated: 2026-03-17 — Phase 7 completed*
