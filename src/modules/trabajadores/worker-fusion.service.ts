@@ -53,14 +53,22 @@ export class WorkerFusionService {
 
     for (const existing of workersInEmpresa) {
       const existingId = (existing as any)._id?.toString();
-      const existingCanonicalId = (existing as any).idTrabajadorCanonico?.toString();
+      const existingCanonicalId = (
+        existing as any
+      ).idTrabajadorCanonico?.toString();
       const canonicalId = existingCanonicalId || existingId;
 
       // Match 1: CURP (both non-generic and equal)
       if (newCurpIsReal) {
         const existingCurp = (existing as any).curp?.trim().toUpperCase();
-        if (existingCurp && !isGenericCURP(existingCurp) && existingCurp === newCurp) {
-          return (await this.trabajadorModel.findById(canonicalId).exec()) as Trabajador;
+        if (
+          existingCurp &&
+          !isGenericCURP(existingCurp) &&
+          existingCurp === newCurp
+        ) {
+          return (await this.trabajadorModel
+            .findById(canonicalId)
+            .exec()) as Trabajador;
         }
       }
 
@@ -68,7 +76,9 @@ export class WorkerFusionService {
       if (newFolio) {
         const existingFolio = (existing as any).folio;
         if (existingFolio && existingFolio === newFolio) {
-          return (await this.trabajadorModel.findById(canonicalId).exec()) as Trabajador;
+          return (await this.trabajadorModel
+            .findById(canonicalId)
+            .exec()) as Trabajador;
         }
       }
     }
@@ -105,10 +115,14 @@ export class WorkerFusionService {
       .exec();
 
     if (!centro?.idEmpresa) return null;
-    return (centro.idEmpresa as any)?.toString?.() ?? centro.idEmpresa.toString();
+    return (
+      (centro.idEmpresa as any)?.toString?.() ?? centro.idEmpresa.toString()
+    );
   }
 
-  private async getCentroIdsByEmpresa(idEmpresa: string): Promise<Types.ObjectId[]> {
+  private async getCentroIdsByEmpresa(
+    idEmpresa: string,
+  ): Promise<Types.ObjectId[]> {
     const centros = await this.centroTrabajoModel
       .find({ idEmpresa: new Types.ObjectId(idEmpresa) })
       .select('_id')

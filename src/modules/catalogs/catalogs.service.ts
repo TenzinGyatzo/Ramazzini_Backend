@@ -289,6 +289,15 @@ export class CatalogsService implements OnModuleInit {
             }
           }
 
+          const letraRaw =
+            record.LETRA ?? record.Letra ?? record.letra ?? undefined;
+          const letra =
+            letraRaw !== undefined &&
+            letraRaw !== null &&
+            String(letraRaw).trim() !== ''
+              ? String(letraRaw).trim().toUpperCase()
+              : undefined;
+
           return {
             code: record.CATALOG_KEY || record.codigo || record.code,
             description:
@@ -302,6 +311,7 @@ export class CatalogsService implements OnModuleInit {
             lsup,
             linfRaw,
             lsupRaw,
+            letra,
           } as CIE10Entry;
 
         case CatalogType.CIE10_GIIS_LESION: {

@@ -395,12 +395,14 @@ export function mapNotaMedicaToCexRow(
     temperatura: toCexVital(consulta.temperatura),
     saturacionOxigeno: toCexVital(consulta.saturacionOxigeno),
     glucemia: consulta.glucemia ?? 0,
-    tipoMedicion: (consulta.glucemia != null && consulta.glucemia !== 0)
-      ? (consulta.tipoMedicion ?? -1)
-      : -1,
-    resultadoObtenidoaTravesde: (consulta.glucemia != null && consulta.glucemia !== 0)
-      ? (consulta.resultadoObtenidoaTravesde ?? -1)
-      : -1,
+    tipoMedicion:
+      consulta.glucemia != null && consulta.glucemia !== 0
+        ? (consulta.tipoMedicion ?? -1)
+        : -1,
+    resultadoObtenidoaTravesde:
+      consulta.glucemia != null && consulta.glucemia !== 0
+        ? (consulta.resultadoObtenidoaTravesde ?? -1)
+        : -1,
     embarazadaSinDiabetes: 0,
     sintomaticoRespiratorioTb,
     primeraVezAnio: consulta.primeraVezAnio ?? 0,

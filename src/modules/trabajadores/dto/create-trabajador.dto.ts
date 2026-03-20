@@ -307,7 +307,10 @@ export class CreateTrabajadorDto {
   folio?: string;
 
   // Referencia al trabajador canónico (fusión). Asignado por backend, no modificable
-  @ApiProperty({ description: 'ID trabajador canónico (asignado por backend)', required: false })
+  @ApiProperty({
+    description: 'ID trabajador canónico (asignado por backend)',
+    required: false,
+  })
   @IsOptional()
   @IsMongoId()
   idTrabajadorCanonico?: string;

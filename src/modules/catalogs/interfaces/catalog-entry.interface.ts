@@ -32,6 +32,8 @@ export interface CIE10Entry extends CatalogEntry {
   lsup?: number; // Upper age limit (parsed number, may be undefined if format is "120A")
   linfRaw?: string; // Raw lower age limit from catalog (e.g., "010A", "028D", "NO")
   lsupRaw?: string; // Raw upper age limit from catalog (e.g., "120A", "NO")
+  /** DIAGNOSTICO_SIS: MT / CP — restricción de tipo de personal (cat_tipo_personal DGIS) */
+  letra?: string;
 }
 
 /** Extended CIE10 for GIIS lesion catalog (diagnosticos.csv) with AF_PRIN, RUBRICA_TYPE */

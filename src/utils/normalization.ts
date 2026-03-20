@@ -255,10 +255,15 @@ export function normalizeMedicoFirmanteData(
   }
 
   // País de nacimiento (CATALOG_KEY de cat_pais): parsear a número si viene como string
-  if ('paisNacimiento' in dto && dto.paisNacimiento != null && String(dto.paisNacimiento) !== '') {
+  if (
+    'paisNacimiento' in dto &&
+    dto.paisNacimiento != null &&
+    String(dto.paisNacimiento) !== ''
+  ) {
     const val = dto.paisNacimiento;
     normalizedDto.paisNacimiento = typeof val === 'number' ? val : Number(val);
-    if (Number.isNaN(normalizedDto.paisNacimiento)) delete normalizedDto.paisNacimiento;
+    if (Number.isNaN(normalizedDto.paisNacimiento))
+      delete normalizedDto.paisNacimiento;
   }
 
   // ✅ Verificar y eliminar idUser si está vacío
@@ -311,10 +316,15 @@ export function normalizeEnfermeraFirmanteData(
   }
 
   // País de nacimiento (CATALOG_KEY de cat_pais): parsear a número si viene como string
-  if ('paisNacimiento' in dto && dto.paisNacimiento != null && String(dto.paisNacimiento) !== '') {
+  if (
+    'paisNacimiento' in dto &&
+    dto.paisNacimiento != null &&
+    String(dto.paisNacimiento) !== ''
+  ) {
     const val = dto.paisNacimiento;
     normalizedDto.paisNacimiento = typeof val === 'number' ? val : Number(val);
-    if (Number.isNaN(normalizedDto.paisNacimiento)) delete normalizedDto.paisNacimiento;
+    if (Number.isNaN(normalizedDto.paisNacimiento))
+      delete normalizedDto.paisNacimiento;
   }
 
   // ✅ Verificar y eliminar idUser si está vacío

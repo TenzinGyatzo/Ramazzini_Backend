@@ -102,8 +102,9 @@ export class ConsentimientoDiarioService {
     }
 
     // 4. Obtener proveedorSaludId desde trabajador
-    const proveedorSaludId =
-      await this.getProveedorSaludIdFromTrabajador(canonicalTrabajadorId);
+    const proveedorSaludId = await this.getProveedorSaludIdFromTrabajador(
+      canonicalTrabajadorId,
+    );
     if (!proveedorSaludId) {
       throw new ForbiddenException(
         'No se pudo determinar el proveedor de salud del trabajador',

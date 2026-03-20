@@ -87,7 +87,9 @@ describe('WorkerFusionService', () => {
         exec: jest.fn().mockResolvedValue(null),
       });
 
-      const result = await service.getCanonicalTrabajadorId('507f1f77bcf86cd799439011');
+      const result = await service.getCanonicalTrabajadorId(
+        '507f1f77bcf86cd799439011',
+      );
       expect(result).toBe('507f1f77bcf86cd799439011');
     });
   });

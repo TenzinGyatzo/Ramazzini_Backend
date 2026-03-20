@@ -147,7 +147,11 @@ export class Trabajador extends Document {
 
   // Referencia al trabajador canónico cuando este registro es duplicado (fusión)
   // El expediente se asocia al canónico; acceso desde cualquier registro del grupo muestra lo mismo
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Trabajador', required: false })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Trabajador',
+    required: false,
+  })
   idTrabajadorCanonico?: MongooseSchema.Types.ObjectId;
 }
 

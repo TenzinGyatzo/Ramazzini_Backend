@@ -152,9 +152,7 @@ export class GiisExportController {
       VALID_GUIDES.includes(g as (typeof VALID_GUIDES)[number]),
     ) as (typeof VALID_GUIDES)[number][];
     if (guides.length === 0) {
-      throw new ForbiddenException(
-        'Debe indicar al menos una guía: CEX.',
-      );
+      throw new ForbiddenException('Debe indicar al menos una guía: CEX.');
     }
     const result = await this.giisValidationService.preValidate(
       proveedorSaludId,

@@ -359,21 +359,41 @@ function construirDatosDemograficos(notaMedica: NotaMedica): Content | null {
 
   if (notaMedica.genero != null) {
     const etiquetasGenero: Record<number, string> = {
-      0: 'No especificado', 1: 'Masculino', 2: 'Femenino', 3: 'Transgénero',
-      4: 'Transexual', 5: 'Travesti', 6: 'Intersexual', 88: 'Otro',
+      0: 'No especificado',
+      1: 'Masculino',
+      2: 'Femenino',
+      3: 'Transgénero',
+      4: 'Transexual',
+      5: 'Travesti',
+      6: 'Intersexual',
+      88: 'Otro',
     };
     datos.push({ text: 'Género: ', bold: true });
-    datos.push({ text: etiquetasGenero[notaMedica.genero] || 'No especificado' });
+    datos.push({
+      text: etiquetasGenero[notaMedica.genero] || 'No especificado',
+    });
   }
 
-  if (notaMedica.derechohabiencia && notaMedica.derechohabiencia !== '0' && notaMedica.derechohabiencia !== '99') {
+  if (
+    notaMedica.derechohabiencia &&
+    notaMedica.derechohabiencia !== '0' &&
+    notaMedica.derechohabiencia !== '99'
+  ) {
     const catalogoDerechohabiencia: Record<string, string> = {
-      '1': 'Ninguna', '2': 'IMSS', '3': 'ISSSTE', '4': 'PEMEX',
-      '5': 'SEDENA', '6': 'SEMAR', '8': 'Otra', '10': 'IMSS Bienestar',
-      '11': 'ISSFAM', '14': 'OPD IMSS BIENESTAR',
+      '1': 'Ninguna',
+      '2': 'IMSS',
+      '3': 'ISSSTE',
+      '4': 'PEMEX',
+      '5': 'SEDENA',
+      '6': 'SEMAR',
+      '8': 'Otra',
+      '10': 'IMSS Bienestar',
+      '11': 'ISSFAM',
+      '14': 'OPD IMSS BIENESTAR',
     };
-    const etiquetas = notaMedica.derechohabiencia.split('&')
-      .map(v => catalogoDerechohabiencia[v] || v)
+    const etiquetas = notaMedica.derechohabiencia
+      .split('&')
+      .map((v) => catalogoDerechohabiencia[v] || v)
       .join(', ');
     if (datos.length > 0) datos.push({ text: '  |  ' });
     datos.push({ text: 'Derechohabiencia: ', bold: true });
@@ -391,7 +411,12 @@ function construirDatosDemograficos(notaMedica: NotaMedica): Content | null {
 function construirSomatometria(notaMedica: NotaMedica): Content | null {
   const datos: Array<{ text: string; bold?: boolean; fontSize?: number }> = [];
 
-  const agregarDato = (etiqueta: string, valor: number | undefined | null, unidad: string, desconoce: number) => {
+  const agregarDato = (
+    etiqueta: string,
+    valor: number | undefined | null,
+    unidad: string,
+    desconoce: number,
+  ) => {
     if (valor != null && valor !== desconoce) {
       if (datos.length > 0) datos.push({ text: '  |  ' });
       datos.push({ text: `${etiqueta}: `, bold: true });
@@ -402,7 +427,10 @@ function construirSomatometria(notaMedica: NotaMedica): Content | null {
   agregarDato('Peso', notaMedica.peso, ' kg', 999);
   agregarDato('Talla', notaMedica.talla, ' cm', 999);
 
-  if (notaMedica.indiceMasaCorporal != null && notaMedica.indiceMasaCorporal > 0) {
+  if (
+    notaMedica.indiceMasaCorporal != null &&
+    notaMedica.indiceMasaCorporal > 0
+  ) {
     if (datos.length > 0) datos.push({ text: '  |  ' });
     datos.push({ text: 'IMC: ', bold: true });
     datos.push({ text: `${notaMedica.indiceMasaCorporal.toFixed(1)}` });
@@ -411,7 +439,10 @@ function construirSomatometria(notaMedica: NotaMedica): Content | null {
     }
   }
 
-  if (notaMedica.circunferenciaCintura != null && notaMedica.circunferenciaCintura > 0) {
+  if (
+    notaMedica.circunferenciaCintura != null &&
+    notaMedica.circunferenciaCintura > 0
+  ) {
     if (datos.length > 0) datos.push({ text: '  |  ' });
     datos.push({ text: 'C. Cintura: ', bold: true });
     datos.push({ text: `${notaMedica.circunferenciaCintura} cm` });
@@ -441,10 +472,18 @@ function construirGlucemia(notaMedica: NotaMedica): Content | null {
     datos.push({ text: notaMedica.tipoMedicion === 1 ? 'Sí' : 'No' });
   }
 
-  if (notaMedica.resultadoObtenidoaTravesde != null && notaMedica.resultadoObtenidoaTravesde !== -1) {
+  if (
+    notaMedica.resultadoObtenidoaTravesde != null &&
+    notaMedica.resultadoObtenidoaTravesde !== -1
+  ) {
     datos.push({ text: '  |  ' });
     datos.push({ text: 'Medido por: ', bold: true });
-    datos.push({ text: notaMedica.resultadoObtenidoaTravesde === 1 ? 'Laboratorio' : 'Tira de glucosa capilar' });
+    datos.push({
+      text:
+        notaMedica.resultadoObtenidoaTravesde === 1
+          ? 'Laboratorio'
+          : 'Tira de glucosa capilar',
+    });
   }
 
   return {
