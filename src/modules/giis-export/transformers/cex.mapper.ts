@@ -273,16 +273,17 @@ export function mapNotaMedicaToCexRow(
 
   const codigo1 = extractCieCode(consulta.codigoCIE10Principal);
   const comp = consulta.codigosCIE10Complementarios || [];
-  const primeraVezDiag2 = consulta.primeraVezDiagnostico2;
-  const codigo2Raw =
-    primeraVezDiag2 === -1
-      ? ''
-      : comp[0]
-        ? extractCieCode(comp[0])
-        : consulta.codigoCIEDiagnostico2
-          ? extractCieCode(consulta.codigoCIEDiagnostico2 as string)
-          : '';
-  const codigo2 = primeraVezDiag2 === -1 ? '' : codigo2Raw || 'R69X';
+  const diag2NoAplica =
+    consulta.primeraVezDiagnostico2 !== 0 &&
+    consulta.primeraVezDiagnostico2 !== 1;
+  const codigo2Raw = diag2NoAplica
+    ? ''
+    : comp[0]
+      ? extractCieCode(comp[0])
+      : consulta.codigoCIEDiagnostico2
+        ? extractCieCode(consulta.codigoCIEDiagnostico2 as string)
+        : '';
+  const codigo2 = diag2NoAplica ? '' : codigo2Raw || 'R69X';
 
   const nombreCompletoPrestador = (prestador?.nombre ?? '').trim();
   const parsed = nombreCompletoPrestador

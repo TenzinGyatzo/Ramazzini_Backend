@@ -3030,6 +3030,20 @@ export class InformesService {
       frecuenciaRespiratoria: notaMedica.frecuenciaRespiratoria,
       temperatura: notaMedica.temperatura,
       saturacionOxigeno: notaMedica.saturacionOxigeno,
+      // CEX NOM-024: Datos demográficos
+      genero: notaMedica.genero,
+      derechohabiencia: notaMedica.derechohabiencia,
+      // CEX: Somatometría
+      peso: notaMedica.peso,
+      talla: notaMedica.talla,
+      circunferenciaCintura: notaMedica.circunferenciaCintura,
+      indiceMasaCorporal: notaMedica.indiceMasaCorporal,
+      categoriaIMC: notaMedica.categoriaIMC,
+      categoriaCircunferenciaCintura: notaMedica.categoriaCircunferenciaCintura,
+      // CEX: Glucemia
+      glucemia: notaMedica.glucemia,
+      tipoMedicion: notaMedica.tipoMedicion,
+      resultadoObtenidoaTravesde: notaMedica.resultadoObtenidoaTravesde,
       diagnostico: notaMedica.diagnostico, // Legacy field, opcional
       // NOM-024: CIE-10 Diagnosis Codes
       codigoCIE10Principal: notaMedica.codigoCIE10Principal,

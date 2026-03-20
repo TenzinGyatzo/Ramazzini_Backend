@@ -357,9 +357,9 @@ interface ProveedorSalud {
 function construirDatosDemograficos(notaMedica: NotaMedica): Content | null {
   const datos: Array<{ text: string; bold?: boolean }> = [];
 
-  if (notaMedica.genero != null && notaMedica.genero !== 0) {
+  if (notaMedica.genero != null) {
     const etiquetasGenero: Record<number, string> = {
-      1: 'Masculino', 2: 'Femenino', 3: 'Transgénero',
+      0: 'No especificado', 1: 'Masculino', 2: 'Femenino', 3: 'Transgénero',
       4: 'Transexual', 5: 'Travesti', 6: 'Intersexual', 88: 'Otro',
     };
     datos.push({ text: 'Género: ', bold: true });

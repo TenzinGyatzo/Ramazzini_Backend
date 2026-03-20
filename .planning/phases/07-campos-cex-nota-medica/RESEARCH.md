@@ -502,21 +502,13 @@ Patrón confirmado con diferencias a adaptar:
 3. Actualizar interface `NotaMedica` en nota-medica.informe.ts con los 8 campos
 4. Agregar secciones al PDF para somatometría y glucemia (funciones helper como `construirSignosVitales`)
 
-## Open Questions
+## Decisiones Confirmadas (2026-03-17)
 
-1. **¿Mostrar genero y derechohabiencia en el PDF?**
-   - Genero: probablemente sí (dato clínico relevante)
-   - Derechohabiencia: probablemente sí (dato administrativo útil)
-   - Recomendación: incluir ambos como sección breve
+1. **Genero y derechohabiencia en PDF y visualizador:** SÍ — mostrar ambos tanto en el PDF (nota-medica.informe.ts) como en el visualizador frontend (VisualizadorNotaMedica.vue).
 
-2. **¿IMC y categorías deben guardarse en la BD de nota médica?**
-   - En exploración física SÍ se guardan (indiceMasaCorporal, categoriaIMC)
-   - Recomendación: SÍ guardar también en nota médica para el PDF y para consultas rápidas
-   - Campos adicionales opcionales: indiceMasaCorporal, categoriaIMC, categoriaCircunferenciaCintura
+2. **IMC y categorías en BD:** SÍ — guardar indiceMasaCorporal, categoriaIMC, categoriaCircunferenciaCintura en la nota médica, igual que en exploración física. Campos adicionales en schema/DTO.
 
-3. **¿Debe genero tener un default derivado del sexo del trabajador?**
-   - El mapper CEX actualmente deriva genero de sexoCURP
-   - Recomendación: en el frontend, pre-seleccionar genero basado en trabajador.sexo (Masculino→1, Femenino→2) pero permitir cambio
+3. **Pre-seleccionar genero desde trabajador.sexo:** SÍ — en el frontend, pre-seleccionar genero basado en trabajador.sexo (Masculino→1, Femenino→2) pero permitir cambio manual.
 
 ## Sources
 
