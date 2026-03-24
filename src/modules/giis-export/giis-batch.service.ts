@@ -38,6 +38,9 @@ import { AuditService } from '../audit/audit.service';
 import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
 import { CatalogsService } from '../catalogs/catalogs.service';
+import { giisExportConfig } from './config/giis-export.config';
+import { evaluateCexLoadQuality } from './validation/cex-load-quality.util';
+import { getTrabajadorIdsForProveedor } from './utils/giis-proveedor-scope.util';
 
 export type CreateBatchOptions = GiisBatchOptions;
 
@@ -90,37 +93,6 @@ export class GiisBatchService {
     private readonly firmanteHelper: FirmanteHelper,
     private readonly catalogsService: CatalogsService,
   ) {}
-
-  /**
-   * Obtiene los IDs de trabajadores que pertenecen al proveedor (tenant).
-   * Cadena: ProveedorSalud → Empresas → CentrosTrabajo → Trabajadores.
-   */
-  private async getTrabajadorIdsForProveedor(
-    proveedorSaludId: string,
-  ): Promise<Types.ObjectId[]> {
-    const empresas = await this.empresaModel
-      .find({ idProveedorSalud: proveedorSaludId })
-      .select('_id')
-      .lean()
-      .exec();
-    const empresaIds = empresas.map((e) => e._id);
-    if (empresaIds.length === 0) return [];
-
-    const centros = await this.centroTrabajoModel
-      .find({ idEmpresa: { $in: empresaIds } })
-      .select('_id')
-      .lean()
-      .exec();
-    const centroIds = centros.map((c) => c._id);
-    if (centroIds.length === 0) return [];
-
-    const trabajadores = await this.trabajadorModel
-      .find({ idCentroTrabajo: { $in: centroIds } })
-      .select('_id')
-      .lean()
-      .exec();
-    return trabajadores.map((t) => t._id as unknown as Types.ObjectId);
-  }
 
   async createBatch(
     proveedorSaludId: string,
@@ -258,8 +230,11 @@ export class GiisBatchService {
     const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
     const clues = batch.establecimientoClues || '9998';
 
-    const trabajadorIds = await this.getTrabajadorIdsForProveedor(
+    const trabajadorIds = await getTrabajadorIdsForProveedor(
       batch.proveedorSaludId.toString(),
+      this.empresaModel,
+      this.centroTrabajoModel,
+      this.trabajadorModel,
     );
     const notas = await this.notaMedicaModel
       .find({
@@ -346,6 +321,12 @@ export class GiisBatchService {
         rows,
         schema,
       );
+    const loadQualityResult = giisExportConfig.cexLoadQualityRulesEnabled
+      ? evaluateCexLoadQuality(validRows)
+      : null;
+    const loadQualityFail =
+      loadQualityResult !== null && !loadQualityResult.ok;
+
     const currentBatch = await this.getBatch(batchId);
     const existingEntries =
       (currentBatch?.excludedReport as GiisExcludedReport)?.entries ?? [];
@@ -364,7 +345,7 @@ export class GiisBatchService {
     const hadBlockers =
       (currentBatch?.validationStatus as string) === 'has_blockers';
     const validationStatus =
-      mergedTotalExcluded > 0
+      loadQualityFail || mergedTotalExcluded > 0
         ? 'has_blockers'
         : hadBlockers
           ? 'has_blockers'
@@ -372,7 +353,6 @@ export class GiisBatchService {
             ? 'has_warnings'
             : (currentBatch?.validationStatus ?? 'validated');
 
-    const content = this.serializer.serialize(schema, validRows);
     const proveedorId = batch.proveedorSaludId.toString();
     const dir = path.join(
       process.cwd(),
@@ -380,20 +360,18 @@ export class GiisBatchService {
       proveedorId,
       batch.yearMonth,
     );
-    fs.mkdirSync(dir, { recursive: true });
     const cexFileName = getOfficialFileName(
       getOfficialBaseName('CEX', clues, year, month),
       'TXT',
     );
-    const filePath = path.join(dir, cexFileName);
-    fs.writeFileSync(filePath, content, 'utf-8');
-
     const relativePath = path.join(
       EXPORTS_BASE,
       proveedorId,
       batch.yearMonth,
       cexFileName,
     );
+    const filePath = path.join(dir, cexFileName);
+
     const setPayload: Record<string, unknown> = {
       excludedReport: {
         entries: mergedEntries,
@@ -401,23 +379,39 @@ export class GiisBatchService {
       },
       validationStatus,
     };
+    if (loadQualityFail && loadQualityResult) {
+      setPayload.errorMessage = loadQualityResult.errors
+        .map((e) => e.cause)
+        .join(' ');
+    }
     if (isFirstGenerator) {
       setPayload.status = 'completed';
       setPayload.completedAt = new Date();
     }
-    await this.giisBatchModel.updateOne(
-      { _id: batch._id },
-      {
-        $set: setPayload,
-        $push: {
-          artifacts: {
-            guide: 'CEX',
-            path: relativePath,
-            rowCount: validRows.length,
+
+    if (!loadQualityFail) {
+      const content = this.serializer.serialize(schema, validRows);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(filePath, content, 'utf-8');
+      await this.giisBatchModel.updateOne(
+        { _id: batch._id },
+        {
+          $set: setPayload,
+          $push: {
+            artifacts: {
+              guide: 'CEX',
+              path: relativePath,
+              rowCount: validRows.length,
+            },
           },
         },
-      },
-    );
+      );
+    } else {
+      await this.giisBatchModel.updateOne(
+        { _id: batch._id },
+        { $set: setPayload },
+      );
+    }
     const afterCex = await this.getBatch(batchId);
     if (isFirstGenerator && afterCex?.status === 'completed') {
       const artifactCount = afterCex.artifacts?.length ?? 0;

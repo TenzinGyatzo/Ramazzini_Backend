@@ -6,6 +6,7 @@ export type ValidationSeverity = 'blocker' | 'warning';
 
 export interface ValidationError {
   guide: string;
+  /** Índice de renglón en la carga; -1 = error de ámbito carga (ej. límites CURP/R69X). */
   rowIndex: number;
   field: string;
   cause: string;

@@ -26,6 +26,12 @@ import {
 import { GiisSchema } from '../schema-loader';
 import { ProveedoresSaludService } from '../../proveedores-salud/proveedores-salud.service';
 import { formatCLUES } from '../formatters/field.formatter';
+import { Empresa } from '../../empresas/schemas/empresa.schema';
+import { CentroTrabajo } from '../../centros-trabajo/schemas/centro-trabajo.schema';
+import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
+import { giisExportConfig } from '../config/giis-export.config';
+import { evaluateCexLoadQuality } from './cex-load-quality.util';
+import { getTrabajadorIdsForProveedor } from '../utils/giis-proveedor-scope.util';
 
 type Guide = 'CEX';
 
@@ -34,6 +40,11 @@ export class GiisValidationService {
   constructor(
     @InjectModel(NotaMedica.name)
     private readonly notaMedicaModel: Model<NotaMedica>,
+    @InjectModel(Empresa.name) private readonly empresaModel: Model<Empresa>,
+    @InjectModel(CentroTrabajo.name)
+    private readonly centroTrabajoModel: Model<CentroTrabajo>,
+    @InjectModel(Trabajador.name)
+    private readonly trabajadorModel: Model<Trabajador>,
     private readonly catalogsService: CatalogsService,
     private readonly proveedoresSaludService: ProveedoresSaludService,
     private readonly firmanteHelper: FirmanteHelper,
@@ -91,33 +102,31 @@ export class GiisValidationService {
     let totalRows = 0;
 
     if (guides.includes('CEX')) {
+      const trabajadorIds = await getTrabajadorIdsForProveedor(
+        proveedorSaludId,
+        this.empresaModel,
+        this.centroTrabajoModel,
+        this.trabajadorModel,
+      );
       const notas = await this.notaMedicaModel
         .find({
           estado: DocumentoEstado.FINALIZADO,
           fechaNotaMedica: { $gte: startOfMonth, $lte: endOfMonth },
+          idTrabajador:
+            trabajadorIds.length > 0 ? { $in: trabajadorIds } : { $in: [] },
         })
         .populate('idTrabajador')
         .lean()
         .exec();
-      const trabajadorIdsUnicos = [
-        ...new Set(
-          (notas as any[])
-            .map((n) => n.idTrabajador)
-            .filter(Boolean)
-            .map((id) =>
-              (id && typeof id === 'object' && id._id ? id._id : id).toString(),
-            ),
-        ),
-      ];
       const startOfYear = new Date(year, 0, 1);
       const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999);
       const notasDelAnio =
-        trabajadorIdsUnicos.length > 0
+        trabajadorIds.length > 0
           ? await this.notaMedicaModel
               .find({
                 estado: DocumentoEstado.FINALIZADO,
                 fechaNotaMedica: { $gte: startOfYear, $lte: endOfYear },
-                idTrabajador: { $in: trabajadorIdsUnicos },
+                idTrabajador: { $in: trabajadorIds },
               })
               .select('idTrabajador fechaNotaMedica _id')
               .lean()
@@ -191,6 +200,16 @@ export class GiisValidationService {
           catalogLookup,
         );
         allErrors.push(...errs);
+      }
+
+      if (giisExportConfig.cexLoadQualityRulesEnabled) {
+        const blockerRows = new Set<number>();
+        for (const e of allErrors) {
+          if (e.severity === 'blocker') blockerRows.add(e.rowIndex);
+        }
+        const validRows = rows.filter((_, i) => !blockerRows.has(i));
+        const loadQuality = evaluateCexLoadQuality(validRows);
+        allErrors.push(...loadQuality.errors);
       }
     }
 
