@@ -8,6 +8,10 @@ Registro de cambios del proyecto. Este documento cumple con la política de cont
 
 ## 1. Resumen de Versiones
 
+**Versión vigente del software:** `v1.0`
+
+> Fuente de verdad para la interfaz y despliegues. Actualizar al liberar una versión nueva o menor, según la política de la **sección 3** (formato `vX.Y`).
+
 | VERSIÓN | FECHA | DESCRIPCIÓN GENERAL | TIPO |
 |---------|-------|---------------------|------|
 | v1.0 | 2026-03 *(previsto)* | Versión candidata a certificación NOM-024-SSA3-2012. Primera versión oficial. | Mayor |
@@ -51,6 +55,10 @@ Se incrementa cuando:
 - Se realizan mejoras no disruptivas.
 - Se optimiza rendimiento.
 - Se agregan funciones opcionales.
+
+### 3.3 Versión vigente y despliegue
+
+El valor **Versión vigente del software** (sección 1) debe mantenerse alineado con lo desplegado. Al incrementar la versión mayor (§3.1) o menor (§3.2), actualice ese campo, el resumen de versiones y el historial detallado.
 
 ---
 
