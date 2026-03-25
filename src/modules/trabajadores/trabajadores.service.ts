@@ -49,6 +49,7 @@ import { User } from '../users/schemas/user.schema';
 import { Empresa } from '../empresas/schemas/empresa.schema';
 import { Receta } from '../expedientes/schemas/receta.schema';
 import { ConstanciaAptitud } from '../expedientes/schemas/constancia-aptitud.schema';
+<<<<<<< HEAD
 import { generateFolioFromWorkerData } from 'src/utils/folio-generator.util';
 import { WorkerFusionService } from './worker-fusion.service';
 
@@ -493,6 +494,32 @@ export class TrabajadoresService {
       }
     }
   }
+=======
+import { ResultadoClinico, TipoEstudio } from '../resultados-clinicos/schemas/resultado-clinico.schema';
+
+@Injectable()
+export class TrabajadoresService {
+  constructor(@InjectModel(Trabajador.name) private trabajadorModel: Model<Trabajador>,
+  @InjectModel(Antidoping.name) private antidopingModel: Model<Antidoping>,
+  @InjectModel(AptitudPuesto.name) private aptitudModel: Model<AptitudPuesto>,
+  @InjectModel(Audiometria.name) private audiometriaModel: Model<Audiometria>,
+  @InjectModel(Certificado.name) private certificadoModel: Model<Certificado>,
+  @InjectModel(CertificadoExpedito.name) private certificadoExpeditoModel: Model<CertificadoExpedito>,
+  @InjectModel(DocumentoExterno.name) private documentoExternoModel: Model<DocumentoExterno>,
+  @InjectModel(ExamenVista.name) private examenVistaModel: Model<ExamenVista>,
+  @InjectModel(ExploracionFisica.name) private exploracionFisicaModel: Model<ExploracionFisica>,
+  @InjectModel(HistoriaClinica.name) private historiaClinicaModel: Model<HistoriaClinica>,
+  @InjectModel(NotaMedica.name) private notaMedicaModel: Model<NotaMedica>,
+  @InjectModel(Receta.name) private recetaModel: Model<Receta>,
+  @InjectModel(ControlPrenatal.name) private controlPrenatalModel: Model<ControlPrenatal>,
+  @InjectModel(ConstanciaAptitud.name) private constanciaAptitudModel: Model<ConstanciaAptitud>,
+  @InjectModel(RiesgoTrabajo.name) private riesgoTrabajoModel: Model<RiesgoTrabajo>,
+  @InjectModel(ResultadoClinico.name) private resultadoClinicoModel: Model<ResultadoClinico>,
+  @InjectModel(CentroTrabajo.name) private centroTrabajoModel: Model<CentroTrabajo>,
+  @InjectModel(User.name) private userModel: Model<User>,
+  @InjectModel(Empresa.name) private empresaModel: Model<Empresa>,
+  private filesService: FilesService) {}
+>>>>>>> main
 
   async create(createTrabajadorDto: CreateTrabajadorDto): Promise<Trabajador> {
     const normalizedDto = normalizeTrabajadorData(createTrabajadorDto);
@@ -966,6 +993,8 @@ export class TrabajadoresService {
       aptitudes: [],
       consultas: [],
       hbc: [],
+      ekg: [],
+      espirometria: [],
       pab: [],
       trabajadoresEvaluados: [],
     };
@@ -1235,12 +1264,52 @@ export class TrabajadoresService {
       caidaMaxDb: getCaidaMaximaDb(a),
     }));
 
+    // 18. RESULTADOS CLÍNICOS (EKG y ESPIROMETRIA) – Obtener el más reciente por trabajador activo
+    const resultadosClinicos = await this.resultadoClinicoModel
+      .find({
+        idTrabajador: { $in: idsActivos },
+        tipoEstudio: { $in: [TipoEstudio.EKG, TipoEstudio.ESPIROMETRIA] },
+        ...rangoFecha('fechaEstudio')
+      })
+      .select('idTrabajador tipoEstudio resultadoGlobal tipoAlteracion tipoAlteracionPrincipal fechaEstudio')
+      .lean();
+
+    const resultadosEkgMap = new Map<string, any>();
+    const resultadosEspirometriaMap = new Map<string, any>();
+
+    for (const resultado of resultadosClinicos) {
+      const id = resultado.idTrabajador.toString();
+      const targetMap =
+        resultado.tipoEstudio === TipoEstudio.EKG ? resultadosEkgMap : resultadosEspirometriaMap;
+      const actual = targetMap.get(id);
+
+      if (!actual || new Date(resultado.fechaEstudio) > new Date(actual.fechaEstudio)) {
+        targetMap.set(id, resultado);
+      }
+    }
+
+    dashboardData.ekg.push(
+      Array.from(resultadosEkgMap.values()).map((resultado) => ({
+        resultadoGlobal: resultado.resultadoGlobal ?? null,
+        tipoAlteracion: resultado.tipoAlteracionPrincipal ?? resultado.tipoAlteracion ?? null
+      }))
+    );
+
+    dashboardData.espirometria.push(
+      Array.from(resultadosEspirometriaMap.values()).map((resultado) => ({
+        resultadoGlobal: resultado.resultadoGlobal ?? null,
+        tipoAlteracion: resultado.tipoAlteracion ?? null
+      }))
+    );
+
     const trabajadoresEvaluadosSet = new Set([
       ...exploracionesMap.keys(),
       ...historiasMap.keys(),
       ...examenesMap.keys(),
       ...aptitudesMap.keys(),
       ...audiometriasMap.keys(),
+      ...resultadosEkgMap.keys(),
+      ...resultadosEspirometriaMap.keys(),
     ]);
 
     dashboardData.trabajadoresEvaluados = Array.from(trabajadoresEvaluadosSet);
@@ -1256,6 +1325,8 @@ export class TrabajadoresService {
         ...examenesMap.keys(),
         ...aptitudesMap.keys(),
         ...audiometriasMap.keys(),
+        ...resultadosEkgMap.keys(),
+        ...resultadosEspirometriaMap.keys(),
       ]);
 
       // Filtrar trabajadores activos que tienen evaluaciones en el período

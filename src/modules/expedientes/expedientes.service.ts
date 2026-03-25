@@ -2162,6 +2162,11 @@ export class ExpedientesService {
           select: 'username nombre',
         },
       });
+    } else {
+      query.populate({
+        path: 'idResultadoClinico',
+        select: 'tipoEstudio fechaEstudio resultadoGlobal',
+      });
     }
 
     const docs = await query.exec();
@@ -2240,8 +2245,16 @@ export class ExpedientesService {
     const query = model
       .findById(id)
       .populate('createdBy', '_id username role')
+      .populate('updatedBy', 'username')
       .populate('finalizadoPor', 'username')
       .populate('anuladoPor', 'username');
+
+    if (documentType === 'documentoExterno') {
+      query.populate({
+        path: 'idResultadoClinico',
+        select: 'tipoEstudio fechaEstudio resultadoGlobal',
+      });
+    }
 
     if (documentType !== 'documentoExterno') {
       query.populate({

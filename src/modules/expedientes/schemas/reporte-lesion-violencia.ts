@@ -4,21 +4,10 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 
-const extensiones = ['.pdf', '.jpeg', '.jpg', '.png'];
-
 @Schema()
-export class DocumentoExterno extends Document {
+export class ReporteLesionViolencia extends Document {
   @Prop({ required: true })
-  nombreDocumento: string;
-
-  @Prop({ required: true })
-  fechaDocumento: Date;
-
-  @Prop()
-  notasDocumento: string;
-
-  @Prop({ required: true, enum: extensiones })
-  extension: string;
+  fechaReporteLesionViolencia: Date;
 
   @Prop({
     type: MongooseSchema.Types.ObjectId,
@@ -28,16 +17,21 @@ export class DocumentoExterno extends Document {
   idTrabajador: Trabajador;
 
   @Prop({ required: true })
-  rutaDocumento: string;
-
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'ResultadoClinico' })
-  idResultadoClinico?: MongooseSchema.Types.ObjectId;
+  rutaPDF: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   createdBy: User;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   updatedBy: User;
+
+  // Consentimiento Diario (NOM-024)
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'ConsentimientoDiario',
+    required: false,
+  })
+  consentimientoDiarioId?: MongooseSchema.Types.ObjectId;
 
   // Document State Management (NOM-024)
   @Prop({
@@ -63,6 +57,6 @@ export class DocumentoExterno extends Document {
   razonAnulacion?: string;
 }
 
-export const DocumentoExternoSchema = SchemaFactory.createForClass(
-  DocumentoExterno,
+export const ReporteLesionViolenciaSchema = SchemaFactory.createForClass(
+  ReporteLesionViolencia,
 ).set('timestamps', true);

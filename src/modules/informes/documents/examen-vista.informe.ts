@@ -65,6 +65,12 @@ const headerText: Content = {
 };
 
 // ==================== FUNCIONES REUSABLES ====================
+function formatearAgudezaVisual(valor: number | null | undefined, cegueraTotal: boolean | undefined): string {
+  if (cegueraTotal) return 'Ceguera Total';
+  if (valor == null) return 'NA';
+  return `20/${valor}`;
+}
+
 const createTableCell = (text: string, style: string): Content => ({
   text,
   style,
@@ -155,14 +161,20 @@ interface Trabajador {
   antiguedad: string;
 }
 
-interface ExamenVista {
+interface ExamenVistaInforme {
   fechaExamenVista: Date;
-  ojoIzquierdoLejanaSinCorreccion: number;
-  ojoDerechoLejanaSinCorreccion: number;
+  ojoIzquierdoCegueraTotal?: boolean;
+  ojoDerechoCegueraTotal?: boolean;
+  ojoIzquierdoLejanaCegueraTotal?: boolean;
+  ojoDerechoLejanaCegueraTotal?: boolean;
+  ojoIzquierdoCercanaCegueraTotal?: boolean;
+  ojoDerechoCercanaCegueraTotal?: boolean;
+  ojoIzquierdoLejanaSinCorreccion: number | null;
+  ojoDerechoLejanaSinCorreccion: number | null;
   sinCorreccionLejanaInterpretacion: string;
   requiereLentesUsoGeneral: string;
-  ojoIzquierdoCercanaSinCorreccion: number;
-  ojoDerechoCercanaSinCorreccion: number;
+  ojoIzquierdoCercanaSinCorreccion: number | null;
+  ojoDerechoCercanaSinCorreccion: number | null;
   sinCorreccionCercanaInterpretacion: string;
   requiereLentesParaLectura: string;
   ojoIzquierdoLejanaConCorreccion?: number;
@@ -184,6 +196,16 @@ interface ExamenVista {
   cilindroOjoDerecho?: string;
   adicionOjoDerecho?: string;
   diagnosticoRecomendaciones?: string;
+  antecedentes?: string;
+  anamnesis?: string;
+  utilizaAnteojos?: string;
+}
+
+function getCiegaOI(ev: ExamenVistaInforme): boolean {
+  return ev?.ojoIzquierdoCegueraTotal ?? ev?.ojoIzquierdoLejanaCegueraTotal ?? ev?.ojoIzquierdoCercanaCegueraTotal ?? false;
+}
+function getCiegaOD(ev: ExamenVistaInforme): boolean {
+  return ev?.ojoDerechoCegueraTotal ?? ev?.ojoDerechoLejanaCegueraTotal ?? ev?.ojoDerechoCercanaCegueraTotal ?? false;
 }
 
 interface MedicoFirmante {
@@ -248,7 +270,7 @@ interface ProveedorSalud {
 export const examenVistaInforme = (
   nombreEmpresa: string,
   trabajador: Trabajador,
-  examenVista: ExamenVista,
+  examenVista: ExamenVistaInforme,
   medicoFirmante: MedicoFirmante | null,
   enfermeraFirmante: EnfermeraFirmante | null,
   tecnicoFirmante: TecnicoFirmante | null,
@@ -278,6 +300,23 @@ export const examenVistaInforme = (
     fillColor: proveedorSalud.colorInforme || '#343A40',
   };
 
+  // Guatemala: fuentes y espaciado más compactos
+  const esGT = proveedorSalud.pais === 'GT';
+  const marginBottom = esGT ? 8 : 10;
+  const marginBottomSmall = esGT ? 10 : 12;
+  const paddingCell = esGT ? 1 : 2;
+  const pageMarginsV = esGT ? [55, 65] as [number, number] : [70, 80] as [number, number];
+
+  if (esGT) {
+    updatedStyles.tableHeader = { ...updatedStyles.tableHeader, fontSize: 10 };
+    updatedStyles.tableCell = { ...updatedStyles.tableCell, fontSize: 9 };
+    updatedStyles.tableCellBold = { ...updatedStyles.tableCellBold, fontSize: 9 };
+    updatedStyles.label = { fontSize: 9 };
+    updatedStyles.value = { bold: true, fontSize: 9, margin: [0, 0, 0, 0] };
+    updatedStyles.nombreEmpresa = { ...updatedStyles.nombreEmpresa, fontSize: 13 };
+    updatedStyles.fecha = { ...updatedStyles.fecha, fontSize: 10 };
+  }
+
   const firma: Content = firmanteActivo?.firma?.data
     ? { image: `assets/signatories/${firmanteActivo.firma.data}`, width: 65 }
     : { text: '' };
@@ -294,9 +333,66 @@ export const examenVistaInforme = (
         margin: [40, 20, 0, 0],
       };
 
+  // Secciones Guatemala (solo si pais es GT) - Antecedentes y Anamnesis en misma fila, dos columnas
+  const seccionesGTInicio: Content[] = proveedorSalud.pais === 'GT'
+    ? [
+        ...(examenVista.antecedentes?.trim() || examenVista.anamnesis?.trim()
+          ? [{
+              style: 'table',
+              table: {
+                widths: ['50%', '50%'],
+                body: [
+                  [
+                    { text: 'ANTECEDENTES', style: 'tableHeader', alignment: 'center' },
+                    { text: 'ANAMNESIS', style: 'tableHeader', alignment: 'center' },
+                  ],
+                  [
+                    {
+                      text: examenVista.antecedentes?.trim() || ' ',
+                      style: 'tableCell',
+                      alignment: 'left',
+                    },
+                    {
+                      text: examenVista.anamnesis?.trim() || ' ',
+                      style: 'tableCell',
+                      alignment: 'left',
+                    },
+                  ],
+                ],
+              },
+              layout: {
+                hLineWidth: () => 0.5,
+                vLineWidth: () => 0.5,
+                hLineColor: '#e5e7eb',
+                vLineColor: '#e5e7eb',
+                paddingTop: () => paddingCell,
+                paddingBottom: () => paddingCell,
+                paddingLeft: () => 2,
+                paddingRight: () => 2,
+              },
+              margin: [0, 0, 0, marginBottom],
+            } as Content]
+          : []),
+        ...(examenVista.utilizaAnteojos
+          ? [{
+              columns: [
+                {
+                  text: [
+                    { text: 'Utiliza Lentes: ' },
+                    { text: `(${examenVista.utilizaAnteojos})`, bold: true },
+                  ],
+                },
+              ],
+              fontSize: 10,
+              margin: [0, 0, 0, marginBottomSmall],
+            } as Content]
+          : []),
+      ]
+    : [];
+
   return {
     pageSize: 'LETTER',
-    pageMargins: [40, 70, 40, 80],
+    pageMargins: [40, pageMarginsV[0], 40, pageMarginsV[1]],
     header: {
       columns: [logo, headerText],
     },
@@ -365,11 +461,12 @@ export const examenVistaInforme = (
           vLineWidth: () => 1,
           paddingTop: (i: number, node: any) => 0, // Reducir el espacio superior
           paddingBottom: (i: number, node: any) => 0, // Reducir el espacio inferior
-          paddingLeft: (i: number, node: any) => 2, // Reducir el espacio izquierdo
-          paddingRight: (i: number, node: any) => 2, // Reducir el espacio derecho
+          paddingLeft: (i: number, node: any) => 2,
+          paddingRight: (i: number, node: any) => 2,
         },
-        margin: [0, 0, 0, 10],
+        margin: [0, 0, 0, marginBottom],
       },
+      ...seccionesGTInicio,
       // Agudeza Visual Sin Corrección
       {
         style: 'table',
@@ -410,14 +507,14 @@ export const examenVistaInforme = (
             ...[
               [
                 'LEJANA',
-                `20/${examenVista.ojoIzquierdoLejanaSinCorreccion}`,
-                `20/${examenVista.ojoDerechoLejanaSinCorreccion}`,
+                formatearAgudezaVisual(examenVista.ojoIzquierdoLejanaSinCorreccion, getCiegaOI(examenVista)),
+                formatearAgudezaVisual(examenVista.ojoDerechoLejanaSinCorreccion, getCiegaOD(examenVista)),
                 examenVista.sinCorreccionLejanaInterpretacion,
               ],
               [
                 'CERCANA',
-                `20/${examenVista.ojoIzquierdoCercanaSinCorreccion}`,
-                `20/${examenVista.ojoDerechoCercanaSinCorreccion}`,
+                formatearAgudezaVisual(examenVista.ojoIzquierdoCercanaSinCorreccion, getCiegaOI(examenVista)),
+                formatearAgudezaVisual(examenVista.ojoDerechoCercanaSinCorreccion, getCiegaOD(examenVista)),
                 examenVista.sinCorreccionCercanaInterpretacion,
               ],
             ].map((row) =>
@@ -439,7 +536,7 @@ export const examenVistaInforme = (
           paddingLeft: (i: number, node: any) => 2,
           paddingRight: (i: number, node: any) => 2,
         },
-        margin: [0, 0, 0, 10],
+        margin: [0, 0, 0, marginBottom],
       },
       // Requiere Lentes
       {
@@ -467,7 +564,8 @@ export const examenVistaInforme = (
             ],
           },
         ],
-        margin: [0, 0, 0, 12],
+        ...(esGT && { fontSize: 10 }),
+        margin: [0, 0, 0, marginBottomSmall],
       },
       // Agudeza Visual Con Corrección
       {
@@ -505,26 +603,18 @@ export const examenVistaInforme = (
                 alignment: 'center',
               },
             ],
-            // Filas de datos
+            // Filas de datos (con corrección: ojos con ceguera total muestran "Ceguera Total")
             ...[
               [
                 'LEJANA',
-                examenVista.ojoIzquierdoLejanaConCorreccion
-                  ? `20/${examenVista.ojoIzquierdoLejanaConCorreccion}`
-                  : 'NA',
-                examenVista.ojoDerechoLejanaConCorreccion
-                  ? `20/${examenVista.ojoDerechoLejanaConCorreccion}`
-                  : 'NA',
+                formatearAgudezaVisual(examenVista.ojoIzquierdoLejanaConCorreccion, getCiegaOI(examenVista)),
+                formatearAgudezaVisual(examenVista.ojoDerechoLejanaConCorreccion, getCiegaOD(examenVista)),
                 examenVista.conCorreccionLejanaInterpretacion ?? 'NA',
               ],
               [
                 'CERCANA',
-                examenVista.ojoIzquierdoCercanaConCorreccion
-                  ? `20/${examenVista.ojoIzquierdoCercanaConCorreccion}`
-                  : 'NA',
-                examenVista.ojoDerechoCercanaConCorreccion
-                  ? `20/${examenVista.ojoDerechoCercanaConCorreccion}`
-                  : 'NA',
+                formatearAgudezaVisual(examenVista.ojoIzquierdoCercanaConCorreccion, getCiegaOI(examenVista)),
+                formatearAgudezaVisual(examenVista.ojoDerechoCercanaConCorreccion, getCiegaOD(examenVista)),
                 examenVista.conCorreccionCercanaInterpretacion ?? 'NA',
               ],
             ].map((row) =>
@@ -546,7 +636,7 @@ export const examenVistaInforme = (
           paddingLeft: (i: number, node: any) => 2,
           paddingRight: (i: number, node: any) => 2,
         },
-        margin: [0, 0, 0, 10],
+        margin: [0, 0, 0, marginBottom],
       },
       // Prueba de Ishihara
       {
@@ -604,9 +694,10 @@ export const examenVistaInforme = (
           paddingLeft: (i: number, node: any) => 2,
           paddingRight: (i: number, node: any) => 2,
         },
-        margin: [0, 0, 0, 10],
+        margin: [0, 0, 0, marginBottom],
       },
       // Secciones adicionales solo para Guatemala
+<<<<<<< HEAD
       ...(proveedorSalud.pais === 'GT'
         ? [
             // Pruebas de función ocular
@@ -653,6 +744,83 @@ export const examenVistaInforme = (
                     style: 'tableCell',
                     alignment: 'center',
                   })),
+=======
+      ...(proveedorSalud.pais === 'GT' ? [
+        // Pruebas de función ocular
+        {
+          style: 'table',
+          table: {
+            widths: ['33.33%', '33.33%', '*'],
+            body: [
+              // Encabezado
+              [
+                {
+                  text: 'PRUEBAS DE FUNCIÓN OCULAR',
+                  style: 'tableHeader',
+                  colSpan: 3,
+                  alignment: 'center',
+                },
+                {},
+                {},
+              ],
+              [
+                { text: 'TEST DE ESTEREOPSIS', style: 'tableHeader', alignment: 'center' },
+                { text: 'CAMPOS VISUALES', style: 'tableHeader', alignment: 'center' },
+                { text: 'COVER TEST', style: 'tableHeader', alignment: 'center' },
+              ],
+              // Fila de datos
+              [
+                examenVista.testEstereopsis || '',
+                examenVista.testCampoVisual || '',
+                examenVista.coverTest || '',
+              ].map((text) => ({
+                text: text || ' ', // Espacio en blanco si está vacío para mantener el recuadro visible
+                style: 'tableCell',
+                alignment: 'center',
+              })),
+            ],
+          },
+          layout: {
+            hLineWidth: () => 0.5,
+            vLineWidth: () => 0.5,
+            hLineColor: '#e5e7eb',
+            vLineColor: '#e5e7eb',
+            paddingTop: (i: number, node: any) => 0,
+            paddingBottom: (i: number, node: any) => 0,
+            paddingLeft: (i: number, node: any) => 2,
+            paddingRight: (i: number, node: any) => 2,
+          },
+        margin: [0, 0, 0, marginBottom] as [number, number, number, number],
+      },
+      // Receta Final
+        {
+          style: 'table',
+          table: {
+            widths: ['20%', '40%', '40%'],
+            body: [
+              // Encabezado
+              [
+                {
+                  text: 'RECETA FINAL',
+                  style: 'tableHeader',
+                  colSpan: 3,
+                  alignment: 'center',
+                },
+                {},
+                {},
+              ],
+              [
+                { text: '-', style: 'tableHeader', alignment: 'center' },
+                { text: 'OJO IZQUIERDO', style: 'tableHeader', alignment: 'center' },
+                { text: 'OJO DERECHO', style: 'tableHeader', alignment: 'center' },
+              ],
+              // Filas de datos
+              ...[
+                [
+                  'ESFERA',
+                  examenVista.esferaOjoIzquierdo || '',
+                  examenVista.esferaOjoDerecho || '',
+>>>>>>> main
                 ],
               },
               layout: {
@@ -758,6 +926,7 @@ export const examenVistaInforme = (
                     },
                   ],
                 ],
+<<<<<<< HEAD
               },
               layout: {
                 hLineWidth: () => 0.5,
@@ -773,6 +942,66 @@ export const examenVistaInforme = (
             },
           ]
         : []),
+=======
+              ].map((row) =>
+                row.map((text, i) => ({
+                  text,
+                  style: i === 0 ? 'tableCellBold' : 'tableCell',
+                  alignment: 'center',
+                })),
+              ),
+            ],
+          },
+          layout: {
+            hLineWidth: () => 0.5,
+            vLineWidth: () => 0.5,
+            hLineColor: '#e5e7eb',
+            vLineColor: '#e5e7eb',
+            paddingTop: (i: number, node: any) => 0,
+            paddingBottom: (i: number, node: any) => 0,
+            paddingLeft: (i: number, node: any) => 2,
+            paddingRight: (i: number, node: any) => 2,
+          },
+          margin: [0, 0, 0, marginBottom] as [number, number, number, number],
+        },
+        // Diagnóstico y recomendaciones
+        {
+          style: 'table',
+          table: {
+            widths: ['100%'],
+            body: [
+              // Encabezado
+              [
+                {
+                  text: 'DIAGNÓSTICO Y RECOMENDACIONES',
+                  style: 'tableHeader',
+                  alignment: 'center',
+                },
+              ],
+              // Contenido
+              [
+                {
+                  text: examenVista.diagnosticoRecomendaciones || ' ', // Espacio en blanco si está vacío para mantener el recuadro visible
+                  style: 'tableCell',
+                  alignment: 'center',
+                },
+              ],
+            ],
+          },
+          layout: {
+            hLineWidth: () => 0.5,
+            vLineWidth: () => 0.5,
+            hLineColor: '#e5e7eb',
+            vLineColor: '#e5e7eb',
+            paddingTop: (i: number, node: any) => 0,
+            paddingBottom: (i: number, node: any) => 0,
+            paddingLeft: (i: number, node: any) => 2,
+            paddingRight: (i: number, node: any) => 2,
+          },
+          margin: [0, 0, 0, marginBottom] as [number, number, number, number],
+        },
+      ] : []),
+>>>>>>> main
     ],
     // Pie de pagina
     footer: {

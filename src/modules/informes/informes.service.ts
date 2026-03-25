@@ -1,5 +1,10 @@
 // Servicios para la generación de informes en PDF
-import { Injectable, forwardRef, Inject } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  forwardRef,
+  Inject,
+} from '@nestjs/common';
 import { PrinterService } from '../printer/printer.service';
 import { antidopingInforme } from './documents/antidoping.informe';
 import { certificadoInforme } from './documents/certificado.informe';
@@ -44,6 +49,7 @@ import { CentrosTrabajoService } from '../centros-trabajo/centros-trabajo.servic
 import { CatalogsService } from '../catalogs/catalogs.service';
 import { CatalogType } from '../catalogs/interfaces/catalog-entry.interface';
 import { DocumentoEstado } from '../expedientes/enums/documento-estado.enum';
+import { ResultadosClinicosService } from '../resultados-clinicos/resultados-clinicos.service';
 
 @Injectable()
 export class InformesService {
@@ -95,6 +101,7 @@ export class InformesService {
     private readonly tecnicosFirmantesService: TecnicosFirmantesService,
     private readonly centrosTrabajoService: CentrosTrabajoService,
     private readonly catalogsService: CatalogsService,
+    private readonly resultadosClinicosService: ResultadosClinicosService,
   ) {}
 
   private mapMedicoFirmante(
@@ -852,6 +859,7 @@ export class InformesService {
     aptitudId: string,
     userId: string,
     footerFirmantesData?: FooterFirmantesData,
+    includeResultadosClinicos = true,
   ): Promise<string> {
     const empresa = await this.empresasService.findOne(empresaId);
     const nombreEmpresa = empresa.nombreComercial;
@@ -1008,6 +1016,12 @@ export class InformesService {
     const datosExamenVista = nearestExamenVista
       ? {
           fechaExamenVista: nearestExamenVista.fechaExamenVista,
+          ojoIzquierdoCegueraTotal: nearestExamenVista.ojoIzquierdoCegueraTotal,
+          ojoDerechoCegueraTotal: nearestExamenVista.ojoDerechoCegueraTotal,
+          ojoIzquierdoLejanaCegueraTotal:
+            nearestExamenVista.ojoIzquierdoLejanaCegueraTotal,
+          ojoDerechoLejanaCegueraTotal:
+            nearestExamenVista.ojoDerechoLejanaCegueraTotal,
           ojoIzquierdoLejanaSinCorreccion:
             nearestExamenVista.ojoIzquierdoLejanaSinCorreccion,
           ojoDerechoLejanaSinCorreccion:
@@ -1078,6 +1092,56 @@ export class InformesService {
 
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
+    const resultadosClinicos = includeResultadosClinicos
+      ? await this.resultadosClinicosService.findByTrabajador(trabajadorId)
+      : [];
+
+    const findMostRecentResultadoClinico = (
+      items: any[],
+      tipoEstudio: string,
+    ) =>
+      items.find(
+        (item) => item?.tipoEstudio === tipoEstudio && item?.fechaEstudio,
+      ) || null;
+
+    const nearestEKG = findMostRecentResultadoClinico(
+      resultadosClinicos,
+      'EKG',
+    );
+    const nearestEspirometria = findMostRecentResultadoClinico(
+      resultadosClinicos,
+      'ESPIROMETRIA',
+    );
+    const nearestTipoSangre = findMostRecentResultadoClinico(
+      resultadosClinicos,
+      'TIPO_SANGRE',
+    );
+
+    const datosResultadoClinicoEKG = nearestEKG
+      ? {
+          fechaEstudio: nearestEKG.fechaEstudio,
+          resultadoGlobal: nearestEKG.resultadoGlobal,
+          hallazgoEspecifico: nearestEKG.hallazgoEspecifico,
+          tipoAlteracionPrincipal: nearestEKG.tipoAlteracionPrincipal,
+        }
+      : null;
+
+    const datosResultadoClinicoEspirometria = nearestEspirometria
+      ? {
+          fechaEstudio: nearestEspirometria.fechaEstudio,
+          resultadoGlobal: nearestEspirometria.resultadoGlobal,
+          hallazgoEspecifico: nearestEspirometria.hallazgoEspecifico,
+          tipoAlteracion: nearestEspirometria.tipoAlteracion,
+        }
+      : null;
+
+    const datosResultadoClinicoTipoSangre = nearestTipoSangre
+      ? {
+          fechaEstudio: nearestTipoSangre.fechaEstudio,
+          tipoSangre: nearestTipoSangre.tipoSangre,
+        }
+      : null;
+
     const datosMedicoFirmante = this.mapMedicoFirmante(
       medicoFirmante
         ? {
@@ -1164,6 +1228,9 @@ export class InformesService {
       datosExamenVista,
       datosAudiometria,
       datosAntidoping,
+      datosResultadoClinicoTipoSangre,
+      datosResultadoClinicoEKG,
+      datosResultadoClinicoEspirometria,
       datosMedicoFirmante,
       datosProveedorSalud,
       footerData,
@@ -1792,6 +1859,16 @@ export class InformesService {
     const datosExamenVista = nearestExamenVista
       ? {
           fechaExamenVista: nearestExamenVista.fechaExamenVista,
+          ojoIzquierdoCegueraTotal: nearestExamenVista.ojoIzquierdoCegueraTotal,
+          ojoDerechoCegueraTotal: nearestExamenVista.ojoDerechoCegueraTotal,
+          ojoIzquierdoLejanaCegueraTotal:
+            nearestExamenVista.ojoIzquierdoLejanaCegueraTotal,
+          ojoDerechoLejanaCegueraTotal:
+            nearestExamenVista.ojoDerechoLejanaCegueraTotal,
+          ojoIzquierdoCercanaCegueraTotal:
+            nearestExamenVista.ojoIzquierdoCercanaCegueraTotal,
+          ojoDerechoCercanaCegueraTotal:
+            nearestExamenVista.ojoDerechoCercanaCegueraTotal,
           ojoIzquierdoLejanaSinCorreccion:
             nearestExamenVista.ojoIzquierdoLejanaSinCorreccion,
           ojoDerechoLejanaSinCorreccion:
@@ -1889,6 +1966,12 @@ export class InformesService {
       .replace(/\//g, '-')
       .replace(/\\/g, '-');
     const nombreArchivo = `Certificado ${fecha}.pdf`;
+
+    if (!datosExploracionFisica) {
+      throw new BadRequestException(
+        'No se puede generar el certificado sin datos de exploración física.',
+      );
+    }
 
     const rutaDirectorio = path.resolve(certificado.rutaPDF);
     if (!fs.existsSync(rutaDirectorio)) {
@@ -2131,6 +2214,14 @@ export class InformesService {
 
     const datosExamenVista = {
       fechaExamenVista: examenVista.fechaExamenVista,
+      ojoIzquierdoCegueraTotal: examenVista.ojoIzquierdoCegueraTotal,
+      ojoDerechoCegueraTotal: examenVista.ojoDerechoCegueraTotal,
+      ojoIzquierdoLejanaCegueraTotal:
+        examenVista.ojoIzquierdoLejanaCegueraTotal,
+      ojoDerechoLejanaCegueraTotal: examenVista.ojoDerechoLejanaCegueraTotal,
+      ojoIzquierdoCercanaCegueraTotal:
+        examenVista.ojoIzquierdoCercanaCegueraTotal,
+      ojoDerechoCercanaCegueraTotal: examenVista.ojoDerechoCercanaCegueraTotal,
       ojoIzquierdoLejanaSinCorreccion:
         examenVista.ojoIzquierdoLejanaSinCorreccion,
       ojoDerechoLejanaSinCorreccion: examenVista.ojoDerechoLejanaSinCorreccion,
@@ -2168,6 +2259,9 @@ export class InformesService {
       cilindroOjoDerecho: examenVista.cilindroOjoDerecho,
       adicionOjoDerecho: examenVista.adicionOjoDerecho,
       diagnosticoRecomendaciones: examenVista.diagnosticoRecomendaciones,
+      antecedentes: examenVista.antecedentes,
+      anamnesis: examenVista.anamnesis,
+      utilizaAnteojos: examenVista.utilizaAnteojos,
     };
 
     // Determinar footerFirmantesData según estado del documento

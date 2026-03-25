@@ -6,15 +6,6 @@ import { DocumentoEstado } from '../enums/documento-estado.enum';
 
 const siONo = ['Si', 'No'];
 
-const agudezaVisualInterpretaciones = [
-  'Visión excepcional',
-  'Visión normal',
-  'Visión ligeramente reducida',
-  'Visión moderadamente reducida',
-  'Visión significativamente reducida',
-  'Visión muy reducida',
-];
-
 const ishiharaInterpretaciones = ['Normal', 'Daltonismo'];
 
 @Schema()
@@ -24,27 +15,47 @@ export class ExamenVista extends Document {
 
   // Agudeza Visual
 
+  // Ceguera total por ojo (afecta lejana, cercana, sin y con corrección)
+  @Prop({ default: false })
+  ojoIzquierdoCegueraTotal: boolean;
+
+  @Prop({ default: false })
+  ojoDerechoCegueraTotal: boolean;
+
+  // Obsoleto: mantener para backward compat al leer docs antiguos
+  @Prop({ required: false })
+  ojoIzquierdoLejanaCegueraTotal?: boolean;
+
+  @Prop({ required: false })
+  ojoDerechoLejanaCegueraTotal?: boolean;
+
+  @Prop({ required: false })
+  ojoIzquierdoCercanaCegueraTotal?: boolean;
+
+  @Prop({ required: false })
+  ojoDerechoCercanaCegueraTotal?: boolean;
+
   // Sin corrección vista lejana
-  @Prop({ required: true })
+  @Prop({ required: false })
   ojoIzquierdoLejanaSinCorreccion: number;
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   ojoDerechoLejanaSinCorreccion: number;
 
-  @Prop({ required: true, enum: agudezaVisualInterpretaciones })
+  @Prop({ required: true })
   sinCorreccionLejanaInterpretacion: string;
 
   @Prop({ required: true, enum: siONo })
   requiereLentesUsoGeneral: string;
 
   // Sin corrección vista cercana
-  @Prop({ required: true })
+  @Prop({ required: false })
   ojoIzquierdoCercanaSinCorreccion: number;
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   ojoDerechoCercanaSinCorreccion: number;
 
-  @Prop({ required: true, enum: agudezaVisualInterpretaciones })
+  @Prop({ required: true })
   sinCorreccionCercanaInterpretacion: string;
 
   @Prop({ required: true, enum: siONo })
@@ -57,7 +68,7 @@ export class ExamenVista extends Document {
   @Prop()
   ojoDerechoLejanaConCorreccion: number;
 
-  @Prop({ enum: agudezaVisualInterpretaciones })
+  @Prop()
   conCorreccionLejanaInterpretacion: string;
 
   // Con corrección vista cercana
@@ -67,7 +78,7 @@ export class ExamenVista extends Document {
   @Prop()
   ojoDerechoCercanaConCorreccion: number;
 
-  @Prop({ enum: agudezaVisualInterpretaciones })
+  @Prop()
   conCorreccionCercanaInterpretacion: string;
 
   // Ishihara
@@ -112,6 +123,16 @@ export class ExamenVista extends Document {
   // Diagnóstico y recomendaciones
   @Prop()
   diagnosticoRecomendaciones: string;
+
+  // Campos exclusivos Guatemala
+  @Prop()
+  antecedentes?: string;
+
+  @Prop()
+  anamnesis?: string;
+
+  @Prop({ enum: siONo })
+  utilizaAnteojos?: string;
 
   // Trabajador, ruta al archivo e info de creador y actualizador
   @Prop({

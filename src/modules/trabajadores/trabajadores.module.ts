@@ -65,6 +65,10 @@ import {
   RiesgoTrabajoSchema,
 } from '../riesgos-trabajo/schemas/riesgo-trabajo.schema';
 import { Lesion, LesionSchema } from '../expedientes/schemas/lesion.schema';
+import {
+  ResultadoClinico,
+  ResultadoClinicoSchema,
+} from '../resultados-clinicos/schemas/resultado-clinico.schema';
 import { FilesModule } from '../files/files.module';
 import {
   CentroTrabajo,
@@ -93,6 +97,7 @@ import { Empresa, EmpresaSchema } from '../empresas/schemas/empresa.schema';
       { name: ConstanciaAptitud.name, schema: ConstanciaAptitudSchema },
       { name: RiesgoTrabajo.name, schema: RiesgoTrabajoSchema },
       { name: Lesion.name, schema: LesionSchema },
+      { name: ResultadoClinico.name, schema: ResultadoClinicoSchema },
       { name: CentroTrabajo.name, schema: CentroTrabajoSchema },
       { name: User.name, schema: UserSchema },
       { name: Empresa.name, schema: EmpresaSchema },

@@ -12,6 +12,7 @@ import { TecnicosFirmantesModule } from '../tecnicos-firmantes/tecnicos-firmante
 import { ProveedoresSaludModule } from '../proveedores-salud/proveedores-salud.module';
 import { UsersModule } from '../users/users.module';
 import { CentrosTrabajoModule } from '../centros-trabajo/centros-trabajo.module';
+import { ResultadosClinicosModule } from '../resultados-clinicos/resultados-clinicos.module';
 
 @Module({
   controllers: [InformesController],
@@ -28,6 +29,7 @@ import { CentrosTrabajoModule } from '../centros-trabajo/centros-trabajo.module'
     ProveedoresSaludModule,
     UsersModule,
     CentrosTrabajoModule,
+    ResultadosClinicosModule,
   ],
   exports: [InformesService],
 })

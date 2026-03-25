@@ -27,6 +27,7 @@ import { NOM024ComplianceModule } from './modules/nom024-compliance/nom024-compl
 import { GIISExportModule } from './modules/giis-export/giis-export.module';
 import { ConsentimientoDiarioModule } from './modules/consentimiento-diario/consentimiento-diario.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { ResultadosClinicosModule } from './modules/resultados-clinicos/resultados-clinicos.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { AuditModule } from './modules/audit/audit.module';
     ScheduleModule.forRoot(),
     RiesgosTrabajoModule,
     InformePersonalizacionModule,
+    ResultadosClinicosModule,
   ],
 })
 export class AppModule {}

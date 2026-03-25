@@ -42,12 +42,15 @@ export class InformesController {
     @Param('aptitudId') aptitudId: string,
     @Param('userId') userId: string,
     @Res() res: Response,
+    @Query('includeResultadosClinicos') includeResultadosClinicos?: string,
   ) {
     const rutaPDF = await this.informesService.getInformeAptitudPuesto(
       empresaId,
       trabajadorId,
       aptitudId,
       userId,
+      undefined,
+      includeResultadosClinicos !== 'false',
     );
     return res
       .status(200)

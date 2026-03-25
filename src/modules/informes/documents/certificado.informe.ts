@@ -29,49 +29,6 @@ const styles: StyleDictionary = {
   paragraph: { fontSize: 11, alignment: 'justify' },
 };
 
-// ==================== CONTENIDO ====================
-const campoFirma: Content = {
-  stack: [
-    // Línea horizontal para la firma
-    {
-      canvas: [
-        {
-          type: 'line',
-          x1: 120,
-          y1: 0,
-          x2: 380,
-          y2: 0,
-          lineWidth: 1,
-          lineColor: '#000000',
-        },
-      ],
-      margin: [0, 10, 0, 0],
-    },
-    // Nombre y credenciales del médico
-    {
-      text: [
-        {
-          text: 'DR. JESÚS MANUEL CORONEL VALENZUELA\n',
-          bold: true,
-          fontSize: 12,
-        },
-        { text: 'CED PROF MEDICINA CIRUJANO No. 1379978\n', fontSize: 9 },
-        {
-          text: 'CED ESPECIALIDAD MEDICINA DEL TRABAJO No. 3181172\n',
-          fontSize: 9,
-        },
-        {
-          text: 'CERTIFICADO CONSEJO MEXICANO DE MED TRAB No. 891',
-          fontSize: 9,
-        },
-      ],
-      alignment: 'center',
-      margin: [0, 0, 0, 0],
-    },
-  ],
-  absolutePosition: { x: 65, y: 610 },
-};
-
 function generarTextoExploracionFisica(
   exploracionFisica: ExploracionFisica,
 ): string {
@@ -129,20 +86,14 @@ function generarTextoExploracionFisica(
 }
 
 // ==================== FUNCIONES REUSABLES ====================
-const createTableCell = (text: string, style: string): Content => ({
-  text,
-  style,
-  alignment: 'center',
-  margin: [4, 4, 4, 4],
-});
-
-const createConditionalTableCell = (text: string): Content => ({
-  text: text.toUpperCase(),
-  style: 'tableCell',
-  alignment: 'center',
-  margin: [4, 4, 4, 4],
-  color: text.toUpperCase() === 'POSITIVO' ? 'red' : 'black', // Aplica rojo si es "POSITIVO"
-});
+function formatearAgudezaVisual(
+  valor: number | null | undefined,
+  cegueraTotal: boolean | undefined,
+): string {
+  if (cegueraTotal) return 'Ceguera Total';
+  if (valor == null) return 'NA';
+  return `20/${valor}`;
+}
 
 function formatearFechaUTC(fecha: Date): string {
   if (!fecha || isNaN(fecha.getTime())) return '';
@@ -273,10 +224,33 @@ interface ExploracionFisica {
   resumenExploracionFisica?: string;
 }
 
+function getCiegaOI(ev: ExamenVista | null): boolean {
+  if (!ev) return false;
+  return (
+    (ev as any).ojoIzquierdoCegueraTotal ??
+    (ev as any).ojoIzquierdoLejanaCegueraTotal ??
+    (ev as any).ojoIzquierdoCercanaCegueraTotal ??
+    false
+  );
+}
+function getCiegaOD(ev: ExamenVista | null): boolean {
+  if (!ev) return false;
+  return (
+    (ev as any).ojoDerechoCegueraTotal ??
+    (ev as any).ojoDerechoLejanaCegueraTotal ??
+    (ev as any).ojoDerechoCercanaCegueraTotal ??
+    false
+  );
+}
+
 interface ExamenVista {
   fechaExamenVista: Date;
-  ojoIzquierdoLejanaSinCorreccion: number;
-  ojoDerechoLejanaSinCorreccion: number;
+  ojoIzquierdoCegueraTotal?: boolean;
+  ojoDerechoCegueraTotal?: boolean;
+  ojoIzquierdoLejanaCegueraTotal?: boolean;
+  ojoDerechoLejanaCegueraTotal?: boolean;
+  ojoIzquierdoLejanaSinCorreccion: number | null;
+  ojoDerechoLejanaSinCorreccion: number | null;
   sinCorreccionLejanaInterpretacion: string;
   requiereLentesUsoGeneral: string;
   ojoIzquierdoCercanaSinCorreccion: number;
@@ -565,30 +539,33 @@ export const certificadoInforme = (
                   text: `Tensión arterial ${exploracionFisica.tensionArterialSistolica}/${exploracionFisica.tensionArterialDiastolica} mmHg (${exploracionFisica.categoriaTensionArterial || 'no especificada'}). `,
                 },
 
-                {
-                  text: `Examen visual con agudeza lejana sin corrección: OI 20/${examenVista.ojoIzquierdoLejanaSinCorreccion} y OD 20/${examenVista.ojoDerechoLejanaSinCorreccion} `,
-                },
-                {
-                  text: `(${examenVista.sinCorreccionLejanaInterpretacion || 'categoría no disponible'}). `,
-                },
-
-                ...(examenVista.interpretacionIshihara === 'Daltonismo'
+                ...(examenVista
                   ? [
                       {
-                        text: 'Se detecta alteración en la percepción cromática (Daltonismo). ',
+                        text: `Examen visual con agudeza lejana sin corrección: OI ${formatearAgudezaVisual(examenVista.ojoIzquierdoLejanaSinCorreccion, getCiegaOI(examenVista))} y OD ${formatearAgudezaVisual(examenVista.ojoDerechoLejanaSinCorreccion, getCiegaOD(examenVista))} `,
                       },
+                      {
+                        text: `(${examenVista.sinCorreccionLejanaInterpretacion || 'categoría no disponible'}). `,
+                      },
+                      ...(examenVista.interpretacionIshihara === 'Daltonismo'
+                        ? [
+                            {
+                              text: 'Se detecta alteración en la percepción cromática (Daltonismo). ',
+                            },
+                          ]
+                        : examenVista.interpretacionIshihara === 'Normal'
+                          ? [
+                              {
+                                text: 'No se detectan alteraciones en la percepción cromática. ',
+                              },
+                            ]
+                          : [
+                              {
+                                text: 'No se cuenta con resultado de prueba de percepción cromática. ',
+                              },
+                            ]),
                     ]
-                  : examenVista.interpretacionIshihara === 'Normal'
-                    ? [
-                        {
-                          text: 'No se detectan alteraciones en la percepción cromática. ',
-                        },
-                      ]
-                    : [
-                        {
-                          text: 'No se cuenta con resultado de prueba de percepción cromática. ',
-                        },
-                      ]),
+                  : [{ text: ' ' }]),
 
                 { text: generarTextoExploracionFisica(exploracionFisica) },
 
@@ -596,7 +573,11 @@ export const certificadoInforme = (
                   'Se encuentra clínicamente sano' ||
                 exploracionFisica.resumenExploracionFisica ===
                   'Se encuentra clínicamente sana'
-                  ? [{ text: `${exploracionFisica.resumenExploracionFisica}.` }]
+                  ? [
+                      {
+                        text: ` ${exploracionFisica.resumenExploracionFisica}.`,
+                      },
+                    ]
                   : []),
               ]),
         ],
