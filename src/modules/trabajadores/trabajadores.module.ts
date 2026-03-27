@@ -17,6 +17,7 @@ import { ControlPrenatal, ControlPrenatalSchema } from '../expedientes/schemas/c
 import { NotaMedica, NotaMedicaSchema } from '../expedientes/schemas/nota-medica.schema';
 import { Receta, RecetaSchema } from '../expedientes/schemas/receta.schema';
 import { ConstanciaAptitud, ConstanciaAptitudSchema } from '../expedientes/schemas/constancia-aptitud.schema';
+import { EntrevistaPsicologica, EntrevistaPsicologicaSchema } from '../expedientes/schemas/entrevista-psicologica.schema';
 import { RiesgoTrabajo, RiesgoTrabajoSchema } from '../riesgos-trabajo/schemas/riesgo-trabajo.schema';
 import { ResultadoClinico, ResultadoClinicoSchema } from '../resultados-clinicos/schemas/resultado-clinico.schema';
 import { FilesModule } from '../files/files.module';
@@ -41,6 +42,7 @@ import { Empresa, EmpresaSchema } from '../empresas/schemas/empresa.schema';
       { name: ControlPrenatal.name, schema: ControlPrenatalSchema },
       { name: Receta.name, schema: RecetaSchema },
       { name: ConstanciaAptitud.name, schema: ConstanciaAptitudSchema },
+      { name: EntrevistaPsicologica.name, schema: EntrevistaPsicologicaSchema },
       { name: RiesgoTrabajo.name, schema: RiesgoTrabajoSchema },
       { name: ResultadoClinico.name, schema: ResultadoClinicoSchema },
       { name: CentroTrabajo.name, schema: CentroTrabajoSchema },

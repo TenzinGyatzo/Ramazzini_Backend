@@ -27,6 +27,7 @@ import { User } from '../users/schemas/user.schema';
 import { Empresa } from '../empresas/schemas/empresa.schema';
 import { Receta } from '../expedientes/schemas/receta.schema';
 import { ConstanciaAptitud } from '../expedientes/schemas/constancia-aptitud.schema';
+import { EntrevistaPsicologica } from '../expedientes/schemas/entrevista-psicologica.schema';
 import { ResultadoClinico, TipoEstudio } from '../resultados-clinicos/schemas/resultado-clinico.schema';
 
 @Injectable()
@@ -45,6 +46,7 @@ export class TrabajadoresService {
   @InjectModel(Receta.name) private recetaModel: Model<Receta>,
   @InjectModel(ControlPrenatal.name) private controlPrenatalModel: Model<ControlPrenatal>,
   @InjectModel(ConstanciaAptitud.name) private constanciaAptitudModel: Model<ConstanciaAptitud>,
+  @InjectModel(EntrevistaPsicologica.name) private entrevistaPsicologicaModel: Model<EntrevistaPsicologica>,
   @InjectModel(RiesgoTrabajo.name) private riesgoTrabajoModel: Model<RiesgoTrabajo>,
   @InjectModel(ResultadoClinico.name) private resultadoClinicoModel: Model<ResultadoClinico>,
   @InjectModel(CentroTrabajo.name) private centroTrabajoModel: Model<CentroTrabajo>,
@@ -1816,6 +1818,7 @@ export class TrabajadoresService {
       NotaMedica: 'fechaNotaMedica',
       Receta: 'fechaReceta',
       ConstanciaAptitud: 'fechaConstanciaAptitud',
+      EntrevistaPsicologica: 'fechaEntrevistaPsicologica',
     };
   
     // Determinar el tipo de documento con el nombre del modelo en Mongoose
@@ -1851,6 +1854,7 @@ export class TrabajadoresService {
       NotaMedica: 'Nota Medica',
       Receta: 'Receta',
       ConstanciaAptitud: 'Constancia de Aptitud',
+      EntrevistaPsicologica: 'Entrevista Psicologica',
     };
   
     // Si es un Documento Externo, construir el nombre dinámicamente
@@ -1948,6 +1952,7 @@ export class TrabajadoresService {
             this.notaMedicaModel.find({ idTrabajador: id }).session(session).exec(),
             this.recetaModel.find({ idTrabajador: id }).session(session).exec(),
             this.constanciaAptitudModel.find({ idTrabajador: id }).session(session).exec(),
+            this.entrevistaPsicologicaModel.find({ idTrabajador: id }).session(session).exec(),
             this.riesgoTrabajoModel.find({ idTrabajador: id }).session(session).exec(),
           ])
         ).flat();
@@ -1968,6 +1973,7 @@ export class TrabajadoresService {
             this.notaMedicaModel.deleteMany({ idTrabajador: id }).session(session),
             this.recetaModel.deleteMany({ idTrabajador: id }).session(session),
             this.constanciaAptitudModel.deleteMany({ idTrabajador: id }).session(session),
+            this.entrevistaPsicologicaModel.deleteMany({ idTrabajador: id }).session(session),
             this.riesgoTrabajoModel.deleteMany({ idTrabajador: id }).session(session),
           ]);
   

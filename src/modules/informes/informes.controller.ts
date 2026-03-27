@@ -283,4 +283,17 @@ export class InformesController {
     }
   }
 
+  // Cuestionarios psicologicos
+  @Get('entrevistaPsicologica/:empresaId/:trabajadorId/:entrevistaPsicologicaId/:userId')
+  async getInformeEntrevistaPsicologica(
+    @Param('empresaId') empresaId: string,
+    @Param('trabajadorId') trabajadorId: string,
+    @Param('entrevistaPsicologicaId') entrevistaPsicologicaId: string,
+    @Param('userId') userId: string,
+    @Res() res: Response,
+  ) {
+    const rutaPDF = await this.informesService.getInformeEntrevistaPsicologica(empresaId, trabajadorId, entrevistaPsicologicaId, userId);
+    return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
+  }
+
 }

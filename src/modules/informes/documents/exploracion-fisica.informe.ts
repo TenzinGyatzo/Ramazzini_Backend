@@ -478,10 +478,24 @@ export const exploracionFisicaInforme = (
             ],
             // Filas de Datos
             ...[
-              ['PESO', exploracionFisica.peso, ' - '],
-              ['ALTURA', exploracionFisica.altura, ' - '],
+              [
+                'PESO',
+                exploracionFisica.peso != null ? `${exploracionFisica.peso} kg` : ' - ',
+                ' - ',
+              ],
+              [
+                'ALTURA',
+                exploracionFisica.altura != null ? `${exploracionFisica.altura} m` : ' - ',
+                ' - ',
+              ],
               ['ÍNDICE DE MASA CORPORAL', exploracionFisica.indiceMasaCorporal, exploracionFisica.categoriaIMC],
-              ['CIRCUNFERENCIA DE CINTURA', exploracionFisica.circunferenciaCintura, exploracionFisica.categoriaCircunferenciaCintura],
+              [
+                'CIRCUNFERENCIA DE CINTURA',
+                exploracionFisica.circunferenciaCintura != null
+                  ? `${exploracionFisica.circunferenciaCintura} cm`
+                  : ' - ',
+                exploracionFisica.categoriaCircunferenciaCintura,
+              ],
             ].map((row) =>
               row.map((text, i) => ({
                 text,

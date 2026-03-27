@@ -17,6 +17,7 @@ import { HistoriaOtologica, HistoriaOtologicaSchema } from './schemas/historia-o
 import { PrevioEspirometria, PrevioEspirometriaSchema } from './schemas/previo-espirometria.schema';
 import { ConstanciaAptitud, ConstanciaAptitudSchema } from './schemas/constancia-aptitud.schema';
 import { Receta, RecetaSchema } from './schemas/receta.schema';
+import { EntrevistaPsicologica, EntrevistaPsicologicaSchema } from './schemas/entrevista-psicologica.schema';
 import { Trabajador, TrabajadorSchema } from '../trabajadores/schemas/trabajador.schema';
 import { InformesModule } from '../informes/informes.module';
 import { FilesModule } from '../files/files.module';
@@ -43,6 +44,7 @@ import { PdfCleanerService } from './pdf-cleaner.service';
       { name: ConstanciaAptitud.name, schema: ConstanciaAptitudSchema },
       { name: Trabajador.name, schema: TrabajadorSchema },
       { name: Receta.name, schema: RecetaSchema },
+      { name: EntrevistaPsicologica.name, schema: EntrevistaPsicologicaSchema },
     ]),
     forwardRef(() => InformesModule),
     FilesModule, // Nuevo módulo
