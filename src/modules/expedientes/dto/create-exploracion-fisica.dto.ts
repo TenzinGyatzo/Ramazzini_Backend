@@ -24,9 +24,9 @@ import { IsDate, IsEnum, IsMongoId, IsNotEmpty, IsNumber, IsOptional, IsString, 
     'Óptima',
     'Normal',
     'Alta',
-    'Hipertensión ligera',
-    'Hipertensión moderada',
-    'Hipertensión severa',
+    'Hipertensión grado 1',
+    'Hipertensión grado 2',
+    'Crisis hipertensiva',
   ];
   
   const categoriasFrecuenciaCardiaca = [
@@ -100,12 +100,12 @@ export class CreateExploracionFisicaDto {
     @IsOptional()
     @IsNumber({ maxDecimalPlaces: 0 })
     @Min(60)
-    @Max(200)
+    @Max(300)
     tensionArterialSistolica: number;
 
     @IsOptional()
     @Min(40)
-    @Max(150)
+    @Max(200)
     @IsNumber({ maxDecimalPlaces: 0 })
     tensionArterialDiastolica: number;
 
