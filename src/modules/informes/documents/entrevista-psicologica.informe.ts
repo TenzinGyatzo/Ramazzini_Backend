@@ -441,7 +441,7 @@ import type {
         filaDosColumnasSecciones(
           tablaSeccion('I. Observación general (conductual)', [
             filaCampo('Apariencia', ep.apariencia),
-            filaCampo('Actitud hacia el evaluador', ep.actitudHaciaEvaluador),
+            filaCampo('Actitud', ep.actitudHaciaEvaluador),
             filaCampo('Nivel de cooperación', ep.nivelCooperacion),
             filaCampo('Contacto visual', ep.contactoVisual),
             filaCampo('Conducta motora', ep.conductaMotora),
