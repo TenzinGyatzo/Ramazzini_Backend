@@ -46,6 +46,12 @@ import { CreateRecetaDto } from './dto/create-receta.dto';
 import { UpdateRecetaDto } from './dto/update-receta.dto';
 import { CreateEntrevistaPsicologicaDto } from './dto/create-entrevista-psicologica.dto';
 import { UpdateEntrevistaPsicologicaDto } from './dto/update-entrevista-psicologica.dto';
+import { CreateTrastornosEstadoAnimoDto } from './dto/create-trastornos-estado-animo.dto';
+import { UpdateTrastornosEstadoAnimoDto } from './dto/update-trastornos-estado-animo.dto';  
+import { CreateCuestionarioProdromalBreveDto } from './dto/create-cuestionario-prodromal-breve.dto';
+import { UpdateCuestionarioProdromalBreveDto } from './dto/update-cuestionario-prodromal-breve.dto';
+import { CreateTrastornoLimitePersonalidadDto } from './dto/create-trastorno-limite-personalidad.dto';
+import { UpdateTrastornoLimitePersonalidadDto } from './dto/update-trastorno-limite-personalidad.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import path from 'path';
@@ -74,6 +80,9 @@ export class ExpedientesController {
     receta: CreateRecetaDto,
     constanciaAptitud: CreateConstanciaAptitudDto,
     entrevistaPsicologica: CreateEntrevistaPsicologicaDto,
+    trastornosEstadoAnimo: CreateTrastornosEstadoAnimoDto,
+    cuestionarioProdromalBreve: CreateCuestionarioProdromalBreveDto,
+    trastornoLimitePersonalidad: CreateTrastornoLimitePersonalidadDto,
   };
 
   private updateDtos = {
@@ -93,6 +102,9 @@ export class ExpedientesController {
     receta: UpdateRecetaDto,
     constanciaAptitud: UpdateConstanciaAptitudDto,
     entrevistaPsicologica: UpdateEntrevistaPsicologicaDto,
+    trastornosEstadoAnimo: UpdateTrastornosEstadoAnimoDto,
+    cuestionarioProdromalBreve: UpdateCuestionarioProdromalBreveDto,
+    trastornoLimitePersonalidad: UpdateTrastornoLimitePersonalidadDto,
   };
 
   @Post(':documentType/crear')

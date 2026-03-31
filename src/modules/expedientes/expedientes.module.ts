@@ -18,6 +18,9 @@ import { PrevioEspirometria, PrevioEspirometriaSchema } from './schemas/previo-e
 import { ConstanciaAptitud, ConstanciaAptitudSchema } from './schemas/constancia-aptitud.schema';
 import { Receta, RecetaSchema } from './schemas/receta.schema';
 import { EntrevistaPsicologica, EntrevistaPsicologicaSchema } from './schemas/entrevista-psicologica.schema';
+import { TrastornosEstadoAnimo, TrastornosEstadoAnimoSchema } from './schemas/trastornos-estado-animo.schema';
+import { CuestionarioProdromalBreve, CuestionarioProdromalBreveSchema } from './schemas/cuestionario-prodromal-breve.schema';
+import { TrastornoLimitePersonalidad, TrastornoLimitePersonalidadSchema } from './schemas/trastorno-limite-personalidad.schema';
 import { Trabajador, TrabajadorSchema } from '../trabajadores/schemas/trabajador.schema';
 import { InformesModule } from '../informes/informes.module';
 import { FilesModule } from '../files/files.module';
@@ -45,6 +48,9 @@ import { PdfCleanerService } from './pdf-cleaner.service';
       { name: Trabajador.name, schema: TrabajadorSchema },
       { name: Receta.name, schema: RecetaSchema },
       { name: EntrevistaPsicologica.name, schema: EntrevistaPsicologicaSchema },
+      { name: TrastornosEstadoAnimo.name, schema: TrastornosEstadoAnimoSchema },
+      { name: CuestionarioProdromalBreve.name, schema: CuestionarioProdromalBreveSchema },
+      { name: TrastornoLimitePersonalidad.name, schema: TrastornoLimitePersonalidadSchema },
     ]),
     forwardRef(() => InformesModule),
     FilesModule, // Nuevo módulo

@@ -27,7 +27,7 @@ const categoriasTensionArterial = [
   'Alta',
   'Hipertensión grado 1',
   'Hipertensión grado 2',
-  'Crisis hipertensiva',
+  'Hipertensión grado 3',
 ];
 
 const categoriasFrecuenciaCardiaca = [

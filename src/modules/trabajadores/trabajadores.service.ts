@@ -28,6 +28,9 @@ import { Empresa } from '../empresas/schemas/empresa.schema';
 import { Receta } from '../expedientes/schemas/receta.schema';
 import { ConstanciaAptitud } from '../expedientes/schemas/constancia-aptitud.schema';
 import { EntrevistaPsicologica } from '../expedientes/schemas/entrevista-psicologica.schema';
+import { TrastornosEstadoAnimo } from '../expedientes/schemas/trastornos-estado-animo.schema';
+import { CuestionarioProdromalBreve } from '../expedientes/schemas/cuestionario-prodromal-breve.schema';
+import { TrastornoLimitePersonalidad } from '../expedientes/schemas/trastorno-limite-personalidad.schema';
 import { ResultadoClinico, TipoEstudio } from '../resultados-clinicos/schemas/resultado-clinico.schema';
 
 @Injectable()
@@ -47,6 +50,9 @@ export class TrabajadoresService {
   @InjectModel(ControlPrenatal.name) private controlPrenatalModel: Model<ControlPrenatal>,
   @InjectModel(ConstanciaAptitud.name) private constanciaAptitudModel: Model<ConstanciaAptitud>,
   @InjectModel(EntrevistaPsicologica.name) private entrevistaPsicologicaModel: Model<EntrevistaPsicologica>,
+  @InjectModel(TrastornosEstadoAnimo.name) private trastornosEstadoAnimoModel: Model<TrastornosEstadoAnimo>,
+  @InjectModel(CuestionarioProdromalBreve.name) private cuestionarioProdromalBreveModel: Model<CuestionarioProdromalBreve>,
+  @InjectModel(TrastornoLimitePersonalidad.name) private trastornoLimitePersonalidadModel: Model<TrastornoLimitePersonalidad>,
   @InjectModel(RiesgoTrabajo.name) private riesgoTrabajoModel: Model<RiesgoTrabajo>,
   @InjectModel(ResultadoClinico.name) private resultadoClinicoModel: Model<ResultadoClinico>,
   @InjectModel(CentroTrabajo.name) private centroTrabajoModel: Model<CentroTrabajo>,
@@ -1819,6 +1825,9 @@ export class TrabajadoresService {
       Receta: 'fechaReceta',
       ConstanciaAptitud: 'fechaConstanciaAptitud',
       EntrevistaPsicologica: 'fechaEntrevistaPsicologica',
+      TrastornosEstadoAnimo: 'fechaTrastornosEstadoAnimo',
+      CuestionarioProdromalBreve: 'fechaCuestionarioProdromalBreve',
+      TrastornoLimitePersonalidad: 'fechaTrastornoLimitePersonalidad',
     };
   
     // Determinar el tipo de documento con el nombre del modelo en Mongoose
@@ -1855,6 +1864,9 @@ export class TrabajadoresService {
       Receta: 'Receta',
       ConstanciaAptitud: 'Constancia de Aptitud',
       EntrevistaPsicologica: 'Entrevista Psicologica',
+      TrastornosEstadoAnimo: 'Trastornos Estado Animo',
+      CuestionarioProdromalBreve: 'Cuestionario Prodromal Breve',
+      TrastornoLimitePersonalidad: 'Trastorno Limite Personalidad',
     };
   
     // Si es un Documento Externo, construir el nombre dinámicamente
@@ -1953,6 +1965,9 @@ export class TrabajadoresService {
             this.recetaModel.find({ idTrabajador: id }).session(session).exec(),
             this.constanciaAptitudModel.find({ idTrabajador: id }).session(session).exec(),
             this.entrevistaPsicologicaModel.find({ idTrabajador: id }).session(session).exec(),
+            this.trastornosEstadoAnimoModel.find({ idTrabajador: id }).session(session).exec(),
+            this.cuestionarioProdromalBreveModel.find({ idTrabajador: id }).session(session).exec(),
+            this.trastornoLimitePersonalidadModel.find({ idTrabajador: id }).session(session).exec(),
             this.riesgoTrabajoModel.find({ idTrabajador: id }).session(session).exec(),
           ])
         ).flat();
@@ -1974,6 +1989,9 @@ export class TrabajadoresService {
             this.recetaModel.deleteMany({ idTrabajador: id }).session(session),
             this.constanciaAptitudModel.deleteMany({ idTrabajador: id }).session(session),
             this.entrevistaPsicologicaModel.deleteMany({ idTrabajador: id }).session(session),
+            this.trastornosEstadoAnimoModel.deleteMany({ idTrabajador: id }).session(session),
+            this.cuestionarioProdromalBreveModel.deleteMany({ idTrabajador: id }).session(session),
+            this.trastornoLimitePersonalidadModel.deleteMany({ idTrabajador: id }).session(session),
             this.riesgoTrabajoModel.deleteMany({ idTrabajador: id }).session(session),
           ]);
   

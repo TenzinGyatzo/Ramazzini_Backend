@@ -296,4 +296,39 @@ export class InformesController {
     return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
   }
 
+  @Get('trastornosEstadoAnimo/:empresaId/:trabajadorId/:trastornosEstadoAnimoId/:userId')
+  async getInformeTrastornosEstadoAnimo(
+    @Param('empresaId') empresaId: string,
+    @Param('trabajadorId') trabajadorId: string,
+    @Param('trastornosEstadoAnimoId') trastornosEstadoAnimoId: string,
+    @Param('userId') userId: string,
+    @Res() res: Response,
+  ) {
+    const rutaPDF = await this.informesService.getInformeTrastornosEstadoAnimo(empresaId, trabajadorId, trastornosEstadoAnimoId, userId);
+    return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
+  }
+
+  @Get('cuestionarioProdromalBreve/:empresaId/:trabajadorId/:cuestionarioProdromalBreveId/:userId')
+  async getInformeCuestionarioProdromalBreve(
+    @Param('empresaId') empresaId: string,
+    @Param('trabajadorId') trabajadorId: string,
+    @Param('cuestionarioProdromalBreveId') cuestionarioProdromalBreveId: string,
+    @Param('userId') userId: string,
+    @Res() res: Response,
+  ) {
+    const rutaPDF = await this.informesService.getInformeCuestionarioProdromalBreve(empresaId, trabajadorId, cuestionarioProdromalBreveId, userId);
+    return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
+  }
+
+  @Get('trastornoLimitePersonalidad/:empresaId/:trabajadorId/:trastornoLimitePersonalidadId/:userId')
+  async getInformeTrastornoLimitePersonalidad(
+    @Param('empresaId') empresaId: string,
+    @Param('trabajadorId') trabajadorId: string,
+    @Param('trastornoLimitePersonalidadId') trastornoLimitePersonalidadId: string,
+    @Param('userId') userId: string,
+    @Res() res: Response,
+  ) {
+    const rutaPDF = await this.informesService.getInformeTrastornoLimitePersonalidad(empresaId, trabajadorId, trastornoLimitePersonalidadId, userId);
+    return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
+  }
 }
