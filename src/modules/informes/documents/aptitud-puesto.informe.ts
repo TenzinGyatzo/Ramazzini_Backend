@@ -307,32 +307,99 @@ const tipoAlteracionEKGLabels: Record<string, string> = {
   ANORMAL_QT_ALTERADO: 'Anormal QT alterado',
 };
 
+const tipoAlteracionRayosXLabels: Record<string, string> = {
+  ALTERACION_PARENQUIMATOSA: 'Alteración parenquimatosa',
+  ALTERACION_PLEURAL: 'Alteración pleural',
+  ALTERACION_CARDIOMEDIASTINICA: 'Alteración cardiomediastínica',
+  NODULO_O_MASA: 'Nódulo o masa',
+  SECUELA_CRONICA: 'Secuela crónica',
+  ALTERACION_OSEA: 'Alteración ósea',
+  ALTERACION_ARTICULAR: 'Alteración articular',
+  ALTERACION_ALINEACION: 'Alteración de alineación',
+  CAMBIO_DEGENERATIVO: 'Cambio degenerativo',
+  FRACTURA_O_TRAUMA: 'Fractura o trauma',
+  OTRA_ALTERACION: 'Otra alteración',
+};
+
+const tipoAlteracionAnalisisLaboratorioLabels: Record<string, string> = {
+  ALTERACION_HEMATOLOGICA: 'Alteración hematológica',
+  ALTERACION_METABOLICA: 'Alteración metabólica',
+  ALTERACION_RENAL: 'Alteración renal',
+  ALTERACION_HEPATICA: 'Alteración hepática',
+  ALTERACION_INFECCIOSA_O_INFLAMATORIA: 'Alteración infecciosa o inflamatoria',
+  ALTERACION_URINARIA: 'Alteración urinaria',
+  OTRA_ALTERACION: 'Otra alteración',
+};
+
 const obtenerResumenTipoSangre = (resultado: ResultadoClinicoTipoSangre | null) => {
   if (!resultado) return null;
   if (!resultado.tipoSangre) return null;
   return tipoSangreLabels[resultado.tipoSangre] || resultado.tipoSangre;
 };
 
+/** Texto libre del resultado (NORMAL o ANORMAL); si solo hay espacios, usar fallback. */
+const textoHallazgoSiHay = (hallazgoEspecifico?: string | null): string | null => {
+  if (hallazgoEspecifico == null) return null;
+  const t = String(hallazgoEspecifico).trim();
+  return t.length > 0 ? t : null;
+};
+
 const obtenerResumenEKG = (resultado: ResultadoClinicoEKG | null) => {
   if (!resultado || resultado.resultadoGlobal === 'NO_CONCLUYENTE') return null;
-  if (resultado.hallazgoEspecifico) return resultado.hallazgoEspecifico;
+  const libre = textoHallazgoSiHay(resultado.hallazgoEspecifico);
+  if (libre) return libre;
   if (resultado.resultadoGlobal === 'NORMAL') {
     return 'Normal, valores dentro del rango de referencia';
   }
   if (resultado.resultadoGlobal === 'ANORMAL') {
-    return tipoAlteracionEKGLabels[resultado.tipoAlteracionPrincipal] || resultado.tipoAlteracionPrincipal || 'Anormal';
+    return tipoAlteracionEKGLabels[resultado.tipoAlteracionEKG] || resultado.tipoAlteracionEKG || 'Anormal';
   }
   return null;
 };
 
 const obtenerResumenEspirometria = (resultado: ResultadoClinicoEspirometria | null) => {
   if (!resultado || resultado.resultadoGlobal === 'NO_CONCLUYENTE') return null;
-  if (resultado.hallazgoEspecifico) return resultado.hallazgoEspecifico;
+  const libre = textoHallazgoSiHay(resultado.hallazgoEspecifico);
+  if (libre) return libre;
   if (resultado.resultadoGlobal === 'NORMAL') {
     return 'Normal, valores dentro del rango de referencia';
   }
   if (resultado.resultadoGlobal === 'ANORMAL') {
-    return tipoAlteracionEspirometriaLabels[resultado.tipoAlteracion] || resultado.tipoAlteracion || 'Anormal';
+    return tipoAlteracionEspirometriaLabels[resultado.tipoAlteracionEspirometria] || resultado.tipoAlteracionEspirometria || 'Anormal';
+  }
+  return null;
+};
+
+const obtenerResumenRayosX = (resultado: ResultadoClinicoRayosX | null) => {
+  if (!resultado || resultado.resultadoGlobal === 'NO_CONCLUYENTE') return null;
+  const libre = textoHallazgoSiHay(resultado.hallazgoEspecifico);
+  if (libre) return libre;
+  if (resultado.resultadoGlobal === 'NORMAL') {
+    return 'Dentro de límites normales';
+  }
+  if (resultado.resultadoGlobal === 'ANORMAL') {
+    const arr = resultado.tipoAlteracionRayosX;
+    if (Array.isArray(arr) && arr.length > 0) {
+      return arr.map((k) => tipoAlteracionRayosXLabels[k] || k).join(', ');
+    }
+    return 'Anormal';
+  }
+  return null;
+};
+
+const obtenerResumenAnalisisLaboratorio = (resultado: ResultadoClinicoAnalisisLaboratorio | null) => {
+  if (!resultado || resultado.resultadoGlobal === 'NO_CONCLUYENTE') return null;
+  const libre = textoHallazgoSiHay(resultado.hallazgoEspecifico);
+  if (libre) return libre;
+  if (resultado.resultadoGlobal === 'NORMAL') {
+    return 'Resultados dentro de parámetros normales';
+  }
+  if (resultado.resultadoGlobal === 'ANORMAL') {
+    const arr = resultado.tipoAlteracionAnalisisLaboratorio;
+    if (Array.isArray(arr) && arr.length > 0) {
+      return arr.map((k) => tipoAlteracionAnalisisLaboratorioLabels[k] || k).join(', ');
+    }
+    return 'Anormal';
   }
   return null;
 };
@@ -457,14 +524,28 @@ interface ResultadoClinicoEKG {
   fechaEstudio: Date;
   resultadoGlobal?: string;
   hallazgoEspecifico?: string;
-  tipoAlteracionPrincipal?: string;
+  tipoAlteracionEKG?: string;
 }
 
 interface ResultadoClinicoEspirometria {
   fechaEstudio: Date;
   resultadoGlobal?: string;
   hallazgoEspecifico?: string;
-  tipoAlteracion?: string;
+  tipoAlteracionEspirometria?: string;
+}
+
+interface ResultadoClinicoRayosX {
+  fechaEstudio: Date;
+  resultadoGlobal?: string;
+  hallazgoEspecifico?: string;
+  tipoAlteracionRayosX?: string[];
+}
+
+interface ResultadoClinicoAnalisisLaboratorio {
+  fechaEstudio: Date;
+  resultadoGlobal?: string;
+  hallazgoEspecifico?: string;
+  tipoAlteracionAnalisisLaboratorio?: string[];
 }
 
 interface MedicoFirmante {
@@ -513,6 +594,8 @@ export const aptitudPuestoInforme = (
   resultadoTipoSangre: ResultadoClinicoTipoSangre | null,
   resultadoEKG: ResultadoClinicoEKG | null,
   resultadoEspirometria: ResultadoClinicoEspirometria | null,
+  resultadoRayosX: ResultadoClinicoRayosX | null,
+  resultadoAnalisisLaboratorio: ResultadoClinicoAnalisisLaboratorio | null,
   medicoFirmante: MedicoFirmante,
   proveedorSalud: ProveedorSalud,
 ): TDocumentDefinitions => {
@@ -562,6 +645,8 @@ export const aptitudPuestoInforme = (
   const tipoSangreResumen = obtenerResumenTipoSangre(resultadoTipoSangre);
   const ekgResumen = obtenerResumenEKG(resultadoEKG);
   const espirometriaResumen = obtenerResumenEspirometria(resultadoEspirometria);
+  const rayosXResumen = obtenerResumenRayosX(resultadoRayosX);
+  const analisisLaboratorioResumen = obtenerResumenAnalisisLaboratorio(resultadoAnalisisLaboratorio);
 
   const identificadorLabel =
     proveedorSalud.pais === 'MX'
@@ -756,6 +841,32 @@ if (trabajador.nss || trabajador.curp) {
               'center',
             ),
             createTableCell(espirometriaResumen, 'tableCell', 'center'),
+          ],
+        ]
+      : []),
+    ...(resultadoRayosX && rayosXResumen
+      ? [
+          [
+            createTableCell('RAYOS X', 'sectionHeader', 'center'),
+            createTableCell(
+              formatearFechaUTC(resultadoRayosX.fechaEstudio),
+              'tableCell',
+              'center',
+            ),
+            createTableCell(rayosXResumen, 'tableCell', 'center'),
+          ],
+        ]
+      : []),
+    ...(resultadoAnalisisLaboratorio && analisisLaboratorioResumen
+      ? [
+          [
+            createTableCell('ANÁLISIS DE LABORATORIO', 'sectionHeader', 'center'),
+            createTableCell(
+              formatearFechaUTC(resultadoAnalisisLaboratorio.fechaEstudio),
+              'tableCell',
+              'center',
+            ),
+            createTableCell(analisisLaboratorioResumen, 'tableCell', 'center'),
           ],
         ]
       : []),

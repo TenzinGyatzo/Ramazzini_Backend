@@ -483,13 +483,18 @@ export class InformesService {
       resultadosClinicos,
       'TIPO_SANGRE',
     );
+    const nearestRayosX = findMostRecentResultadoClinico(resultadosClinicos, 'RAYOS_X');
+    const nearestAnalisisLaboratorio = findMostRecentResultadoClinico(
+      resultadosClinicos,
+      'ANALISIS_LABORATORIO',
+    );
 
     const datosResultadoClinicoEKG = nearestEKG
       ? {
           fechaEstudio: nearestEKG.fechaEstudio,
           resultadoGlobal: nearestEKG.resultadoGlobal,
           hallazgoEspecifico: nearestEKG.hallazgoEspecifico,
-          tipoAlteracionPrincipal: nearestEKG.tipoAlteracionPrincipal,
+          tipoAlteracionEKG: nearestEKG.tipoAlteracionEKG,
         }
       : null;
 
@@ -498,7 +503,7 @@ export class InformesService {
           fechaEstudio: nearestEspirometria.fechaEstudio,
           resultadoGlobal: nearestEspirometria.resultadoGlobal,
           hallazgoEspecifico: nearestEspirometria.hallazgoEspecifico,
-          tipoAlteracion: nearestEspirometria.tipoAlteracion,
+          tipoAlteracionEspirometria: nearestEspirometria.tipoAlteracionEspirometria,
         }
       : null;
 
@@ -506,6 +511,25 @@ export class InformesService {
       ? {
           fechaEstudio: nearestTipoSangre.fechaEstudio,
           tipoSangre: nearestTipoSangre.tipoSangre,
+        }
+      : null;
+
+    const datosResultadoClinicoRayosX = nearestRayosX
+      ? {
+          fechaEstudio: nearestRayosX.fechaEstudio,
+          resultadoGlobal: nearestRayosX.resultadoGlobal,
+          hallazgoEspecifico: nearestRayosX.hallazgoEspecifico,
+          tipoAlteracionRayosX: nearestRayosX.tipoAlteracionRayosX,
+        }
+      : null;
+
+    const datosResultadoClinicoAnalisisLaboratorio = nearestAnalisisLaboratorio
+      ? {
+          fechaEstudio: nearestAnalisisLaboratorio.fechaEstudio,
+          resultadoGlobal: nearestAnalisisLaboratorio.resultadoGlobal,
+          hallazgoEspecifico: nearestAnalisisLaboratorio.hallazgoEspecifico,
+          tipoAlteracionAnalisisLaboratorio:
+            nearestAnalisisLaboratorio.tipoAlteracionAnalisisLaboratorio,
         }
       : null;
 
@@ -590,6 +614,8 @@ export class InformesService {
       datosResultadoClinicoTipoSangre,
       datosResultadoClinicoEKG,
       datosResultadoClinicoEspirometria,
+      datosResultadoClinicoRayosX,
+      datosResultadoClinicoAnalisisLaboratorio,
       datosMedicoFirmante,
       datosProveedorSalud,
     );

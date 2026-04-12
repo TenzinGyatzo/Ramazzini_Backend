@@ -401,6 +401,8 @@ export class TrabajadoresService {
       hbc: [],
       ekg: [],
       espirometria: [],
+      rayosX: [],
+      analisisLaboratorio: [],
       pab: [],
       trabajadoresEvaluados: []
     };
@@ -596,23 +598,49 @@ export class TrabajadoresService {
       caidaMaxDb: getCaidaMaximaDb(a),
     }));
 
-    // 18. RESULTADOS CLÍNICOS (EKG y ESPIROMETRIA) – Obtener el más reciente por trabajador activo
+    // 18. RESULTADOS CLÍNICOS (EKG, ESPIROMETRÍA, RAYOS X, ANÁLISIS DE LABORATORIO) – Más reciente por trabajador activo
     const resultadosClinicos = await this.resultadoClinicoModel
       .find({
         idTrabajador: { $in: idsActivos },
-        tipoEstudio: { $in: [TipoEstudio.EKG, TipoEstudio.ESPIROMETRIA] },
+        tipoEstudio: {
+          $in: [
+            TipoEstudio.EKG,
+            TipoEstudio.ESPIROMETRIA,
+            TipoEstudio.RAYOS_X,
+            TipoEstudio.ANALISIS_LABORATORIO,
+          ],
+        },
         ...rangoFecha('fechaEstudio')
       })
-      .select('idTrabajador tipoEstudio resultadoGlobal tipoAlteracion tipoAlteracionPrincipal fechaEstudio')
+      .select(
+        'idTrabajador tipoEstudio resultadoGlobal tipoAlteracionEspirometria tipoAlteracionEKG tipoAlteracionRayosX tipoAlteracionAnalisisLaboratorio fechaEstudio',
+      )
       .lean();
 
     const resultadosEkgMap = new Map<string, any>();
     const resultadosEspirometriaMap = new Map<string, any>();
+    const resultadosRayosXMap = new Map<string, any>();
+    const resultadosAnalisisLaboratorioMap = new Map<string, any>();
 
     for (const resultado of resultadosClinicos) {
       const id = resultado.idTrabajador.toString();
-      const targetMap =
-        resultado.tipoEstudio === TipoEstudio.EKG ? resultadosEkgMap : resultadosEspirometriaMap;
+      let targetMap: Map<string, any>;
+      switch (resultado.tipoEstudio) {
+        case TipoEstudio.EKG:
+          targetMap = resultadosEkgMap;
+          break;
+        case TipoEstudio.ESPIROMETRIA:
+          targetMap = resultadosEspirometriaMap;
+          break;
+        case TipoEstudio.RAYOS_X:
+          targetMap = resultadosRayosXMap;
+          break;
+        case TipoEstudio.ANALISIS_LABORATORIO:
+          targetMap = resultadosAnalisisLaboratorioMap;
+          break;
+        default:
+          continue;
+      }
       const actual = targetMap.get(id);
 
       if (!actual || new Date(resultado.fechaEstudio) > new Date(actual.fechaEstudio)) {
@@ -623,15 +651,29 @@ export class TrabajadoresService {
     dashboardData.ekg.push(
       Array.from(resultadosEkgMap.values()).map((resultado) => ({
         resultadoGlobal: resultado.resultadoGlobal ?? null,
-        tipoAlteracion: resultado.tipoAlteracionPrincipal ?? resultado.tipoAlteracion ?? null
+        tipoAlteracionEKG: resultado.tipoAlteracionEKG ?? null
       }))
     );
 
     dashboardData.espirometria.push(
       Array.from(resultadosEspirometriaMap.values()).map((resultado) => ({
         resultadoGlobal: resultado.resultadoGlobal ?? null,
-        tipoAlteracion: resultado.tipoAlteracion ?? null
+        tipoAlteracionEspirometria: resultado.tipoAlteracionEspirometria ?? null
       }))
+    );
+
+    dashboardData.rayosX.push(
+      Array.from(resultadosRayosXMap.values()).map((resultado) => ({
+        resultadoGlobal: resultado.resultadoGlobal ?? null,
+        tipoAlteracionRayosX: resultado.tipoAlteracionRayosX ?? null,
+      })),
+    );
+
+    dashboardData.analisisLaboratorio.push(
+      Array.from(resultadosAnalisisLaboratorioMap.values()).map((resultado) => ({
+        resultadoGlobal: resultado.resultadoGlobal ?? null,
+        tipoAlteracionAnalisisLaboratorio: resultado.tipoAlteracionAnalisisLaboratorio ?? null,
+      })),
     );
 
     const trabajadoresEvaluadosSet = new Set([
@@ -642,6 +684,8 @@ export class TrabajadoresService {
       ...audiometriasMap.keys(),
       ...resultadosEkgMap.keys(),
       ...resultadosEspirometriaMap.keys(),
+      ...resultadosRayosXMap.keys(),
+      ...resultadosAnalisisLaboratorioMap.keys(),
     ]);
 
     dashboardData.trabajadoresEvaluados = Array.from(trabajadoresEvaluadosSet);
@@ -659,6 +703,8 @@ export class TrabajadoresService {
         ...audiometriasMap.keys(),
         ...resultadosEkgMap.keys(),
         ...resultadosEspirometriaMap.keys(),
+        ...resultadosRayosXMap.keys(),
+        ...resultadosAnalisisLaboratorioMap.keys(),
       ]);
       
       // Filtrar trabajadores activos que tienen evaluaciones en el período
