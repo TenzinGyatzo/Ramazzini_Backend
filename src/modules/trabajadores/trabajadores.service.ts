@@ -31,7 +31,7 @@ import { EntrevistaPsicologica } from '../expedientes/schemas/entrevista-psicolo
 import { TrastornosEstadoAnimo } from '../expedientes/schemas/trastornos-estado-animo.schema';
 import { CuestionarioProdromalBreve } from '../expedientes/schemas/cuestionario-prodromal-breve.schema';
 import { TrastornoLimitePersonalidad } from '../expedientes/schemas/trastorno-limite-personalidad.schema';
-import { ResultadoClinico, TipoEstudio } from '../resultados-clinicos/schemas/resultado-clinico.schema';
+import { ResultadoClinico, ResultadoGlobal, TipoEstudio } from '../resultados-clinicos/schemas/resultado-clinico.schema';
 
 @Injectable()
 export class TrabajadoresService {
@@ -182,6 +182,63 @@ export class TrabajadoresService {
       }
     }
 
+    // RESULTADOS CLÍNICOS (Espirometría, EKG, Rayos X, Laboratorio): último por trabajador y tipo
+    const resultadosClinicosDocs = await this.resultadoClinicoModel
+      .find({
+        idTrabajador: { $in: trabajadoresIds },
+        tipoEstudio: {
+          $in: [
+            TipoEstudio.ESPIROMETRIA,
+            TipoEstudio.EKG,
+            TipoEstudio.RAYOS_X,
+            TipoEstudio.ANALISIS_LABORATORIO,
+          ],
+        },
+      })
+      .select('idTrabajador tipoEstudio fechaEstudio resultadoGlobal')
+      .lean();
+
+    const resultadosEspirometriaMap = new Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>();
+    const resultadosEkgMap = new Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>();
+    const resultadosRayosXMap = new Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>();
+    const resultadosAnalisisLabMap = new Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>();
+
+    for (const doc of resultadosClinicosDocs) {
+      const tid = doc.idTrabajador.toString();
+      let targetMap: Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>;
+      switch (doc.tipoEstudio) {
+        case TipoEstudio.ESPIROMETRIA:
+          targetMap = resultadosEspirometriaMap;
+          break;
+        case TipoEstudio.EKG:
+          targetMap = resultadosEkgMap;
+          break;
+        case TipoEstudio.RAYOS_X:
+          targetMap = resultadosRayosXMap;
+          break;
+        case TipoEstudio.ANALISIS_LABORATORIO:
+          targetMap = resultadosAnalisisLabMap;
+          break;
+        default:
+          continue;
+      }
+      const actual = targetMap.get(tid);
+      const fecha = new Date(doc.fechaEstudio);
+      if (!actual || fecha > new Date(actual.fechaEstudio)) {
+        targetMap.set(tid, {
+          resultadoGlobal: doc.resultadoGlobal ?? undefined,
+          fechaEstudio: fecha,
+        });
+      }
+    }
+
+    const etiquetaResultadoGlobal = (resultadoGlobal: string | undefined): string => {
+      if (resultadoGlobal === ResultadoGlobal.NORMAL) return 'Normal';
+      if (resultadoGlobal === ResultadoGlobal.ANORMAL) return 'Anormal';
+      if (resultadoGlobal === ResultadoGlobal.NO_CONCLUYENTE) return 'No concluyente';
+      return '-';
+    };
+
     // RIESGOS DE TRABAJO
     const riesgos = await this.riesgoTrabajoModel
       .find({ idTrabajador: { $in: trabajadoresIds } })
@@ -261,6 +318,20 @@ export class TrabajadoresService {
               diagnosticoAudiometria: audiometria.diagnosticoAudiometria ?? null,
             }
           : null,
+        resultadosClinicosResumen: {
+          espirometria: resultadosEspirometriaMap.has(id)
+            ? { etiqueta: etiquetaResultadoGlobal(resultadosEspirometriaMap.get(id)?.resultadoGlobal) }
+            : null,
+          ekg: resultadosEkgMap.has(id)
+            ? { etiqueta: etiquetaResultadoGlobal(resultadosEkgMap.get(id)?.resultadoGlobal) }
+            : null,
+          rayosX: resultadosRayosXMap.has(id)
+            ? { etiqueta: etiquetaResultadoGlobal(resultadosRayosXMap.get(id)?.resultadoGlobal) }
+            : null,
+          analisisLaboratorio: resultadosAnalisisLabMap.has(id)
+            ? { etiqueta: etiquetaResultadoGlobal(resultadosAnalisisLabMap.get(id)?.resultadoGlobal) }
+            : null,
+        },
       };
     });
   
