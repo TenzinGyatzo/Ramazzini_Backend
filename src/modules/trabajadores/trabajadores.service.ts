@@ -475,6 +475,9 @@ export class TrabajadoresService {
       rayosX: [],
       analisisLaboratorio: [],
       pab: [],
+      trastornosEstadoAnimo: [],
+      cuestionarioProdromalBreve: [],
+      trastornoLimitePersonalidad: [],
       trabajadoresEvaluados: []
     };
 
@@ -747,6 +750,162 @@ export class TrabajadoresService {
       })),
     );
 
+    const teaSelect = [
+      'idTrabajador',
+      'fechaTrastornosEstadoAnimo',
+      'p1ExaltadoComportamientoNoHabitualOMetidoProblemas',
+      'p1IrritableGritosPeleas',
+      'p1MasSeguridadQueLoHabitual',
+      'p1DormiaMenosSinNecesitarMasSueno',
+      'p1HablabaMasOMasRapido',
+      'p1PensamientosAgolpados',
+      'p1DistraccionDificultadConcentracion',
+      'p1MasEnergiaQueLoHabitual',
+      'p1MasActivoOMasCosasQueLoHabitual',
+      'p1MasSocialExtrovertido',
+      'p1MasApetitoSexual',
+      'p1CosasExageradasRiesgosas',
+      'p1GastoDineroProblemas',
+      'p2SituacionesMismoPeriodo',
+      'p3NivelProblemaCausado',
+      'p4FamiliarDirectoBipolar',
+      'p5DiagnosticoProfesionalBipolar',
+    ].join(' ');
+
+    const trastornosEstadoAnimoDocs = await this.trastornosEstadoAnimoModel
+      .find({
+        idTrabajador: { $in: idsActivos },
+        ...rangoFecha('fechaTrastornosEstadoAnimo'),
+      })
+      .select(teaSelect)
+      .lean();
+
+    const trastornosEstadoAnimoMap = new Map<string, any>();
+    for (const doc of trastornosEstadoAnimoDocs) {
+      const id = doc.idTrabajador.toString();
+      const actual = trastornosEstadoAnimoMap.get(id);
+      if (
+        !actual ||
+        new Date(doc.fechaTrastornosEstadoAnimo) > new Date(actual.fechaTrastornosEstadoAnimo)
+      ) {
+        trastornosEstadoAnimoMap.set(id, doc);
+      }
+    }
+
+    dashboardData.trastornosEstadoAnimo.push(
+      Array.from(trastornosEstadoAnimoMap.values()).map((d) => ({
+        p1ExaltadoComportamientoNoHabitualOMetidoProblemas:
+          d.p1ExaltadoComportamientoNoHabitualOMetidoProblemas ?? null,
+        p1IrritableGritosPeleas: d.p1IrritableGritosPeleas ?? null,
+        p1MasSeguridadQueLoHabitual: d.p1MasSeguridadQueLoHabitual ?? null,
+        p1DormiaMenosSinNecesitarMasSueno: d.p1DormiaMenosSinNecesitarMasSueno ?? null,
+        p1HablabaMasOMasRapido: d.p1HablabaMasOMasRapido ?? null,
+        p1PensamientosAgolpados: d.p1PensamientosAgolpados ?? null,
+        p1DistraccionDificultadConcentracion: d.p1DistraccionDificultadConcentracion ?? null,
+        p1MasEnergiaQueLoHabitual: d.p1MasEnergiaQueLoHabitual ?? null,
+        p1MasActivoOMasCosasQueLoHabitual: d.p1MasActivoOMasCosasQueLoHabitual ?? null,
+        p1MasSocialExtrovertido: d.p1MasSocialExtrovertido ?? null,
+        p1MasApetitoSexual: d.p1MasApetitoSexual ?? null,
+        p1CosasExageradasRiesgosas: d.p1CosasExageradasRiesgosas ?? null,
+        p1GastoDineroProblemas: d.p1GastoDineroProblemas ?? null,
+        p2SituacionesMismoPeriodo: d.p2SituacionesMismoPeriodo ?? null,
+        p3NivelProblemaCausado: d.p3NivelProblemaCausado ?? null,
+        p4FamiliarDirectoBipolar: d.p4FamiliarDirectoBipolar ?? null,
+        p5DiagnosticoProfesionalBipolar: d.p5DiagnosticoProfesionalBipolar ?? null,
+        fechaTrastornosEstadoAnimo: d.fechaTrastornosEstadoAnimo,
+      })),
+    );
+
+    const cpbFields = [
+      'idTrabajador',
+      'fechaCuestionarioProdromalBreve',
+      ...Array.from({ length: 21 }, (_, i) => `p${i + 1}`),
+    ].join(' ');
+
+    const cuestionarioProdromalDocs = await this.cuestionarioProdromalBreveModel
+      .find({
+        idTrabajador: { $in: idsActivos },
+        ...rangoFecha('fechaCuestionarioProdromalBreve'),
+      })
+      .select(cpbFields)
+      .lean();
+
+    const cuestionarioProdromalMap = new Map<string, any>();
+    for (const doc of cuestionarioProdromalDocs) {
+      const id = doc.idTrabajador.toString();
+      const actual = cuestionarioProdromalMap.get(id);
+      if (
+        !actual ||
+        new Date(doc.fechaCuestionarioProdromalBreve) > new Date(actual.fechaCuestionarioProdromalBreve)
+      ) {
+        cuestionarioProdromalMap.set(id, doc);
+      }
+    }
+
+    dashboardData.cuestionarioProdromalBreve.push(
+      Array.from(cuestionarioProdromalMap.values()).map((d) => {
+        const row: Record<string, unknown> = {
+          fechaCuestionarioProdromalBreve: d.fechaCuestionarioProdromalBreve,
+        };
+        for (let n = 1; n <= 21; n++) {
+          const key = `p${n}`;
+          row[key] = d[key] ?? null;
+        }
+        return row;
+      }),
+    );
+
+    const tlpSelect = [
+      'idTrabajador',
+      'fechaTrastornoLimitePersonalidad',
+      'relacionesCercanasDiscusionesRupturas',
+      'autolesionIntentoSuicidio',
+      'impulsividadOtrosDosProblemas',
+      'extremadamenteMalHumor',
+      'enojadoFrecuenteActuaEnojadoSarcastico',
+      'desconfianzaOtrasPersonas',
+      'sensacionIrrealidadEntornoIrreal',
+      'vacioCronico',
+      'faltaIdentidadQuienEs',
+      'esfuerzosEvitarAbandono',
+    ].join(' ');
+
+    const trastornoLimiteDocs = await this.trastornoLimitePersonalidadModel
+      .find({
+        idTrabajador: { $in: idsActivos },
+        ...rangoFecha('fechaTrastornoLimitePersonalidad'),
+      })
+      .select(tlpSelect)
+      .lean();
+
+    const trastornoLimiteMap = new Map<string, any>();
+    for (const doc of trastornoLimiteDocs) {
+      const id = doc.idTrabajador.toString();
+      const actual = trastornoLimiteMap.get(id);
+      if (
+        !actual ||
+        new Date(doc.fechaTrastornoLimitePersonalidad) > new Date(actual.fechaTrastornoLimitePersonalidad)
+      ) {
+        trastornoLimiteMap.set(id, doc);
+      }
+    }
+
+    dashboardData.trastornoLimitePersonalidad.push(
+      Array.from(trastornoLimiteMap.values()).map((d) => ({
+        relacionesCercanasDiscusionesRupturas: d.relacionesCercanasDiscusionesRupturas ?? null,
+        autolesionIntentoSuicidio: d.autolesionIntentoSuicidio ?? null,
+        impulsividadOtrosDosProblemas: d.impulsividadOtrosDosProblemas ?? null,
+        extremadamenteMalHumor: d.extremadamenteMalHumor ?? null,
+        enojadoFrecuenteActuaEnojadoSarcastico: d.enojadoFrecuenteActuaEnojadoSarcastico ?? null,
+        desconfianzaOtrasPersonas: d.desconfianzaOtrasPersonas ?? null,
+        sensacionIrrealidadEntornoIrreal: d.sensacionIrrealidadEntornoIrreal ?? null,
+        vacioCronico: d.vacioCronico ?? null,
+        faltaIdentidadQuienEs: d.faltaIdentidadQuienEs ?? null,
+        esfuerzosEvitarAbandono: d.esfuerzosEvitarAbandono ?? null,
+        fechaTrastornoLimitePersonalidad: d.fechaTrastornoLimitePersonalidad,
+      })),
+    );
+
     const trabajadoresEvaluadosSet = new Set([
       ...exploracionesMap.keys(),
       ...historiasMap.keys(),
@@ -757,6 +916,9 @@ export class TrabajadoresService {
       ...resultadosEspirometriaMap.keys(),
       ...resultadosRayosXMap.keys(),
       ...resultadosAnalisisLaboratorioMap.keys(),
+      ...trastornosEstadoAnimoMap.keys(),
+      ...cuestionarioProdromalMap.keys(),
+      ...trastornoLimiteMap.keys(),
     ]);
 
     dashboardData.trabajadoresEvaluados = Array.from(trabajadoresEvaluadosSet);
@@ -776,6 +938,9 @@ export class TrabajadoresService {
         ...resultadosEspirometriaMap.keys(),
         ...resultadosRayosXMap.keys(),
         ...resultadosAnalisisLaboratorioMap.keys(),
+        ...trastornosEstadoAnimoMap.keys(),
+        ...cuestionarioProdromalMap.keys(),
+        ...trastornoLimiteMap.keys(),
       ]);
       
       // Filtrar trabajadores activos que tienen evaluaciones en el período
