@@ -6,6 +6,99 @@ import { CreateResultadoClinicoDto } from './dto/create-resultado-clinico.dto';
 import { UpdateResultadoClinicoDto } from './dto/update-resultado-clinico.dto';
 import { DocumentoExterno } from '../expedientes/schemas/documento-externo.schema';
 
+/** Campos de categoría paraguas; solo debe persistir el que corresponda a `tipoEstudio`. */
+const TIPO_ALTERACION_FIELD_KEYS = [
+  'tipoAlteracionEspirometria',
+  'tipoAlteracionEKG',
+  'tipoAlteracionRayosX',
+  'tipoAlteracionAnalisisLaboratorio',
+] as const;
+
+function allowedTipoAlteracionKey(tipoEstudio: TipoEstudio): (typeof TIPO_ALTERACION_FIELD_KEYS)[number] | null {
+  switch (tipoEstudio) {
+    case TipoEstudio.ESPIROMETRIA:
+      return 'tipoAlteracionEspirometria';
+    case TipoEstudio.EKG:
+      return 'tipoAlteracionEKG';
+    case TipoEstudio.RAYOS_X:
+      return 'tipoAlteracionRayosX';
+    case TipoEstudio.ANALISIS_LABORATORIO:
+      return 'tipoAlteracionAnalisisLaboratorio';
+    default:
+      return null;
+  }
+}
+
+/** Quita del objeto cualquier `tipoAlteracion*` que no aplique a este `tipoEstudio`. */
+function stripTipoAlteracionFieldsForTipoEstudio(
+  tipoEstudio: TipoEstudio,
+  data: Record<string, unknown>,
+): void {
+  const allowed = allowedTipoAlteracionKey(tipoEstudio);
+  for (const key of TIPO_ALTERACION_FIELD_KEYS) {
+    if (key !== allowed) {
+      delete data[key];
+    }
+  }
+  // No persistir arrays vacíos (Rayos X / laboratorio)
+  if (allowed === 'tipoAlteracionRayosX') {
+    const v = data['tipoAlteracionRayosX'];
+    if (Array.isArray(v) && v.length === 0) {
+      delete data['tipoAlteracionRayosX'];
+    }
+  }
+  if (allowed === 'tipoAlteracionAnalisisLaboratorio') {
+    const v = data['tipoAlteracionAnalisisLaboratorio'];
+    if (Array.isArray(v) && v.length === 0) {
+      delete data['tipoAlteracionAnalisisLaboratorio'];
+    }
+  }
+}
+
+/**
+ * En updates vía `findByIdAndUpdate` no corre `pre('save')`: si llega `[]` en el campo permitido,
+ * hay que quitar el `$set` y usar `$unset` para borrar la ruta en MongoDB.
+ */
+function applyEmptyArrayTipoAlteracionUnset(
+  tipoEstudio: TipoEstudio,
+  updateData: Record<string, any>,
+): void {
+  const allowed = allowedTipoAlteracionKey(tipoEstudio);
+  const extraUnset: Record<string, 1> = {};
+
+  if (allowed === 'tipoAlteracionRayosX') {
+    const v = updateData['tipoAlteracionRayosX'];
+    if (Array.isArray(v) && v.length === 0) {
+      delete updateData['tipoAlteracionRayosX'];
+      extraUnset['tipoAlteracionRayosX'] = 1;
+    }
+  }
+
+  if (allowed === 'tipoAlteracionAnalisisLaboratorio') {
+    const v = updateData['tipoAlteracionAnalisisLaboratorio'];
+    if (Array.isArray(v) && v.length === 0) {
+      delete updateData['tipoAlteracionAnalisisLaboratorio'];
+      extraUnset['tipoAlteracionAnalisisLaboratorio'] = 1;
+    }
+  }
+
+  if (Object.keys(extraUnset).length > 0) {
+    updateData.$unset = { ...(updateData.$unset || {}), ...extraUnset };
+  }
+}
+
+/** `$unset` para borrar en BD rutas de alteración que no corresponden al tipo de estudio (idempotente). */
+function tipoAlteracionUnsetForTipoEstudio(tipoEstudio: TipoEstudio): Record<string, 1> {
+  const allowed = allowedTipoAlteracionKey(tipoEstudio);
+  const out: Record<string, 1> = {};
+  for (const key of TIPO_ALTERACION_FIELD_KEYS) {
+    if (key !== allowed) {
+      out[key] = 1;
+    }
+  }
+  return out;
+}
+
 @Injectable()
 export class ResultadosClinicosService {
   constructor(
@@ -23,10 +116,13 @@ export class ResultadosClinicosService {
     const fechaEstudio = new Date(createDto.fechaEstudio);
     const anioEstudio = fechaEstudio.getFullYear();
 
-    const resultadoClinico = new this.resultadoClinicoModel({
+    const docPayload: Record<string, unknown> = {
       ...createDto,
       anioEstudio,
-    });
+    };
+    stripTipoAlteracionFieldsForTipoEstudio(createDto.tipoEstudio, docPayload);
+
+    const resultadoClinico = new this.resultadoClinicoModel(docPayload);
 
     return await resultadoClinico.save();
   }
@@ -88,8 +184,14 @@ export class ResultadosClinicosService {
     id: string,
     updateDto: UpdateResultadoClinicoDto,
   ): Promise<ResultadoClinico> {
-    // Crear objeto de actualización sin modificar el DTO original
+    const existing = await this.resultadoClinicoModel.findById(id).exec();
+    if (!existing) {
+      throw new NotFoundException(`Resultado clínico con ID ${id} no encontrado`);
+    }
+
     const updateData: any = { ...updateDto };
+    stripTipoAlteracionFieldsForTipoEstudio(existing.tipoEstudio, updateData);
+    applyEmptyArrayTipoAlteracionUnset(existing.tipoEstudio, updateData);
 
     // Recalcular año si se actualiza la fecha
     if (updateDto.fechaEstudio) {
@@ -103,20 +205,28 @@ export class ResultadosClinicosService {
       updateDto.resultadoGlobal !== ResultadoGlobal.ANORMAL
     ) {
       updateData.$unset = {
-        hallazgoEspecifico: 1,
         relevanciaClinica: 1,
         recomendacion: 1,
-        tipoAlteracion: 1,
-        tipoAlteracionPrincipal: 1,
+        tipoAlteracionEspirometria: 1,
+        tipoAlteracionEKG: 1,
+        tipoAlteracionRayosX: 1,
+        tipoAlteracionAnalisisLaboratorio: 1,
       };
-      
-      // También eliminamos de updateData para que no se intenten establecer como null/empty
-      delete updateData.hallazgoEspecifico;
+
+      // hallazgoEspecifico se conserva en NORMAL (texto "Especificar"); en NO_CONCLUYENTE el cliente envía '' si aplica
       delete updateData.relevanciaClinica;
       delete updateData.recomendacion;
-      delete updateData.tipoAlteracion;
-      delete updateData.tipoAlteracionPrincipal;
+      delete updateData.tipoAlteracionEspirometria;
+      delete updateData.tipoAlteracionEKG;
+      delete updateData.tipoAlteracionRayosX;
+      delete updateData.tipoAlteracionAnalisisLaboratorio;
     }
+
+    // No persistir `tipoAlteracion*` ajenos al tipo de estudio (limpia datos heredados o payloads extra)
+    updateData.$unset = {
+      ...(updateData.$unset || {}),
+      ...tipoAlteracionUnsetForTipoEstudio(existing.tipoEstudio),
+    };
 
     const resultado = await this.resultadoClinicoModel
       .findByIdAndUpdate(id, updateData, { new: true })
@@ -191,7 +301,9 @@ export class ResultadosClinicosService {
 
     if (
       resultado.tipoEstudio === TipoEstudio.EKG ||
-      resultado.tipoEstudio === TipoEstudio.ESPIROMETRIA
+      resultado.tipoEstudio === TipoEstudio.ESPIROMETRIA ||
+      resultado.tipoEstudio === TipoEstudio.RAYOS_X ||
+      resultado.tipoEstudio === TipoEstudio.ANALISIS_LABORATORIO
     ) {
       documento.notasDocumento = resultado.resultadoGlobal;
     } else if (resultado.tipoEstudio === TipoEstudio.TIPO_SANGRE) {

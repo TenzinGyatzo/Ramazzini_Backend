@@ -54,6 +54,22 @@ import {
   Trabajador,
   TrabajadorSchema,
 } from '../trabajadores/schemas/trabajador.schema';
+import {
+  EntrevistaPsicologica,
+  EntrevistaPsicologicaSchema,
+} from './schemas/entrevista-psicologica.schema';
+import {
+  TrastornosEstadoAnimo,
+  TrastornosEstadoAnimoSchema,
+} from './schemas/trastornos-estado-animo.schema';
+import {
+  CuestionarioProdromalBreve,
+  CuestionarioProdromalBreveSchema,
+} from './schemas/cuestionario-prodromal-breve.schema';
+import {
+  TrastornoLimitePersonalidad,
+  TrastornoLimitePersonalidadSchema,
+} from './schemas/trastorno-limite-personalidad.schema';
 import { InformesModule } from '../informes/informes.module';
 import { FilesModule } from '../files/files.module';
 import { PdfCleanerService } from './pdf-cleaner.service';
@@ -108,6 +124,16 @@ import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
       { name: CentroTrabajo.name, schema: CentroTrabajoSchema },
       { name: Empresa.name, schema: EmpresaSchema },
       { name: ConsentimientoDiario.name, schema: ConsentimientoDiarioSchema },
+      { name: EntrevistaPsicologica.name, schema: EntrevistaPsicologicaSchema },
+      { name: TrastornosEstadoAnimo.name, schema: TrastornosEstadoAnimoSchema },
+      {
+        name: CuestionarioProdromalBreve.name,
+        schema: CuestionarioProdromalBreveSchema,
+      },
+      {
+        name: TrastornoLimitePersonalidad.name,
+        schema: TrastornoLimitePersonalidadSchema,
+      },
     ]),
     forwardRef(() => InformesModule),
     FilesModule,

@@ -138,27 +138,15 @@ const headerText: Content = {
 const standardLayout = {
   hLineColor: '#d1d5db',
   vLineColor: '#d1d5db',
-  paddingTop: (i: number, node: any) => 0, // Reducir el espacio superior
-  paddingBottom: (i: number, node: any) => 0, // Reducir el espacio inferior
-  paddingLeft: (i: number, node: any) => 2, // Reducir el espacio izquierdo
-  paddingRight: (i: number, node: any) => 2, // Reducir el espacio derecho
+  paddingTop: (_i: number, _node: any) => 0, // Reducir el espacio superior
+  paddingBottom: (_i: number, _node: any) => 0, // Reducir el espacio inferior
+  paddingLeft: (_i: number, _node: any) => 2, // Reducir el espacio izquierdo
+  paddingRight: (_i: number, _node: any) => 2, // Reducir el espacio derecho
   hLineWidth: () => 0.8,
   vLineWidth: () => 0.8,
 };
 
 // ==================== FUNCIONES REUSABLES ====================
-type Alignment = 'left' | 'center' | 'right' | 'justify';
-
-const createTableCell = (
-  text: string,
-  style: string,
-  alignment: Alignment,
-): Content => ({
-  text,
-  style,
-  alignment,
-});
-
 function formatearFechaUTC(fecha: Date): string {
   if (!fecha || isNaN(fecha.getTime())) return '';
 
@@ -467,10 +455,10 @@ export const exploracionFisicaInforme = (
     layout: {
       hLineColor: '#e5e7eb',
       vLineColor: '#e5e7eb',
-      paddingTop: (i: number, node: any) => 0, // Reducir el espacio superior
-      paddingBottom: (i: number, node: any) => 0, // Reducir el espacio inferior
-      paddingLeft: (i: number, node: any) => 2, // Reducir el espacio izquierdo
-      paddingRight: (i: number, node: any) => 2, // Reducir el espacio derecho
+      paddingTop: (_i: number, _node: any) => 0, // Reducir el espacio superior
+      paddingBottom: (_i: number, _node: any) => 0, // Reducir el espacio inferior
+      paddingLeft: (_i: number, _node: any) => 2, // Reducir el espacio izquierdo
+      paddingRight: (_i: number, _node: any) => 2, // Reducir el espacio derecho
       hLineWidth: () => 1,
       vLineWidth: () => 1,
     },
@@ -508,8 +496,20 @@ export const exploracionFisicaInforme = (
             ],
             // Filas de Datos
             ...[
-              ['PESO', exploracionFisica.peso, ' - '],
-              ['ALTURA', exploracionFisica.altura, ' - '],
+              [
+                'PESO',
+                exploracionFisica.peso != null
+                  ? `${exploracionFisica.peso} kg`
+                  : ' - ',
+                ' - ',
+              ],
+              [
+                'ALTURA',
+                exploracionFisica.altura != null
+                  ? `${exploracionFisica.altura} m`
+                  : ' - ',
+                ' - ',
+              ],
               [
                 'ÍNDICE DE MASA CORPORAL',
                 exploracionFisica.indiceMasaCorporal,
@@ -517,7 +517,9 @@ export const exploracionFisicaInforme = (
               ],
               [
                 'CIRCUNFERENCIA DE CINTURA',
-                exploracionFisica.circunferenciaCintura,
+                exploracionFisica.circunferenciaCintura != null
+                  ? `${exploracionFisica.circunferenciaCintura} cm`
+                  : ' - ',
                 exploracionFisica.categoriaCircunferenciaCintura,
               ],
             ].map((row) =>

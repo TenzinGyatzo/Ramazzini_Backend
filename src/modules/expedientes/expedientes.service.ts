@@ -20,6 +20,10 @@ import { ConstanciaAptitud } from './schemas/constancia-aptitud.schema';
 import { Receta } from './schemas/receta.schema';
 import { Lesion } from './schemas/lesion.schema';
 import { Deteccion } from './schemas/deteccion.schema';
+import { EntrevistaPsicologica } from './schemas/entrevista-psicologica.schema';
+import { TrastornosEstadoAnimo } from './schemas/trastornos-estado-animo.schema';
+import { CuestionarioProdromalBreve } from './schemas/cuestionario-prodromal-breve.schema';
+import { TrastornoLimitePersonalidad } from './schemas/trastorno-limite-personalidad.schema';
 import { FilesService } from '../files/files.service';
 import { convertirFechaISOaDDMMYYYY } from 'src/utils/dates';
 import path from 'path';
@@ -93,6 +97,14 @@ export class ExpedientesService {
     @InjectModel(Receta.name) private recetaModel: Model<Receta>,
     @InjectModel(ConstanciaAptitud.name)
     private constanciaAptitudModel: Model<ConstanciaAptitud>,
+    @InjectModel(EntrevistaPsicologica.name)
+    private entrevistaPsicologicaModel: Model<EntrevistaPsicologica>,
+    @InjectModel(TrastornosEstadoAnimo.name)
+    private trastornosEstadoAnimoModel: Model<TrastornosEstadoAnimo>,
+    @InjectModel(CuestionarioProdromalBreve.name)
+    private cuestionarioProdromalBreveModel: Model<CuestionarioProdromalBreve>,
+    @InjectModel(TrastornoLimitePersonalidad.name)
+    private trastornoLimitePersonalidadModel: Model<TrastornoLimitePersonalidad>,
     @InjectModel(Lesion.name) private lesionModel: Model<Lesion>,
     @InjectModel(Deteccion.name) private deteccionModel: Model<Deteccion>,
     @InjectModel(CentroTrabajo.name)
@@ -131,6 +143,10 @@ export class ExpedientesService {
       receta: this.recetaModel,
       constanciaAptitud: this.constanciaAptitudModel,
       lesion: this.lesionModel,
+      entrevistaPsicologica: this.entrevistaPsicologicaModel,
+      trastornosEstadoAnimo: this.trastornosEstadoAnimoModel,
+      cuestionarioProdromalBreve: this.cuestionarioProdromalBreveModel,
+      trastornoLimitePersonalidad: this.trastornoLimitePersonalidadModel,
     };
 
     this.dateFields = {
@@ -151,6 +167,10 @@ export class ExpedientesService {
       receta: 'fechaReceta',
       constanciaAptitud: 'fechaConstanciaAptitud',
       lesion: 'fechaReporteLesion',
+      entrevistaPsicologica: 'fechaEntrevistaPsicologica',
+      trastornosEstadoAnimo: 'fechaTrastornosEstadoAnimo',
+      cuestionarioProdromalBreve: 'fechaCuestionarioProdromalBreve',
+      trastornoLimitePersonalidad: 'fechaTrastornoLimitePersonalidad',
     };
   }
 

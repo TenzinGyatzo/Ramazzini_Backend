@@ -1,4 +1,8 @@
 import { DocumentoEstado } from '../enums/documento-estado.enum';
+import { EntrevistaPsicologicaSchema } from './entrevista-psicologica.schema';
+import { TrastornosEstadoAnimoSchema } from './trastornos-estado-animo.schema';
+import { CuestionarioProdromalBreveSchema } from './cuestionario-prodromal-breve.schema';
+import { TrastornoLimitePersonalidadSchema } from './trastorno-limite-personalidad.schema';
 
 describe('Document State Management - Schema Defaults', () => {
   describe('DocumentoEstado Enum', () => {
@@ -39,6 +43,22 @@ describe('Document State Management - Schema Defaults', () => {
       expect(Object.values(DocumentoEstado)).toContain('borrador');
       expect(Object.values(DocumentoEstado)).toContain('finalizado');
       expect(Object.values(DocumentoEstado)).toContain('anulado');
+    });
+
+    it('should expose NOM-024 state fields on psychological questionnaire schemas', () => {
+      const psychSchemas = [
+        EntrevistaPsicologicaSchema,
+        TrastornosEstadoAnimoSchema,
+        CuestionarioProdromalBreveSchema,
+        TrastornoLimitePersonalidadSchema,
+      ];
+      for (const schema of psychSchemas) {
+        expect(schema.paths).toHaveProperty('estado');
+        expect(schema.paths).toHaveProperty('fechaFinalizacion');
+        expect(schema.paths).toHaveProperty('finalizadoPor');
+        expect(schema.paths).toHaveProperty('anuladoPor');
+        expect(schema.paths).toHaveProperty('consentimientoDiarioId');
+      }
     });
   });
 });

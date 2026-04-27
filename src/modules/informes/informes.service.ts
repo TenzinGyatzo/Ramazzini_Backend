@@ -22,6 +22,10 @@ import { previoEspirometriaInforme } from './documents/previo-espirometria.infor
 import { constanciaAptitudInforme } from './documents/constancia-aptitud.informe';
 import { recetaInforme } from './documents/receta.informe';
 import { lesionInforme } from './documents/lesion.informe';
+import { entrevistaPsicologicaInforme } from './documents/entrevista-psicologica.informe';
+import { trastornoLimitePersonalidadInforme } from './documents/tratorno-limite-personalidad.informe';
+import { cuestionarioProdromalBreveInforme } from './documents/cuestionario-prodromal-breve.informe';
+import { trastornosEstadoAnimoInforme } from './documents/trastornos-estado-animo.informe';
 import { dashboardInforme } from './documents/dashboard.informe';
 import { EmpresasService } from '../empresas/empresas.service';
 import { TrabajadoresService } from '../trabajadores/trabajadores.service';
@@ -370,6 +374,38 @@ export class InformesService {
             finalizadorId,
             undefined,
           );
+        case 'entrevistaPsicologica':
+          return await this.getInformeEntrevistaPsicologica(
+            empresaId,
+            trabajador._id,
+            documentId,
+            finalizadorId,
+            undefined,
+          );
+        case 'trastornosEstadoAnimo':
+          return await this.getInformeTrastornosEstadoAnimo(
+            empresaId,
+            trabajador._id,
+            documentId,
+            finalizadorId,
+            undefined,
+          );
+        case 'cuestionarioProdromalBreve':
+          return await this.getInformeCuestionarioProdromalBreve(
+            empresaId,
+            trabajador._id,
+            documentId,
+            finalizadorId,
+            undefined,
+          );
+        case 'trastornoLimitePersonalidad':
+          return await this.getInformeTrastornoLimitePersonalidad(
+            empresaId,
+            trabajador._id,
+            documentId,
+            finalizadorId,
+            undefined,
+          );
         default:
           console.warn(
             `regenerarInformeAlFinalizar: Tipo de documento ${normalizedType} no soportado`,
@@ -518,6 +554,38 @@ export class InformesService {
           documentId,
           finalizadorId,
           undefined, // audiometria tiene graficaAudiometria como parámetro opcional diferente
+          footerFirmantesData,
+        );
+      case 'entrevistaPsicologica':
+        return await this.getInformeEntrevistaPsicologica(
+          empresaId,
+          trabajador._id,
+          documentId,
+          finalizadorId,
+          footerFirmantesData,
+        );
+      case 'trastornosEstadoAnimo':
+        return await this.getInformeTrastornosEstadoAnimo(
+          empresaId,
+          trabajador._id,
+          documentId,
+          finalizadorId,
+          footerFirmantesData,
+        );
+      case 'cuestionarioProdromalBreve':
+        return await this.getInformeCuestionarioProdromalBreve(
+          empresaId,
+          trabajador._id,
+          documentId,
+          finalizadorId,
+          footerFirmantesData,
+        );
+      case 'trastornoLimitePersonalidad':
+        return await this.getInformeTrastornoLimitePersonalidad(
+          empresaId,
+          trabajador._id,
+          documentId,
+          finalizadorId,
           footerFirmantesData,
         );
       default:
@@ -1116,13 +1184,21 @@ export class InformesService {
       resultadosClinicos,
       'TIPO_SANGRE',
     );
+    const nearestRayosX = findMostRecentResultadoClinico(
+      resultadosClinicos,
+      'RAYOS_X',
+    );
+    const nearestAnalisisLaboratorio = findMostRecentResultadoClinico(
+      resultadosClinicos,
+      'ANALISIS_LABORATORIO',
+    );
 
     const datosResultadoClinicoEKG = nearestEKG
       ? {
           fechaEstudio: nearestEKG.fechaEstudio,
           resultadoGlobal: nearestEKG.resultadoGlobal,
           hallazgoEspecifico: nearestEKG.hallazgoEspecifico,
-          tipoAlteracionPrincipal: nearestEKG.tipoAlteracionPrincipal,
+          tipoAlteracionEKG: nearestEKG.tipoAlteracionEKG,
         }
       : null;
 
@@ -1131,7 +1207,8 @@ export class InformesService {
           fechaEstudio: nearestEspirometria.fechaEstudio,
           resultadoGlobal: nearestEspirometria.resultadoGlobal,
           hallazgoEspecifico: nearestEspirometria.hallazgoEspecifico,
-          tipoAlteracion: nearestEspirometria.tipoAlteracion,
+          tipoAlteracionEspirometria:
+            nearestEspirometria.tipoAlteracionEspirometria,
         }
       : null;
 
@@ -1139,6 +1216,25 @@ export class InformesService {
       ? {
           fechaEstudio: nearestTipoSangre.fechaEstudio,
           tipoSangre: nearestTipoSangre.tipoSangre,
+        }
+      : null;
+
+    const datosResultadoClinicoRayosX = nearestRayosX
+      ? {
+          fechaEstudio: nearestRayosX.fechaEstudio,
+          resultadoGlobal: nearestRayosX.resultadoGlobal,
+          hallazgoEspecifico: nearestRayosX.hallazgoEspecifico,
+          tipoAlteracionRayosX: nearestRayosX.tipoAlteracionRayosX,
+        }
+      : null;
+
+    const datosResultadoClinicoAnalisisLaboratorio = nearestAnalisisLaboratorio
+      ? {
+          fechaEstudio: nearestAnalisisLaboratorio.fechaEstudio,
+          resultadoGlobal: nearestAnalisisLaboratorio.resultadoGlobal,
+          hallazgoEspecifico: nearestAnalisisLaboratorio.hallazgoEspecifico,
+          tipoAlteracionAnalisisLaboratorio:
+            nearestAnalisisLaboratorio.tipoAlteracionAnalisisLaboratorio,
         }
       : null;
 
@@ -1231,6 +1327,8 @@ export class InformesService {
       datosResultadoClinicoTipoSangre,
       datosResultadoClinicoEKG,
       datosResultadoClinicoEspirometria,
+      datosResultadoClinicoRayosX,
+      datosResultadoClinicoAnalisisLaboratorio,
       datosMedicoFirmante,
       datosProveedorSalud,
       footerData,
@@ -5019,6 +5117,1125 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    return rutaCompleta;
+  }
+
+  async getInformeEntrevistaPsicologica(
+    empresaId: string,
+    trabajadorId: string,
+    entrevistaPsicologicaId: string,
+    userId: string,
+    footerFirmantesData?: FooterFirmantesData,
+  ): Promise<string> {
+    const empresa = await this.empresasService.findOne(empresaId);
+
+    const nombreEmpresa = empresa.nombreComercial;
+
+    const trabajador = await this.trabajadoresService.findOne(trabajadorId);
+
+    const datosTrabajador = {
+      primerApellido: trabajador.primerApellido,
+      segundoApellido: trabajador.segundoApellido,
+      nombre: trabajador.nombre,
+      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
+      escolaridad: trabajador.escolaridad,
+      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
+      puesto: trabajador.puesto,
+      sexo: trabajador.sexo,
+      antiguedad: trabajador.fechaIngreso
+        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
+        : '-',
+      telefono: trabajador.telefono,
+      estadoCivil: trabajador.estadoCivil,
+      numeroEmpleado: trabajador.numeroEmpleado,
+      nss: trabajador.nss,
+      curp: trabajador.curp,
+    };
+
+    const entrevistaPsicologica = await this.expedientesService.findDocument(
+      'entrevistaPsicologica',
+      entrevistaPsicologicaId,
+    );
+
+    const datosEntrevistaPsicologica = {
+      fechaEntrevistaPsicologica:
+        entrevistaPsicologica.fechaEntrevistaPsicologica,
+      // I. Observación general (conductual)
+      apariencia: entrevistaPsicologica.apariencia,
+      actitudHaciaEvaluador: entrevistaPsicologica.actitudHaciaEvaluador,
+      nivelCooperacion: entrevistaPsicologica.nivelCooperacion,
+      contactoVisual: entrevistaPsicologica.contactoVisual,
+      conductaMotora: entrevistaPsicologica.conductaMotora,
+      // II. Estado de ánimo y afecto
+      estadoAnimoPredominante: entrevistaPsicologica.estadoAnimoPredominante,
+      afecto: entrevistaPsicologica.afecto,
+      intensidadEmocional: entrevistaPsicologica.intensidadEmocional,
+      // III. Pensamiento
+      cursoPensamiento: entrevistaPsicologica.cursoPensamiento,
+      alteracionesPensamiento: entrevistaPsicologica.alteracionesPensamiento,
+      descripcionAlteracionesPensamiento:
+        entrevistaPsicologica.descripcionAlteracionesPensamiento,
+      // IV. Percepción
+      alteracionesPerceptuales: entrevistaPsicologica.alteracionesPerceptuales,
+      descripcionAlteracionesPerceptuales:
+        entrevistaPsicologica.descripcionAlteracionesPerceptuales,
+      // V. Cognición
+      orientacion: entrevistaPsicologica.orientacion,
+      atencionConcentracion: entrevistaPsicologica.atencionConcentracion,
+      memoria: entrevistaPsicologica.memoria,
+      // VI. Juicio y conciencia de estado
+      juicio: entrevistaPsicologica.juicio,
+      concienciaEstado: entrevistaPsicologica.concienciaEstado,
+      // VII. Funcionamiento psicosocial
+      relacionesInterpersonales:
+        entrevistaPsicologica.relacionesInterpersonales,
+      desempenoLaboralAutorreporte:
+        entrevistaPsicologica.desempenoLaboralAutorreporte,
+      manejoEstres: entrevistaPsicologica.manejoEstres,
+      // VIII. Riesgo inmediato (crítico)
+      ideacionSuicida: entrevistaPsicologica.ideacionSuicida,
+      observacionesIdeacionSuicida:
+        entrevistaPsicologica.observacionesIdeacionSuicida,
+      // IX. Conclusion clínica
+      conclusionClinica: entrevistaPsicologica.conclusionClinica,
+    };
+
+    let footerData: FooterFirmantesData | undefined = footerFirmantesData;
+
+    if (
+      !footerData &&
+      (entrevistaPsicologica.estado === DocumentoEstado.FINALIZADO ||
+        entrevistaPsicologica.estado === DocumentoEstado.ANULADO)
+    ) {
+      const creadorId =
+        (
+          entrevistaPsicologica.createdBy?._id ||
+          entrevistaPsicologica.createdBy
+        )?.toString() || userId;
+      const finalizadorId =
+        (
+          entrevistaPsicologica.finalizadoPor?._id ||
+          entrevistaPsicologica.finalizadoPor
+        )?.toString() || userId;
+
+      if (creadorId !== finalizadorId) {
+        const elaborador = await this.obtenerDatosFirmante(creadorId);
+        const finalizador = await this.obtenerDatosFirmante(finalizadorId);
+
+        footerData = {
+          elaborador,
+          finalizador,
+          esDocumentoFinalizado: true,
+        };
+      }
+    }
+
+    const firmanteUserId =
+      entrevistaPsicologica.estado === DocumentoEstado.BORRADOR
+        ? (
+            entrevistaPsicologica.createdBy?._id ||
+            entrevistaPsicologica.createdBy
+          )?.toString() || userId
+        : entrevistaPsicologica.estado === DocumentoEstado.FINALIZADO ||
+            entrevistaPsicologica.estado === DocumentoEstado.ANULADO
+          ? (
+              entrevistaPsicologica.finalizadoPor?._id ||
+              entrevistaPsicologica.finalizadoPor
+            )?.toString() || userId
+          : userId;
+
+    const medicoFirmante =
+      await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
+    const datosMedicoFirmante = medicoFirmante
+      ? {
+          nombre: medicoFirmante.nombre || '',
+          tituloProfesional: medicoFirmante.tituloProfesional || '',
+          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
+          especialistaSaludTrabajo:
+            medicoFirmante.especialistaSaludTrabajo || '',
+          numeroCedulaEspecialista:
+            medicoFirmante.numeroCedulaEspecialista || '',
+          nombreCredencialAdicional:
+            medicoFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional:
+            medicoFirmante.numeroCredencialAdicional || '',
+          firma:
+            (medicoFirmante.firma as { data: string; contentType: string }) ||
+            null,
+        }
+      : {
+          nombre: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          especialistaSaludTrabajo: '',
+          numeroCedulaEspecialista: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const enfermeraFirmante =
+      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
+    const datosEnfermeraFirmante = enfermeraFirmante
+      ? {
+          nombre: enfermeraFirmante.nombre || '',
+          sexo: enfermeraFirmante.sexo || '',
+          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
+          numeroCedulaProfesional:
+            enfermeraFirmante.numeroCedulaProfesional || '',
+          nombreCredencialAdicional:
+            enfermeraFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional:
+            enfermeraFirmante.numeroCredencialAdicional || '',
+          firma:
+            (enfermeraFirmante.firma as {
+              data: string;
+              contentType: string;
+            }) || null,
+        }
+      : {
+          nombre: '',
+          sexo: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const tecnicoFirmante =
+      await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
+    const datosTecnicoFirmante = tecnicoFirmante
+      ? {
+          nombre: tecnicoFirmante.nombre || '',
+          sexo: tecnicoFirmante.sexo || '',
+          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
+          numeroCedulaProfesional:
+            tecnicoFirmante.numeroCedulaProfesional || '',
+          nombreCredencialAdicional:
+            tecnicoFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional:
+            tecnicoFirmante.numeroCredencialAdicional || '',
+          firma:
+            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
+            null,
+        }
+      : {
+          nombre: '',
+          sexo: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const usuario = await this.usersService.findById(userId);
+    const datosUsuario = {
+      idProveedorSalud: usuario.idProveedorSalud,
+    };
+    const proveedorSalud = await this.proveedoresSaludService.findOne(
+      datosUsuario.idProveedorSalud,
+    );
+    const datosProveedorSalud = proveedorSalud
+      ? {
+          nombre: proveedorSalud.nombre || '',
+          pais: proveedorSalud.pais || '',
+          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
+          logotipoEmpresa:
+            (proveedorSalud.logotipoEmpresa as {
+              data: string;
+              contentType: string;
+            }) || null,
+          estado: proveedorSalud.estado || '',
+          municipio: proveedorSalud.municipio || '',
+          codigoPostal: proveedorSalud.codigoPostal || '',
+          direccion: proveedorSalud.direccion || '',
+          telefono: proveedorSalud.telefono || '',
+          correoElectronico: proveedorSalud.correoElectronico || '',
+          sitioWeb: proveedorSalud.sitioWeb || '',
+          colorInforme: proveedorSalud.colorInforme || '#343A40',
+        }
+      : {
+          nombre: '',
+          pais: '',
+          perfilProveedorSalud: '',
+          logotipoEmpresa: null,
+          estado: '',
+          municipio: '',
+          codigoPostal: '',
+          direccion: '',
+          telefono: '',
+          correoElectronico: '',
+          sitioWeb: '',
+          colorInforme: '#343A40',
+        };
+
+    const fecha = convertirFechaADDMMAAAA(
+      entrevistaPsicologica.fechaEntrevistaPsicologica,
+    )
+      .replace(/\//g, '-')
+      .replace(/\\/g, '-');
+    const nombreArchivo = `Entrevista Psicologica ${fecha}.pdf`;
+
+    const rutaDirectorio = path.resolve(entrevistaPsicologica.rutaPDF);
+    if (!fs.existsSync(rutaDirectorio)) {
+      fs.mkdirSync(rutaDirectorio, { recursive: true });
+    }
+
+    const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+
+    const docDefinition = entrevistaPsicologicaInforme(
+      nombreEmpresa,
+      datosTrabajador,
+      datosEntrevistaPsicologica,
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      datosProveedorSalud,
+      footerData,
+    );
+
+    await this.printer.createPdf(docDefinition, rutaCompleta);
+
+    return rutaCompleta;
+  }
+
+  async getInformeTrastornosEstadoAnimo(
+    empresaId: string,
+    trabajadorId: string,
+    trastornosEstadoAnimoId: string,
+    userId: string,
+    footerFirmantesData?: FooterFirmantesData,
+  ): Promise<string> {
+    const empresa = await this.empresasService.findOne(empresaId);
+
+    const nombreEmpresa = empresa.nombreComercial;
+
+    const trabajador = await this.trabajadoresService.findOne(trabajadorId);
+
+    const datosTrabajador = {
+      primerApellido: trabajador.primerApellido,
+      segundoApellido: trabajador.segundoApellido,
+      nombre: trabajador.nombre,
+      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
+      escolaridad: trabajador.escolaridad,
+      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
+      puesto: trabajador.puesto,
+      sexo: trabajador.sexo,
+      antiguedad: trabajador.fechaIngreso
+        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
+        : '-',
+      telefono: trabajador.telefono,
+      estadoCivil: trabajador.estadoCivil,
+      numeroEmpleado: trabajador.numeroEmpleado,
+      nss: trabajador.nss,
+      curp: trabajador.curp,
+    };
+
+    const trastornosEstadoAnimo = await this.expedientesService.findDocument(
+      'trastornosEstadoAnimo',
+      trastornosEstadoAnimoId,
+    );
+
+    const datosTrastornosEstadoAnimo = {
+      fechaTrastornosEstadoAnimo:
+        trastornosEstadoAnimo.fechaTrastornosEstadoAnimo,
+      p1ExaltadoComportamientoNoHabitualOMetidoProblemas:
+        trastornosEstadoAnimo.p1ExaltadoComportamientoNoHabitualOMetidoProblemas,
+      p1IrritableGritosPeleas: trastornosEstadoAnimo.p1IrritableGritosPeleas,
+      p1MasSeguridadQueLoHabitual:
+        trastornosEstadoAnimo.p1MasSeguridadQueLoHabitual,
+      p1DormiaMenosSinNecesitarMasSueno:
+        trastornosEstadoAnimo.p1DormiaMenosSinNecesitarMasSueno,
+      p1HablabaMasOMasRapido: trastornosEstadoAnimo.p1HablabaMasOMasRapido,
+      p1PensamientosAgolpados: trastornosEstadoAnimo.p1PensamientosAgolpados,
+      p1DistraccionDificultadConcentracion:
+        trastornosEstadoAnimo.p1DistraccionDificultadConcentracion,
+      p1MasEnergiaQueLoHabitual:
+        trastornosEstadoAnimo.p1MasEnergiaQueLoHabitual,
+      p1MasActivoOMasCosasQueLoHabitual:
+        trastornosEstadoAnimo.p1MasActivoOMasCosasQueLoHabitual,
+      p1MasSocialExtrovertido: trastornosEstadoAnimo.p1MasSocialExtrovertido,
+      p1MasApetitoSexual: trastornosEstadoAnimo.p1MasApetitoSexual,
+      p1CosasExageradasRiesgosas:
+        trastornosEstadoAnimo.p1CosasExageradasRiesgosas,
+      p1GastoDineroProblemas: trastornosEstadoAnimo.p1GastoDineroProblemas,
+      p2SituacionesMismoPeriodo:
+        trastornosEstadoAnimo.p2SituacionesMismoPeriodo,
+      p3NivelProblemaCausado: trastornosEstadoAnimo.p3NivelProblemaCausado,
+      p4FamiliarDirectoBipolar: trastornosEstadoAnimo.p4FamiliarDirectoBipolar,
+      p5DiagnosticoProfesionalBipolar:
+        trastornosEstadoAnimo.p5DiagnosticoProfesionalBipolar,
+    };
+
+    let footerData: FooterFirmantesData | undefined = footerFirmantesData;
+
+    if (
+      !footerData &&
+      (trastornosEstadoAnimo.estado === DocumentoEstado.FINALIZADO ||
+        trastornosEstadoAnimo.estado === DocumentoEstado.ANULADO)
+    ) {
+      const creadorId =
+        (
+          trastornosEstadoAnimo.createdBy?._id ||
+          trastornosEstadoAnimo.createdBy
+        )?.toString() || userId;
+      const finalizadorId =
+        (
+          trastornosEstadoAnimo.finalizadoPor?._id ||
+          trastornosEstadoAnimo.finalizadoPor
+        )?.toString() || userId;
+
+      if (creadorId !== finalizadorId) {
+        const elaborador = await this.obtenerDatosFirmante(creadorId);
+        const finalizador = await this.obtenerDatosFirmante(finalizadorId);
+
+        footerData = {
+          elaborador,
+          finalizador,
+          esDocumentoFinalizado: true,
+        };
+      }
+    }
+
+    const firmanteUserId =
+      trastornosEstadoAnimo.estado === DocumentoEstado.BORRADOR
+        ? (
+            trastornosEstadoAnimo.createdBy?._id ||
+            trastornosEstadoAnimo.createdBy
+          )?.toString() || userId
+        : trastornosEstadoAnimo.estado === DocumentoEstado.FINALIZADO ||
+            trastornosEstadoAnimo.estado === DocumentoEstado.ANULADO
+          ? (
+              trastornosEstadoAnimo.finalizadoPor?._id ||
+              trastornosEstadoAnimo.finalizadoPor
+            )?.toString() || userId
+          : userId;
+
+    const medicoFirmante =
+      await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
+    const datosMedicoFirmante = medicoFirmante
+      ? {
+          nombre: medicoFirmante.nombre || '',
+          tituloProfesional: medicoFirmante.tituloProfesional || '',
+          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
+          especialistaSaludTrabajo:
+            medicoFirmante.especialistaSaludTrabajo || '',
+          numeroCedulaEspecialista:
+            medicoFirmante.numeroCedulaEspecialista || '',
+          nombreCredencialAdicional:
+            medicoFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional:
+            medicoFirmante.numeroCredencialAdicional || '',
+          firma:
+            (medicoFirmante.firma as { data: string; contentType: string }) ||
+            null,
+        }
+      : {
+          nombre: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          especialistaSaludTrabajo: '',
+          numeroCedulaEspecialista: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const enfermeraFirmante =
+      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
+    const datosEnfermeraFirmante = enfermeraFirmante
+      ? {
+          nombre: enfermeraFirmante.nombre || '',
+          sexo: enfermeraFirmante.sexo || '',
+          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
+          numeroCedulaProfesional:
+            enfermeraFirmante.numeroCedulaProfesional || '',
+          nombreCredencialAdicional:
+            enfermeraFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional:
+            enfermeraFirmante.numeroCredencialAdicional || '',
+          firma:
+            (enfermeraFirmante.firma as {
+              data: string;
+              contentType: string;
+            }) || null,
+        }
+      : {
+          nombre: '',
+          sexo: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const tecnicoFirmante =
+      await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
+    const datosTecnicoFirmante = tecnicoFirmante
+      ? {
+          nombre: tecnicoFirmante.nombre || '',
+          sexo: tecnicoFirmante.sexo || '',
+          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
+          numeroCedulaProfesional:
+            tecnicoFirmante.numeroCedulaProfesional || '',
+          nombreCredencialAdicional:
+            tecnicoFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional:
+            tecnicoFirmante.numeroCredencialAdicional || '',
+          firma:
+            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
+            null,
+        }
+      : {
+          nombre: '',
+          sexo: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const usuario = await this.usersService.findById(userId);
+    const datosUsuario = {
+      idProveedorSalud: usuario.idProveedorSalud,
+    };
+    const proveedorSalud = await this.proveedoresSaludService.findOne(
+      datosUsuario.idProveedorSalud,
+    );
+    const datosProveedorSalud = proveedorSalud
+      ? {
+          nombre: proveedorSalud.nombre || '',
+          pais: proveedorSalud.pais || '',
+          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
+          logotipoEmpresa:
+            (proveedorSalud.logotipoEmpresa as {
+              data: string;
+              contentType: string;
+            }) || null,
+          estado: proveedorSalud.estado || '',
+          municipio: proveedorSalud.municipio || '',
+          codigoPostal: proveedorSalud.codigoPostal || '',
+          direccion: proveedorSalud.direccion || '',
+          telefono: proveedorSalud.telefono || '',
+          correoElectronico: proveedorSalud.correoElectronico || '',
+          sitioWeb: proveedorSalud.sitioWeb || '',
+          colorInforme: proveedorSalud.colorInforme || '#343A40',
+        }
+      : {
+          nombre: '',
+          pais: '',
+          perfilProveedorSalud: '',
+          logotipoEmpresa: null,
+          estado: '',
+          municipio: '',
+          codigoPostal: '',
+          direccion: '',
+          telefono: '',
+          correoElectronico: '',
+          sitioWeb: '',
+          colorInforme: '#343A40',
+        };
+
+    const fecha = convertirFechaADDMMAAAA(
+      trastornosEstadoAnimo.fechaTrastornosEstadoAnimo,
+    )
+      .replace(/\//g, '-')
+      .replace(/\\/g, '-');
+    const nombreArchivo = `Trastornos Estado Animo ${fecha}.pdf`;
+
+    const rutaDirectorio = path.resolve(trastornosEstadoAnimo.rutaPDF);
+    if (!fs.existsSync(rutaDirectorio)) {
+      fs.mkdirSync(rutaDirectorio, { recursive: true });
+    }
+
+    const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+
+    const docDefinition = trastornosEstadoAnimoInforme(
+      nombreEmpresa,
+      datosTrabajador,
+      datosTrastornosEstadoAnimo,
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      datosProveedorSalud,
+      footerData,
+    );
+
+    await this.printer.createPdf(docDefinition, rutaCompleta);
+
+    return rutaCompleta;
+  }
+
+  async getInformeCuestionarioProdromalBreve(
+    empresaId: string,
+    trabajadorId: string,
+    cuestionarioProdromalBreveId: string,
+    userId: string,
+    footerFirmantesData?: FooterFirmantesData,
+  ): Promise<string> {
+    const empresa = await this.empresasService.findOne(empresaId);
+
+    const nombreEmpresa = empresa.nombreComercial;
+
+    const trabajador = await this.trabajadoresService.findOne(trabajadorId);
+
+    const datosTrabajador = {
+      primerApellido: trabajador.primerApellido,
+      segundoApellido: trabajador.segundoApellido,
+      nombre: trabajador.nombre,
+      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
+      escolaridad: trabajador.escolaridad,
+      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
+      puesto: trabajador.puesto,
+      sexo: trabajador.sexo,
+      antiguedad: trabajador.fechaIngreso
+        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
+        : '-',
+      telefono: trabajador.telefono,
+      estadoCivil: trabajador.estadoCivil,
+      numeroEmpleado: trabajador.numeroEmpleado,
+      nss: trabajador.nss,
+      curp: trabajador.curp,
+    };
+
+    const cuestionarioProdromalBreve =
+      await this.expedientesService.findDocument(
+        'cuestionarioProdromalBreve',
+        cuestionarioProdromalBreveId,
+      );
+
+    const datosCuestionarioProdromalBreve = {
+      fechaCuestionarioProdromalBreve:
+        cuestionarioProdromalBreve.fechaCuestionarioProdromalBreve,
+      p1: cuestionarioProdromalBreve.p1,
+      p1GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p1GradoAcuerdoStatement,
+      p2: cuestionarioProdromalBreve.p2,
+      p2GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p2GradoAcuerdoStatement,
+      p3: cuestionarioProdromalBreve.p3,
+      p3GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p3GradoAcuerdoStatement,
+      p4: cuestionarioProdromalBreve.p4,
+      p4GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p4GradoAcuerdoStatement,
+      p5: cuestionarioProdromalBreve.p5,
+      p5GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p5GradoAcuerdoStatement,
+      p6: cuestionarioProdromalBreve.p6,
+      p6GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p6GradoAcuerdoStatement,
+      p7: cuestionarioProdromalBreve.p7,
+      p7GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p7GradoAcuerdoStatement,
+      p8: cuestionarioProdromalBreve.p8,
+      p8GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p8GradoAcuerdoStatement,
+      p9: cuestionarioProdromalBreve.p9,
+      p9GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p9GradoAcuerdoStatement,
+      p10: cuestionarioProdromalBreve.p10,
+      p10GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p10GradoAcuerdoStatement,
+      p11: cuestionarioProdromalBreve.p11,
+      p11GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p11GradoAcuerdoStatement,
+      p12: cuestionarioProdromalBreve.p12,
+      p12GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p12GradoAcuerdoStatement,
+      p13: cuestionarioProdromalBreve.p13,
+      p13GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p13GradoAcuerdoStatement,
+      p14: cuestionarioProdromalBreve.p14,
+      p14GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p14GradoAcuerdoStatement,
+      p15: cuestionarioProdromalBreve.p15,
+      p15GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p15GradoAcuerdoStatement,
+      p16: cuestionarioProdromalBreve.p16,
+      p16GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p16GradoAcuerdoStatement,
+      p17: cuestionarioProdromalBreve.p17,
+      p17GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p17GradoAcuerdoStatement,
+      p18: cuestionarioProdromalBreve.p18,
+      p18GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p18GradoAcuerdoStatement,
+      p19: cuestionarioProdromalBreve.p19,
+      p19GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p19GradoAcuerdoStatement,
+      p20: cuestionarioProdromalBreve.p20,
+      p20GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p20GradoAcuerdoStatement,
+      p21: cuestionarioProdromalBreve.p21,
+      p21GradoAcuerdoStatement:
+        cuestionarioProdromalBreve.p21GradoAcuerdoStatement,
+    };
+
+    let footerData: FooterFirmantesData | undefined = footerFirmantesData;
+
+    if (
+      !footerData &&
+      (cuestionarioProdromalBreve.estado === DocumentoEstado.FINALIZADO ||
+        cuestionarioProdromalBreve.estado === DocumentoEstado.ANULADO)
+    ) {
+      const creadorId =
+        (
+          cuestionarioProdromalBreve.createdBy?._id ||
+          cuestionarioProdromalBreve.createdBy
+        )?.toString() || userId;
+      const finalizadorId =
+        (
+          cuestionarioProdromalBreve.finalizadoPor?._id ||
+          cuestionarioProdromalBreve.finalizadoPor
+        )?.toString() || userId;
+
+      if (creadorId !== finalizadorId) {
+        const elaborador = await this.obtenerDatosFirmante(creadorId);
+        const finalizador = await this.obtenerDatosFirmante(finalizadorId);
+
+        footerData = {
+          elaborador,
+          finalizador,
+          esDocumentoFinalizado: true,
+        };
+      }
+    }
+
+    const firmanteUserId =
+      cuestionarioProdromalBreve.estado === DocumentoEstado.BORRADOR
+        ? (
+            cuestionarioProdromalBreve.createdBy?._id ||
+            cuestionarioProdromalBreve.createdBy
+          )?.toString() || userId
+        : cuestionarioProdromalBreve.estado === DocumentoEstado.FINALIZADO ||
+            cuestionarioProdromalBreve.estado === DocumentoEstado.ANULADO
+          ? (
+              cuestionarioProdromalBreve.finalizadoPor?._id ||
+              cuestionarioProdromalBreve.finalizadoPor
+            )?.toString() || userId
+          : userId;
+
+    const medicoFirmante =
+      await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
+    const datosMedicoFirmante = medicoFirmante
+      ? {
+          nombre: medicoFirmante.nombre || '',
+          tituloProfesional: medicoFirmante.tituloProfesional || '',
+          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
+          especialistaSaludTrabajo:
+            medicoFirmante.especialistaSaludTrabajo || '',
+          numeroCedulaEspecialista:
+            medicoFirmante.numeroCedulaEspecialista || '',
+          nombreCredencialAdicional:
+            medicoFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional:
+            medicoFirmante.numeroCredencialAdicional || '',
+          firma:
+            (medicoFirmante.firma as { data: string; contentType: string }) ||
+            null,
+        }
+      : {
+          nombre: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          especialistaSaludTrabajo: '',
+          numeroCedulaEspecialista: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const enfermeraFirmante =
+      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
+    const datosEnfermeraFirmante = enfermeraFirmante
+      ? {
+          nombre: enfermeraFirmante.nombre || '',
+          sexo: enfermeraFirmante.sexo || '',
+          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
+          numeroCedulaProfesional:
+            enfermeraFirmante.numeroCedulaProfesional || '',
+          nombreCredencialAdicional:
+            enfermeraFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional:
+            enfermeraFirmante.numeroCredencialAdicional || '',
+          firma:
+            (enfermeraFirmante.firma as {
+              data: string;
+              contentType: string;
+            }) || null,
+        }
+      : {
+          nombre: '',
+          sexo: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const tecnicoFirmante =
+      await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
+    const datosTecnicoFirmante = tecnicoFirmante
+      ? {
+          nombre: tecnicoFirmante.nombre || '',
+          sexo: tecnicoFirmante.sexo || '',
+          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
+          numeroCedulaProfesional:
+            tecnicoFirmante.numeroCedulaProfesional || '',
+          nombreCredencialAdicional:
+            tecnicoFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional:
+            tecnicoFirmante.numeroCredencialAdicional || '',
+          firma:
+            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
+            null,
+        }
+      : {
+          nombre: '',
+          sexo: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const usuario = await this.usersService.findById(userId);
+    const datosUsuario = {
+      idProveedorSalud: usuario.idProveedorSalud,
+    };
+    const proveedorSalud = await this.proveedoresSaludService.findOne(
+      datosUsuario.idProveedorSalud,
+    );
+    const datosProveedorSalud = proveedorSalud
+      ? {
+          nombre: proveedorSalud.nombre || '',
+          pais: proveedorSalud.pais || '',
+          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
+          logotipoEmpresa:
+            (proveedorSalud.logotipoEmpresa as {
+              data: string;
+              contentType: string;
+            }) || null,
+          estado: proveedorSalud.estado || '',
+          municipio: proveedorSalud.municipio || '',
+          codigoPostal: proveedorSalud.codigoPostal || '',
+          direccion: proveedorSalud.direccion || '',
+          telefono: proveedorSalud.telefono || '',
+          correoElectronico: proveedorSalud.correoElectronico || '',
+          sitioWeb: proveedorSalud.sitioWeb || '',
+          colorInforme: proveedorSalud.colorInforme || '#343A40',
+        }
+      : {
+          nombre: '',
+          pais: '',
+          perfilProveedorSalud: '',
+          logotipoEmpresa: null,
+          estado: '',
+          municipio: '',
+          codigoPostal: '',
+          direccion: '',
+          telefono: '',
+          correoElectronico: '',
+          sitioWeb: '',
+          colorInforme: '#343A40',
+        };
+
+    const fecha = convertirFechaADDMMAAAA(
+      cuestionarioProdromalBreve.fechaCuestionarioProdromalBreve,
+    )
+      .replace(/\//g, '-')
+      .replace(/\\/g, '-');
+    const nombreArchivo = `Cuestionario Prodromal Breve ${fecha}.pdf`;
+
+    const rutaDirectorio = path.resolve(cuestionarioProdromalBreve.rutaPDF);
+    if (!fs.existsSync(rutaDirectorio)) {
+      fs.mkdirSync(rutaDirectorio, { recursive: true });
+    }
+
+    const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+
+    const docDefinition = cuestionarioProdromalBreveInforme(
+      nombreEmpresa,
+      datosTrabajador,
+      datosCuestionarioProdromalBreve,
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      datosProveedorSalud,
+      footerData,
+    );
+
+    await this.printer.createPdf(docDefinition, rutaCompleta);
+
+    return rutaCompleta;
+  }
+
+  async getInformeTrastornoLimitePersonalidad(
+    empresaId: string,
+    trabajadorId: string,
+    trastornoLimitePersonalidadId: string,
+    userId: string,
+    footerFirmantesData?: FooterFirmantesData,
+  ): Promise<string> {
+    const empresa = await this.empresasService.findOne(empresaId);
+
+    const nombreEmpresa = empresa.nombreComercial;
+
+    const trabajador = await this.trabajadoresService.findOne(trabajadorId);
+
+    const datosTrabajador = {
+      primerApellido: trabajador.primerApellido,
+      segundoApellido: trabajador.segundoApellido,
+      nombre: trabajador.nombre,
+      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
+      escolaridad: trabajador.escolaridad,
+      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
+      puesto: trabajador.puesto,
+      sexo: trabajador.sexo,
+      antiguedad: trabajador.fechaIngreso
+        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
+        : '-',
+      telefono: trabajador.telefono,
+      estadoCivil: trabajador.estadoCivil,
+      numeroEmpleado: trabajador.numeroEmpleado,
+      nss: trabajador.nss,
+      curp: trabajador.curp,
+    };
+
+    const trastornoLimitePersonalidad =
+      await this.expedientesService.findDocument(
+        'trastornoLimitePersonalidad',
+        trastornoLimitePersonalidadId,
+      );
+
+    const datosTrastornoLimitePersonalidad = {
+      fechaTrastornoLimitePersonalidad:
+        trastornoLimitePersonalidad.fechaTrastornoLimitePersonalidad,
+      relacionesCercanasDiscusionesRupturas:
+        trastornoLimitePersonalidad.relacionesCercanasDiscusionesRupturas,
+      autolesionIntentoSuicidio:
+        trastornoLimitePersonalidad.autolesionIntentoSuicidio,
+      impulsividadOtrosDosProblemas:
+        trastornoLimitePersonalidad.impulsividadOtrosDosProblemas,
+      extremadamenteMalHumor:
+        trastornoLimitePersonalidad.extremadamenteMalHumor,
+      enojadoFrecuenteActuaEnojadoSarcastico:
+        trastornoLimitePersonalidad.enojadoFrecuenteActuaEnojadoSarcastico,
+      desconfianzaOtrasPersonas:
+        trastornoLimitePersonalidad.desconfianzaOtrasPersonas,
+      sensacionIrrealidadEntornoIrreal:
+        trastornoLimitePersonalidad.sensacionIrrealidadEntornoIrreal,
+      vacioCronico: trastornoLimitePersonalidad.vacioCronico,
+      faltaIdentidadQuienEs: trastornoLimitePersonalidad.faltaIdentidadQuienEs,
+      esfuerzosEvitarAbandono:
+        trastornoLimitePersonalidad.esfuerzosEvitarAbandono,
+    };
+
+    let footerData: FooterFirmantesData | undefined = footerFirmantesData;
+
+    if (
+      !footerData &&
+      (trastornoLimitePersonalidad.estado === DocumentoEstado.FINALIZADO ||
+        trastornoLimitePersonalidad.estado === DocumentoEstado.ANULADO)
+    ) {
+      const creadorId =
+        (
+          trastornoLimitePersonalidad.createdBy?._id ||
+          trastornoLimitePersonalidad.createdBy
+        )?.toString() || userId;
+      const finalizadorId =
+        (
+          trastornoLimitePersonalidad.finalizadoPor?._id ||
+          trastornoLimitePersonalidad.finalizadoPor
+        )?.toString() || userId;
+
+      if (creadorId !== finalizadorId) {
+        const elaborador = await this.obtenerDatosFirmante(creadorId);
+        const finalizador = await this.obtenerDatosFirmante(finalizadorId);
+
+        footerData = {
+          elaborador,
+          finalizador,
+          esDocumentoFinalizado: true,
+        };
+      }
+    }
+
+    const firmanteUserId =
+      trastornoLimitePersonalidad.estado === DocumentoEstado.BORRADOR
+        ? (
+            trastornoLimitePersonalidad.createdBy?._id ||
+            trastornoLimitePersonalidad.createdBy
+          )?.toString() || userId
+        : trastornoLimitePersonalidad.estado === DocumentoEstado.FINALIZADO ||
+            trastornoLimitePersonalidad.estado === DocumentoEstado.ANULADO
+          ? (
+              trastornoLimitePersonalidad.finalizadoPor?._id ||
+              trastornoLimitePersonalidad.finalizadoPor
+            )?.toString() || userId
+          : userId;
+
+    const medicoFirmante =
+      await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
+    const datosMedicoFirmante = medicoFirmante
+      ? {
+          nombre: medicoFirmante.nombre || '',
+          tituloProfesional: medicoFirmante.tituloProfesional || '',
+          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
+          especialistaSaludTrabajo:
+            medicoFirmante.especialistaSaludTrabajo || '',
+          numeroCedulaEspecialista:
+            medicoFirmante.numeroCedulaEspecialista || '',
+          nombreCredencialAdicional:
+            medicoFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional:
+            medicoFirmante.numeroCredencialAdicional || '',
+          firma:
+            (medicoFirmante.firma as { data: string; contentType: string }) ||
+            null,
+        }
+      : {
+          nombre: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          especialistaSaludTrabajo: '',
+          numeroCedulaEspecialista: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const enfermeraFirmante =
+      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
+    const datosEnfermeraFirmante = enfermeraFirmante
+      ? {
+          nombre: enfermeraFirmante.nombre || '',
+          sexo: enfermeraFirmante.sexo || '',
+          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
+          numeroCedulaProfesional:
+            enfermeraFirmante.numeroCedulaProfesional || '',
+          nombreCredencialAdicional:
+            enfermeraFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional:
+            enfermeraFirmante.numeroCredencialAdicional || '',
+          firma:
+            (enfermeraFirmante.firma as {
+              data: string;
+              contentType: string;
+            }) || null,
+        }
+      : {
+          nombre: '',
+          sexo: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const tecnicoFirmante =
+      await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
+    const datosTecnicoFirmante = tecnicoFirmante
+      ? {
+          nombre: tecnicoFirmante.nombre || '',
+          sexo: tecnicoFirmante.sexo || '',
+          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
+          numeroCedulaProfesional:
+            tecnicoFirmante.numeroCedulaProfesional || '',
+          nombreCredencialAdicional:
+            tecnicoFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional:
+            tecnicoFirmante.numeroCredencialAdicional || '',
+          firma:
+            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
+            null,
+        }
+      : {
+          nombre: '',
+          sexo: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const usuario = await this.usersService.findById(userId);
+    const datosUsuario = {
+      idProveedorSalud: usuario.idProveedorSalud,
+    };
+    const proveedorSalud = await this.proveedoresSaludService.findOne(
+      datosUsuario.idProveedorSalud,
+    );
+    const datosProveedorSalud = proveedorSalud
+      ? {
+          nombre: proveedorSalud.nombre || '',
+          pais: proveedorSalud.pais || '',
+          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
+          logotipoEmpresa:
+            (proveedorSalud.logotipoEmpresa as {
+              data: string;
+              contentType: string;
+            }) || null,
+          estado: proveedorSalud.estado || '',
+          municipio: proveedorSalud.municipio || '',
+          codigoPostal: proveedorSalud.codigoPostal || '',
+          direccion: proveedorSalud.direccion || '',
+          telefono: proveedorSalud.telefono || '',
+          correoElectronico: proveedorSalud.correoElectronico || '',
+          sitioWeb: proveedorSalud.sitioWeb || '',
+          colorInforme: proveedorSalud.colorInforme || '#343A40',
+        }
+      : {
+          nombre: '',
+          pais: '',
+          perfilProveedorSalud: '',
+          logotipoEmpresa: null,
+          estado: '',
+          municipio: '',
+          codigoPostal: '',
+          direccion: '',
+          telefono: '',
+          correoElectronico: '',
+          sitioWeb: '',
+          colorInforme: '#343A40',
+        };
+
+    const fecha = convertirFechaADDMMAAAA(
+      trastornoLimitePersonalidad.fechaTrastornoLimitePersonalidad,
+    )
+      .replace(/\//g, '-')
+      .replace(/\\/g, '-');
+    const nombreArchivo = `Trastorno Limite Personalidad ${fecha}.pdf`;
+
+    const rutaDirectorio = path.resolve(trastornoLimitePersonalidad.rutaPDF);
+    if (!fs.existsSync(rutaDirectorio)) {
+      fs.mkdirSync(rutaDirectorio, { recursive: true });
+    }
+
+    const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+
+    const docDefinition = trastornoLimitePersonalidadInforme(
+      nombreEmpresa,
+      datosTrabajador,
+      datosTrastornoLimitePersonalidad,
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      datosProveedorSalud,
+      footerData,
+    );
+
+    await this.printer.createPdf(docDefinition, rutaCompleta);
+
     return rutaCompleta;
   }
 

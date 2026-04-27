@@ -1,6 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayNotEmpty,
+  IsArray,
   IsDate,
   IsEnum,
   IsMongoId,
@@ -15,6 +17,8 @@ import {
   RelevanciaClinica,
   TipoAlteracionEspirometria,
   TipoAlteracionEKG,
+  TipoAlteracionRayosX,
+  TipoAlteracionAnalisisLaboratorio,
   TipoSangre,
 } from '../schemas/resultado-clinico.schema';
 
@@ -93,18 +97,18 @@ export class CreateResultadoClinicoDto {
   @ValidateIf((o) => o.tipoEstudio === TipoEstudio.ESPIROMETRIA && o.resultadoGlobal === ResultadoGlobal.ANORMAL)
   @IsEnum(TipoAlteracionEspirometria, { message: 'El tipo de alteración debe ser válido' })
   @IsNotEmpty({ message: 'El tipo de alteración es obligatorio para espirometría con resultado anormal' })
-  tipoAlteracion?: TipoAlteracionEspirometria;
+  tipoAlteracionEspirometria?: TipoAlteracionEspirometria;
 
   // Campos específicos para EKG
   @ApiProperty({
-    description: 'Tipo de alteración principal del EKG (solo si resultadoGlobal = ANORMAL y tipoEstudio = EKG)',
+    description: 'Tipo de alteración del EKG (solo si resultadoGlobal = ANORMAL y tipoEstudio = EKG)',
     enum: TipoAlteracionEKG,
     required: false,
   })
   @ValidateIf((o) => o.tipoEstudio === TipoEstudio.EKG && o.resultadoGlobal === ResultadoGlobal.ANORMAL)
-  @IsEnum(TipoAlteracionEKG, { message: 'El tipo de alteración principal debe ser válido' })
-  @IsNotEmpty({ message: 'El tipo de alteración principal es obligatorio para EKG con resultado anormal' })
-  tipoAlteracionPrincipal?: TipoAlteracionEKG;
+  @IsEnum(TipoAlteracionEKG, { message: 'El tipo de alteración del EKG debe ser válido' })
+  @IsNotEmpty({ message: 'El tipo de alteración es obligatorio para EKG con resultado anormal' })
+  tipoAlteracionEKG?: TipoAlteracionEKG;
 
   // Campos específicos para Tipo de Sangre
   @ApiProperty({
@@ -117,6 +121,47 @@ export class CreateResultadoClinicoDto {
   @IsEnum(TipoSangre, { message: 'El tipo de sangre debe ser válido' })
   @IsNotEmpty({ message: 'El tipo de sangre es obligatorio para estudios de tipo de sangre' })
   tipoSangre?: TipoSangre;
+
+  @ApiProperty({
+    description:
+      'Categorías de alteración en Rayos X (obligatorio si tipoEstudio = RAYOS_X y resultadoGlobal = ANORMAL)',
+    enum: TipoAlteracionRayosX,
+    isArray: true,
+    required: false,
+  })
+  @ValidateIf(
+    (o) =>
+      o.tipoEstudio === TipoEstudio.RAYOS_X && o.resultadoGlobal === ResultadoGlobal.ANORMAL,
+  )
+  @IsArray({ message: 'Las categorías de Rayos X deben ser un arreglo' })
+  @ArrayNotEmpty({ message: 'Debe indicar al menos una categoría para Rayos X con resultado anormal' })
+  @IsEnum(TipoAlteracionRayosX, {
+    each: true,
+    message: 'Cada categoría de Rayos X debe ser válida',
+  })
+  tipoAlteracionRayosX?: TipoAlteracionRayosX[];
+
+  @ApiProperty({
+    description:
+      'Categorías de alteración en análisis de laboratorio (obligatorio si tipoEstudio = ANALISIS_LABORATORIO y resultadoGlobal = ANORMAL)',
+    enum: TipoAlteracionAnalisisLaboratorio,
+    isArray: true,
+    required: false,
+  })
+  @ValidateIf(
+    (o) =>
+      o.tipoEstudio === TipoEstudio.ANALISIS_LABORATORIO &&
+      o.resultadoGlobal === ResultadoGlobal.ANORMAL,
+  )
+  @IsArray({ message: 'Las categorías de laboratorio deben ser un arreglo' })
+  @ArrayNotEmpty({
+    message: 'Debe indicar al menos una categoría para análisis de laboratorio con resultado anormal',
+  })
+  @IsEnum(TipoAlteracionAnalisisLaboratorio, {
+    each: true,
+    message: 'Cada categoría de laboratorio debe ser válida',
+  })
+  tipoAlteracionAnalisisLaboratorio?: TipoAlteracionAnalisisLaboratorio[];
 
   @ApiProperty({
     description: 'ID del usuario que crea el registro',

@@ -26,9 +26,9 @@ const categoriasTensionArterial = [
   'Óptima',
   'Normal',
   'Alta',
-  'Hipertensión ligera',
-  'Hipertensión moderada',
-  'Hipertensión severa',
+  'Hipertensión grado 1',
+  'Hipertensión grado 2',
+  'Hipertensión grado 3',
 ];
 
 const categoriasFrecuenciaCardiaca = [

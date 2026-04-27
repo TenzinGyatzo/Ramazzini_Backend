@@ -49,10 +49,15 @@ import { User } from '../users/schemas/user.schema';
 import { Empresa } from '../empresas/schemas/empresa.schema';
 import { Receta } from '../expedientes/schemas/receta.schema';
 import { ConstanciaAptitud } from '../expedientes/schemas/constancia-aptitud.schema';
+import { EntrevistaPsicologica } from '../expedientes/schemas/entrevista-psicologica.schema';
+import { TrastornosEstadoAnimo } from '../expedientes/schemas/trastornos-estado-animo.schema';
+import { CuestionarioProdromalBreve } from '../expedientes/schemas/cuestionario-prodromal-breve.schema';
+import { TrastornoLimitePersonalidad } from '../expedientes/schemas/trastorno-limite-personalidad.schema';
 import { generateFolioFromWorkerData } from 'src/utils/folio-generator.util';
 import { WorkerFusionService } from './worker-fusion.service';
 import {
   ResultadoClinico,
+  ResultadoGlobal,
   TipoEstudio,
 } from '../resultados-clinicos/schemas/resultado-clinico.schema';
 
@@ -81,6 +86,14 @@ export class TrabajadoresService {
     private controlPrenatalModel: Model<ControlPrenatal>,
     @InjectModel(ConstanciaAptitud.name)
     private constanciaAptitudModel: Model<ConstanciaAptitud>,
+    @InjectModel(EntrevistaPsicologica.name)
+    private entrevistaPsicologicaModel: Model<EntrevistaPsicologica>,
+    @InjectModel(TrastornosEstadoAnimo.name)
+    private trastornosEstadoAnimoModel: Model<TrastornosEstadoAnimo>,
+    @InjectModel(CuestionarioProdromalBreve.name)
+    private cuestionarioProdromalBreveModel: Model<CuestionarioProdromalBreve>,
+    @InjectModel(TrastornoLimitePersonalidad.name)
+    private trastornoLimitePersonalidadModel: Model<TrastornoLimitePersonalidad>,
     @InjectModel(RiesgoTrabajo.name)
     private riesgoTrabajoModel: Model<RiesgoTrabajo>,
     @InjectModel(Lesion.name)
@@ -499,7 +512,6 @@ export class TrabajadoresService {
       }
     }
   }
-
   async create(createTrabajadorDto: CreateTrabajadorDto): Promise<Trabajador> {
     const normalizedDto = normalizeTrabajadorData(createTrabajadorDto);
 
@@ -714,6 +726,63 @@ export class TrabajadoresService {
       }
     }
 
+    // RESULTADOS CLÍNICOS (Espirometría, EKG, Rayos X, Laboratorio): último por trabajador y tipo
+    const resultadosClinicosDocs = await this.resultadoClinicoModel
+      .find({
+        idTrabajador: { $in: trabajadoresIds },
+        tipoEstudio: {
+          $in: [
+            TipoEstudio.ESPIROMETRIA,
+            TipoEstudio.EKG,
+            TipoEstudio.RAYOS_X,
+            TipoEstudio.ANALISIS_LABORATORIO,
+          ],
+        },
+      })
+      .select('idTrabajador tipoEstudio fechaEstudio resultadoGlobal')
+      .lean();
+
+    const resultadosEspirometriaMap = new Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>();
+    const resultadosEkgMap = new Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>();
+    const resultadosRayosXMap = new Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>();
+    const resultadosAnalisisLabMap = new Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>();
+
+    for (const doc of resultadosClinicosDocs) {
+      const tid = doc.idTrabajador.toString();
+      let targetMap: Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>;
+      switch (doc.tipoEstudio) {
+        case TipoEstudio.ESPIROMETRIA:
+          targetMap = resultadosEspirometriaMap;
+          break;
+        case TipoEstudio.EKG:
+          targetMap = resultadosEkgMap;
+          break;
+        case TipoEstudio.RAYOS_X:
+          targetMap = resultadosRayosXMap;
+          break;
+        case TipoEstudio.ANALISIS_LABORATORIO:
+          targetMap = resultadosAnalisisLabMap;
+          break;
+        default:
+          continue;
+      }
+      const actual = targetMap.get(tid);
+      const fecha = new Date(doc.fechaEstudio);
+      if (!actual || fecha > new Date(actual.fechaEstudio)) {
+        targetMap.set(tid, {
+          resultadoGlobal: doc.resultadoGlobal ?? undefined,
+          fechaEstudio: fecha,
+        });
+      }
+    }
+
+    const etiquetaResultadoGlobal = (resultadoGlobal: string | undefined): string => {
+      if (resultadoGlobal === ResultadoGlobal.NORMAL) return 'Normal';
+      if (resultadoGlobal === ResultadoGlobal.ANORMAL) return 'Anormal';
+      if (resultadoGlobal === ResultadoGlobal.NO_CONCLUYENTE) return 'No concluyente';
+      return '-';
+    };
+
     // RIESGOS DE TRABAJO
     const riesgos = await this.riesgoTrabajoModel
       .find({ idTrabajador: { $in: trabajadoresIds } })
@@ -808,6 +877,20 @@ export class TrabajadoresService {
                 audiometria.diagnosticoAudiometria ?? null,
             }
           : null,
+        resultadosClinicosResumen: {
+          espirometria: resultadosEspirometriaMap.has(id)
+            ? { etiqueta: etiquetaResultadoGlobal(resultadosEspirometriaMap.get(id)?.resultadoGlobal) }
+            : null,
+          ekg: resultadosEkgMap.has(id)
+            ? { etiqueta: etiquetaResultadoGlobal(resultadosEkgMap.get(id)?.resultadoGlobal) }
+            : null,
+          rayosX: resultadosRayosXMap.has(id)
+            ? { etiqueta: etiquetaResultadoGlobal(resultadosRayosXMap.get(id)?.resultadoGlobal) }
+            : null,
+          analisisLaboratorio: resultadosAnalisisLabMap.has(id)
+            ? { etiqueta: etiquetaResultadoGlobal(resultadosAnalisisLabMap.get(id)?.resultadoGlobal) }
+            : null,
+        },
       };
     });
 
@@ -974,7 +1057,12 @@ export class TrabajadoresService {
       hbc: [],
       ekg: [],
       espirometria: [],
+      rayosX: [],
+      analisisLaboratorio: [],
       pab: [],
+      trastornosEstadoAnimo: [],
+      cuestionarioProdromalBreve: [],
+      trastornoLimitePersonalidad: [],
       trabajadoresEvaluados: [],
     };
 
@@ -1243,27 +1331,49 @@ export class TrabajadoresService {
       caidaMaxDb: getCaidaMaximaDb(a),
     }));
 
-    // 18. RESULTADOS CLÍNICOS (EKG y ESPIROMETRIA) – Obtener el más reciente por trabajador activo
+    // 18. RESULTADOS CLÍNICOS (EKG, ESPIROMETRÍA, RAYOS X, ANÁLISIS DE LABORATORIO) – Más reciente por trabajador activo
     const resultadosClinicos = await this.resultadoClinicoModel
       .find({
         idTrabajador: { $in: idsActivos },
-        tipoEstudio: { $in: [TipoEstudio.EKG, TipoEstudio.ESPIROMETRIA] },
+        tipoEstudio: {
+          $in: [
+            TipoEstudio.EKG,
+            TipoEstudio.ESPIROMETRIA,
+            TipoEstudio.RAYOS_X,
+            TipoEstudio.ANALISIS_LABORATORIO,
+          ],
+        },
         ...rangoFecha('fechaEstudio'),
       })
       .select(
-        'idTrabajador tipoEstudio resultadoGlobal tipoAlteracion tipoAlteracionPrincipal fechaEstudio',
+        'idTrabajador tipoEstudio resultadoGlobal tipoAlteracion tipoAlteracionPrincipal tipoAlteracionEspirometria tipoAlteracionEKG tipoAlteracionRayosX tipoAlteracionAnalisisLaboratorio fechaEstudio',
       )
       .lean();
 
     const resultadosEkgMap = new Map<string, any>();
     const resultadosEspirometriaMap = new Map<string, any>();
+    const resultadosRayosXMap = new Map<string, any>();
+    const resultadosAnalisisLaboratorioMap = new Map<string, any>();
 
     for (const resultado of resultadosClinicos) {
       const id = resultado.idTrabajador.toString();
-      const targetMap =
-        resultado.tipoEstudio === TipoEstudio.EKG
-          ? resultadosEkgMap
-          : resultadosEspirometriaMap;
+      let targetMap: Map<string, any>;
+      switch (resultado.tipoEstudio) {
+        case TipoEstudio.EKG:
+          targetMap = resultadosEkgMap;
+          break;
+        case TipoEstudio.ESPIROMETRIA:
+          targetMap = resultadosEspirometriaMap;
+          break;
+        case TipoEstudio.RAYOS_X:
+          targetMap = resultadosRayosXMap;
+          break;
+        case TipoEstudio.ANALISIS_LABORATORIO:
+          targetMap = resultadosAnalisisLaboratorioMap;
+          break;
+        default:
+          continue;
+      }
       const actual = targetMap.get(id);
 
       if (
@@ -1279,6 +1389,7 @@ export class TrabajadoresService {
         resultadoGlobal: resultado.resultadoGlobal ?? null,
         tipoAlteracion:
           resultado.tipoAlteracionPrincipal ?? resultado.tipoAlteracion ?? null,
+        tipoAlteracionEKG: resultado.tipoAlteracionEKG ?? null,
       })),
     );
 
@@ -1286,6 +1397,178 @@ export class TrabajadoresService {
       Array.from(resultadosEspirometriaMap.values()).map((resultado) => ({
         resultadoGlobal: resultado.resultadoGlobal ?? null,
         tipoAlteracion: resultado.tipoAlteracion ?? null,
+        tipoAlteracionEspirometria:
+          resultado.tipoAlteracionEspirometria ?? null,
+      })),
+    );
+
+    dashboardData.rayosX.push(
+      Array.from(resultadosRayosXMap.values()).map((resultado) => ({
+        resultadoGlobal: resultado.resultadoGlobal ?? null,
+        tipoAlteracionRayosX: resultado.tipoAlteracionRayosX ?? null,
+      })),
+    );
+
+    dashboardData.analisisLaboratorio.push(
+      Array.from(resultadosAnalisisLaboratorioMap.values()).map((resultado) => ({
+        resultadoGlobal: resultado.resultadoGlobal ?? null,
+        tipoAlteracionAnalisisLaboratorio: resultado.tipoAlteracionAnalisisLaboratorio ?? null,
+      })),
+    );
+
+    const teaSelect = [
+      'idTrabajador',
+      'fechaTrastornosEstadoAnimo',
+      'p1ExaltadoComportamientoNoHabitualOMetidoProblemas',
+      'p1IrritableGritosPeleas',
+      'p1MasSeguridadQueLoHabitual',
+      'p1DormiaMenosSinNecesitarMasSueno',
+      'p1HablabaMasOMasRapido',
+      'p1PensamientosAgolpados',
+      'p1DistraccionDificultadConcentracion',
+      'p1MasEnergiaQueLoHabitual',
+      'p1MasActivoOMasCosasQueLoHabitual',
+      'p1MasSocialExtrovertido',
+      'p1MasApetitoSexual',
+      'p1CosasExageradasRiesgosas',
+      'p1GastoDineroProblemas',
+      'p2SituacionesMismoPeriodo',
+      'p3NivelProblemaCausado',
+      'p4FamiliarDirectoBipolar',
+      'p5DiagnosticoProfesionalBipolar',
+    ].join(' ');
+
+    const trastornosEstadoAnimoDocs = await this.trastornosEstadoAnimoModel
+      .find({
+        idTrabajador: { $in: idsActivos },
+        ...rangoFecha('fechaTrastornosEstadoAnimo'),
+      })
+      .select(teaSelect)
+      .lean();
+
+    const trastornosEstadoAnimoMap = new Map<string, any>();
+    for (const doc of trastornosEstadoAnimoDocs) {
+      const id = doc.idTrabajador.toString();
+      const actual = trastornosEstadoAnimoMap.get(id);
+      if (
+        !actual ||
+        new Date(doc.fechaTrastornosEstadoAnimo) > new Date(actual.fechaTrastornosEstadoAnimo)
+      ) {
+        trastornosEstadoAnimoMap.set(id, doc);
+      }
+    }
+
+    dashboardData.trastornosEstadoAnimo.push(
+      Array.from(trastornosEstadoAnimoMap.values()).map((d) => ({
+        p1ExaltadoComportamientoNoHabitualOMetidoProblemas:
+          d.p1ExaltadoComportamientoNoHabitualOMetidoProblemas ?? null,
+        p1IrritableGritosPeleas: d.p1IrritableGritosPeleas ?? null,
+        p1MasSeguridadQueLoHabitual: d.p1MasSeguridadQueLoHabitual ?? null,
+        p1DormiaMenosSinNecesitarMasSueno: d.p1DormiaMenosSinNecesitarMasSueno ?? null,
+        p1HablabaMasOMasRapido: d.p1HablabaMasOMasRapido ?? null,
+        p1PensamientosAgolpados: d.p1PensamientosAgolpados ?? null,
+        p1DistraccionDificultadConcentracion: d.p1DistraccionDificultadConcentracion ?? null,
+        p1MasEnergiaQueLoHabitual: d.p1MasEnergiaQueLoHabitual ?? null,
+        p1MasActivoOMasCosasQueLoHabitual: d.p1MasActivoOMasCosasQueLoHabitual ?? null,
+        p1MasSocialExtrovertido: d.p1MasSocialExtrovertido ?? null,
+        p1MasApetitoSexual: d.p1MasApetitoSexual ?? null,
+        p1CosasExageradasRiesgosas: d.p1CosasExageradasRiesgosas ?? null,
+        p1GastoDineroProblemas: d.p1GastoDineroProblemas ?? null,
+        p2SituacionesMismoPeriodo: d.p2SituacionesMismoPeriodo ?? null,
+        p3NivelProblemaCausado: d.p3NivelProblemaCausado ?? null,
+        p4FamiliarDirectoBipolar: d.p4FamiliarDirectoBipolar ?? null,
+        p5DiagnosticoProfesionalBipolar: d.p5DiagnosticoProfesionalBipolar ?? null,
+        fechaTrastornosEstadoAnimo: d.fechaTrastornosEstadoAnimo,
+      })),
+    );
+
+    const cpbFields = [
+      'idTrabajador',
+      'fechaCuestionarioProdromalBreve',
+      ...Array.from({ length: 21 }, (_, i) => `p${i + 1}`),
+    ].join(' ');
+
+    const cuestionarioProdromalDocs = await this.cuestionarioProdromalBreveModel
+      .find({
+        idTrabajador: { $in: idsActivos },
+        ...rangoFecha('fechaCuestionarioProdromalBreve'),
+      })
+      .select(cpbFields)
+      .lean();
+
+    const cuestionarioProdromalMap = new Map<string, any>();
+    for (const doc of cuestionarioProdromalDocs) {
+      const id = doc.idTrabajador.toString();
+      const actual = cuestionarioProdromalMap.get(id);
+      if (
+        !actual ||
+        new Date(doc.fechaCuestionarioProdromalBreve) > new Date(actual.fechaCuestionarioProdromalBreve)
+      ) {
+        cuestionarioProdromalMap.set(id, doc);
+      }
+    }
+
+    dashboardData.cuestionarioProdromalBreve.push(
+      Array.from(cuestionarioProdromalMap.values()).map((d) => {
+        const row: Record<string, unknown> = {
+          fechaCuestionarioProdromalBreve: d.fechaCuestionarioProdromalBreve,
+        };
+        for (let n = 1; n <= 21; n++) {
+          const key = `p${n}`;
+          row[key] = d[key] ?? null;
+        }
+        return row;
+      }),
+    );
+
+    const tlpSelect = [
+      'idTrabajador',
+      'fechaTrastornoLimitePersonalidad',
+      'relacionesCercanasDiscusionesRupturas',
+      'autolesionIntentoSuicidio',
+      'impulsividadOtrosDosProblemas',
+      'extremadamenteMalHumor',
+      'enojadoFrecuenteActuaEnojadoSarcastico',
+      'desconfianzaOtrasPersonas',
+      'sensacionIrrealidadEntornoIrreal',
+      'vacioCronico',
+      'faltaIdentidadQuienEs',
+      'esfuerzosEvitarAbandono',
+    ].join(' ');
+
+    const trastornoLimiteDocs = await this.trastornoLimitePersonalidadModel
+      .find({
+        idTrabajador: { $in: idsActivos },
+        ...rangoFecha('fechaTrastornoLimitePersonalidad'),
+      })
+      .select(tlpSelect)
+      .lean();
+
+    const trastornoLimiteMap = new Map<string, any>();
+    for (const doc of trastornoLimiteDocs) {
+      const id = doc.idTrabajador.toString();
+      const actual = trastornoLimiteMap.get(id);
+      if (
+        !actual ||
+        new Date(doc.fechaTrastornoLimitePersonalidad) > new Date(actual.fechaTrastornoLimitePersonalidad)
+      ) {
+        trastornoLimiteMap.set(id, doc);
+      }
+    }
+
+    dashboardData.trastornoLimitePersonalidad.push(
+      Array.from(trastornoLimiteMap.values()).map((d) => ({
+        relacionesCercanasDiscusionesRupturas: d.relacionesCercanasDiscusionesRupturas ?? null,
+        autolesionIntentoSuicidio: d.autolesionIntentoSuicidio ?? null,
+        impulsividadOtrosDosProblemas: d.impulsividadOtrosDosProblemas ?? null,
+        extremadamenteMalHumor: d.extremadamenteMalHumor ?? null,
+        enojadoFrecuenteActuaEnojadoSarcastico: d.enojadoFrecuenteActuaEnojadoSarcastico ?? null,
+        desconfianzaOtrasPersonas: d.desconfianzaOtrasPersonas ?? null,
+        sensacionIrrealidadEntornoIrreal: d.sensacionIrrealidadEntornoIrreal ?? null,
+        vacioCronico: d.vacioCronico ?? null,
+        faltaIdentidadQuienEs: d.faltaIdentidadQuienEs ?? null,
+        esfuerzosEvitarAbandono: d.esfuerzosEvitarAbandono ?? null,
+        fechaTrastornoLimitePersonalidad: d.fechaTrastornoLimitePersonalidad,
       })),
     );
 
@@ -1297,6 +1580,11 @@ export class TrabajadoresService {
       ...audiometriasMap.keys(),
       ...resultadosEkgMap.keys(),
       ...resultadosEspirometriaMap.keys(),
+      ...resultadosRayosXMap.keys(),
+      ...resultadosAnalisisLaboratorioMap.keys(),
+      ...trastornosEstadoAnimoMap.keys(),
+      ...cuestionarioProdromalMap.keys(),
+      ...trastornoLimiteMap.keys(),
     ]);
 
     dashboardData.trabajadoresEvaluados = Array.from(trabajadoresEvaluadosSet);
@@ -1314,6 +1602,11 @@ export class TrabajadoresService {
         ...audiometriasMap.keys(),
         ...resultadosEkgMap.keys(),
         ...resultadosEspirometriaMap.keys(),
+        ...resultadosRayosXMap.keys(),
+        ...resultadosAnalisisLaboratorioMap.keys(),
+        ...trastornosEstadoAnimoMap.keys(),
+        ...cuestionarioProdromalMap.keys(),
+        ...trastornoLimiteMap.keys(),
       ]);
 
       // Filtrar trabajadores activos que tienen evaluaciones en el período
@@ -2874,6 +3167,10 @@ export class TrabajadoresService {
       NotaAclaratoria: 'fechaNotaAclaratoria',
       Receta: 'fechaReceta',
       ConstanciaAptitud: 'fechaConstanciaAptitud',
+      EntrevistaPsicologica: 'fechaEntrevistaPsicologica',
+      TrastornosEstadoAnimo: 'fechaTrastornosEstadoAnimo',
+      CuestionarioProdromalBreve: 'fechaCuestionarioProdromalBreve',
+      TrastornoLimitePersonalidad: 'fechaTrastornoLimitePersonalidad',
     };
 
     // Determinar el tipo de documento con el nombre del modelo en Mongoose
@@ -2912,6 +3209,10 @@ export class TrabajadoresService {
       NotaMedica: 'Nota Medica',
       Receta: 'Receta',
       ConstanciaAptitud: 'Constancia de Aptitud',
+      EntrevistaPsicologica: 'Entrevista Psicologica',
+      TrastornosEstadoAnimo: 'Trastornos Estado Animo',
+      CuestionarioProdromalBreve: 'Cuestionario Prodromal Breve',
+      TrastornoLimitePersonalidad: 'Trastorno Limite Personalidad',
     };
 
     // Mapeo de tipos de documentos técnicos a nombres legibles (para Nota Aclaratoria)
@@ -3124,6 +3425,22 @@ export class TrabajadoresService {
               .find({ idTrabajador: id })
               .session(session)
               .exec(),
+            this.entrevistaPsicologicaModel
+              .find({ idTrabajador: id })
+              .session(session)
+              .exec(),
+            this.trastornosEstadoAnimoModel
+              .find({ idTrabajador: id })
+              .session(session)
+              .exec(),
+            this.cuestionarioProdromalBreveModel
+              .find({ idTrabajador: id })
+              .session(session)
+              .exec(),
+            this.trastornoLimitePersonalidadModel
+              .find({ idTrabajador: id })
+              .session(session)
+              .exec(),
             this.riesgoTrabajoModel
               .find({ idTrabajador: id })
               .session(session)
@@ -3171,6 +3488,18 @@ export class TrabajadoresService {
               .session(session),
             this.recetaModel.deleteMany({ idTrabajador: id }).session(session),
             this.constanciaAptitudModel
+              .deleteMany({ idTrabajador: id })
+              .session(session),
+            this.entrevistaPsicologicaModel
+              .deleteMany({ idTrabajador: id })
+              .session(session),
+            this.trastornosEstadoAnimoModel
+              .deleteMany({ idTrabajador: id })
+              .session(session),
+            this.cuestionarioProdromalBreveModel
+              .deleteMany({ idTrabajador: id })
+              .session(session),
+            this.trastornoLimitePersonalidadModel
               .deleteMany({ idTrabajador: id })
               .session(session),
             this.riesgoTrabajoModel
