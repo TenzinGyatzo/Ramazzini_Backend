@@ -21,6 +21,10 @@ import { EntrevistaPsicologica, EntrevistaPsicologicaSchema } from './schemas/en
 import { TrastornosEstadoAnimo, TrastornosEstadoAnimoSchema } from './schemas/trastornos-estado-animo.schema';
 import { CuestionarioProdromalBreve, CuestionarioProdromalBreveSchema } from './schemas/cuestionario-prodromal-breve.schema';
 import { TrastornoLimitePersonalidad, TrastornoLimitePersonalidadSchema } from './schemas/trastorno-limite-personalidad.schema';
+import {
+  EventoSeguimientoCardiometabolico,
+  EventoSeguimientoCardiometabolicoSchema,
+} from './schemas/evento-seguimiento-cardiometabolico.schema';
 import { Trabajador, TrabajadorSchema } from '../trabajadores/schemas/trabajador.schema';
 import { InformesModule } from '../informes/informes.module';
 import { FilesModule } from '../files/files.module';
@@ -51,6 +55,7 @@ import { PdfCleanerService } from './pdf-cleaner.service';
       { name: TrastornosEstadoAnimo.name, schema: TrastornosEstadoAnimoSchema },
       { name: CuestionarioProdromalBreve.name, schema: CuestionarioProdromalBreveSchema },
       { name: TrastornoLimitePersonalidad.name, schema: TrastornoLimitePersonalidadSchema },
+      { name: EventoSeguimientoCardiometabolico.name, schema: EventoSeguimientoCardiometabolicoSchema },
     ]),
     forwardRef(() => InformesModule),
     FilesModule, // Nuevo módulo

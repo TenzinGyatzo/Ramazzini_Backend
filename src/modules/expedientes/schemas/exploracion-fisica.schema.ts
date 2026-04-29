@@ -2,43 +2,20 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
 import { Trabajador } from 'src/modules/trabajadores/entities/trabajador.entity';
 import { User } from 'src/modules/users/entities/user.entity';
+import {
+  CATEGORIAS_CIRCUNFERENCIA_EXPLORACION_FISICA,
+  CATEGORIAS_FRECUENCIA_CARDIACA_EXPLORACION_FISICA,
+  CATEGORIAS_IMC_EXPLORACION_FISICA,
+  CATEGORIAS_TENSION_EXPLORACION_FISICA,
+} from '../enums/clinical-categories.enum';
 
-const categoriasIMC = [
-  '',
-  'Bajo peso',
-  'Normal',
-  'Sobrepeso',
-  'Obesidad clase I',
-  'Obesidad clase II',
-  'Obesidad clase III',
-];
+const categoriasIMC = CATEGORIAS_IMC_EXPLORACION_FISICA;
 
-const categoriasCircunferenciaCintura = [
-  '',
-  'Bajo Riesgo',
-  'Riesgo Aumentado',
-  'Alto Riesgo',
-];
+const categoriasCircunferenciaCintura = CATEGORIAS_CIRCUNFERENCIA_EXPLORACION_FISICA;
 
-const categoriasTensionArterial = [
-  '',
-  'Óptima',
-  'Normal',
-  'Alta',
-  'Hipertensión grado 1',
-  'Hipertensión grado 2',
-  'Hipertensión grado 3',
-];
+const categoriasTensionArterial = CATEGORIAS_TENSION_EXPLORACION_FISICA;
 
-const categoriasFrecuenciaCardiaca = [
-  '',
-  'Excelente',
-  'Buena',
-  'Normal',
-  'Elevada',
-  'Alta',
-  'Muy alta',
-];
+const categoriasFrecuenciaCardiaca = CATEGORIAS_FRECUENCIA_CARDIACA_EXPLORACION_FISICA;
 
 const categoriasFrecuenciaRespiratoria = [
   '',

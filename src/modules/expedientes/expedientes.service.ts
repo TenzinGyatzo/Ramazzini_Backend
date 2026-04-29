@@ -21,6 +21,7 @@ import { EntrevistaPsicologica } from './schemas/entrevista-psicologica.schema';
 import { TrastornosEstadoAnimo } from './schemas/trastornos-estado-animo.schema';
 import { CuestionarioProdromalBreve } from './schemas/cuestionario-prodromal-breve.schema';
 import { TrastornoLimitePersonalidad } from './schemas/trastorno-limite-personalidad.schema';
+import { EventoSeguimientoCardiometabolico } from './schemas/evento-seguimiento-cardiometabolico.schema';
 import { startOfDay, endOfDay } from 'date-fns';
 import { FilesService } from '../files/files.service';
 import { convertirFechaISOaDDMMYYYY } from 'src/utils/dates';
@@ -55,6 +56,8 @@ export class ExpedientesService {
     @InjectModel(TrastornosEstadoAnimo.name) private trastornosEstadoAnimoModel: Model<TrastornosEstadoAnimo>,
     @InjectModel(CuestionarioProdromalBreve.name) private cuestionarioProdromalBreveModel: Model<CuestionarioProdromalBreve>,
     @InjectModel(TrastornoLimitePersonalidad.name) private trastornoLimitePersonalidadModel: Model<TrastornoLimitePersonalidad>,
+    @InjectModel(EventoSeguimientoCardiometabolico.name)
+    private eventoSeguimientoCardiometabolicoModel: Model<EventoSeguimientoCardiometabolico>,
     private readonly filesService: FilesService
   ) {
     this.models = {
@@ -77,6 +80,7 @@ export class ExpedientesService {
       trastornosEstadoAnimo: this.trastornosEstadoAnimoModel,
       cuestionarioProdromalBreve: this.cuestionarioProdromalBreveModel,
       trastornoLimitePersonalidad: this.trastornoLimitePersonalidadModel,
+      eventoSeguimientoCardiometabolico: this.eventoSeguimientoCardiometabolicoModel,
     };
 
     this.dateFields = {
@@ -99,6 +103,7 @@ export class ExpedientesService {
       trastornosEstadoAnimo: 'fechaTrastornosEstadoAnimo',
       cuestionarioProdromalBreve: 'fechaCuestionarioProdromalBreve',
       trastornoLimitePersonalidad: 'fechaTrastornoLimitePersonalidad',
+      eventoSeguimientoCardiometabolico: 'fechaControlCardiometabolico',
     };
   }
 

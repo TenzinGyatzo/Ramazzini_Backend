@@ -25,6 +25,15 @@ export class PdfCleanerService {
     'Exploracion Fisica',
     'Control Prenatal',
     'Nota Medica',
+    'Constancia Aptitud',
+    'Cuestionario Prodromal Breve',
+    'Entrevista Psicologica',
+    'Evento Seguimiento Cardiometabolico',
+    'Historia Otologica',
+    'Previo Espirometria',
+    'Receta',
+    'Trastorno Limite Personalidad',
+    'Trastornos Estado Animo',
   ];
 
   @Cron('0 3 * * *') // Modo prueba (cambiar a 0 3 * * * para producción)

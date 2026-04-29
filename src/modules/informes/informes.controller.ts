@@ -331,4 +331,22 @@ export class InformesController {
     const rutaPDF = await this.informesService.getInformeTrastornoLimitePersonalidad(empresaId, trabajadorId, trastornoLimitePersonalidadId, userId);
     return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
   }
+
+  // Vigilancia Médica 
+  @Get('eventoSeguimientoCardiometabolico/:empresaId/:trabajadorId/:eventoSeguimientoCardiometabolicoId/:userId')
+  async getInformeEventoSeguimientoCardiometabolico(
+    @Param('empresaId') empresaId: string,
+    @Param('trabajadorId') trabajadorId: string,
+    @Param('eventoSeguimientoCardiometabolicoId') eventoSeguimientoCardiometabolicoId: string,
+    @Param('userId') userId: string,
+    @Res() res: Response,
+  ) {
+    const rutaPDF = await this.informesService.getInformeEventoSeguimientoCardiometabolico(
+      empresaId,
+      trabajadorId,
+      eventoSeguimientoCardiometabolicoId,
+      userId,
+    );
+    return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
+  }
 }
