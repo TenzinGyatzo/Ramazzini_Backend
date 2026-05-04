@@ -91,5 +91,6 @@ export class Trabajador extends Document {
 export const TrabajadorSchema = SchemaFactory.createForClass(Trabajador).set('timestamps', true);
 // Índices para conteos y búsquedas comunes
 TrabajadorSchema.index({ idCentroTrabajo: 1 });
+TrabajadorSchema.index({ idCentroTrabajo: 1, fechaTransferencia: 1, createdAt: 1 });
 TrabajadorSchema.index({ numeroEmpleado: 1 });
 TrabajadorSchema.index({ estadoLaboral: 1 });

@@ -198,3 +198,4 @@ export class ExploracionFisica extends Document {
 }
 
 export const ExploracionFisicaSchema = SchemaFactory.createForClass(ExploracionFisica).set('timestamps', true);
+ExploracionFisicaSchema.index({ idTrabajador: 1, fechaExploracionFisica: -1 });

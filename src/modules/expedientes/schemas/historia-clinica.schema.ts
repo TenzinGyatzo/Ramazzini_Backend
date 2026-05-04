@@ -333,3 +333,4 @@ export class HistoriaClinica extends Document {
 }
 
 export const HistoriaClinicaSchema = SchemaFactory.createForClass(HistoriaClinica).set('timestamps', true);
+HistoriaClinicaSchema.index({ idTrabajador: 1, fechaHistoriaClinica: -1 });

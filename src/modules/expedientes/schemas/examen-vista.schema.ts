@@ -147,3 +147,4 @@ export class ExamenVista extends Document {
 }
 
 export const ExamenVistaSchema = SchemaFactory.createForClass(ExamenVista).set('timestamps', true);
+ExamenVistaSchema.index({ idTrabajador: 1, fechaExamenVista: -1 });

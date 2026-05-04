@@ -112,3 +112,4 @@ export class Audiometria extends Document {
 }
 
 export const AudiometriaSchema = SchemaFactory.createForClass(Audiometria).set('timestamps', true);
+AudiometriaSchema.index({ idTrabajador: 1, fechaAudiometria: -1 });
