@@ -1,6 +1,8 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { ExpedientesService } from './expedientes.service';
 import { ExpedientesController } from './expedientes.controller';
+import { SeguimientoProgramadoCardiometabolicoController } from './seguimiento-programado-cardiometabolico.controller';
+import { SeguimientoProgramadoCardiometabolicoService } from './seguimiento-programado-cardiometabolico.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Antidoping, AntidopingSchema } from './schemas/antidoping.schema';
 import { AptitudPuesto, AptitudPuestoSchema } from './schemas/aptitud-puesto.schema';
@@ -25,14 +27,25 @@ import {
   EventoSeguimientoCardiometabolico,
   EventoSeguimientoCardiometabolicoSchema,
 } from './schemas/evento-seguimiento-cardiometabolico.schema';
+import {
+  SeguimientoProgramadoCardiometabolico,
+  SeguimientoProgramadoCardiometabolicoSchema,
+} from './schemas/seguimiento-programado-cardiometabolico.schema';
 import { Trabajador, TrabajadorSchema } from '../trabajadores/schemas/trabajador.schema';
 import { InformesModule } from '../informes/informes.module';
 import { FilesModule } from '../files/files.module';
 import { PdfCleanerService } from './pdf-cleaner.service';
 
 @Module({
-  controllers: [ExpedientesController],
-  providers: [ExpedientesService, PdfCleanerService],
+  controllers: [
+    ExpedientesController,
+    SeguimientoProgramadoCardiometabolicoController,
+  ],
+  providers: [
+    ExpedientesService,
+    PdfCleanerService,
+    SeguimientoProgramadoCardiometabolicoService,
+  ],
   imports: [
     MongooseModule.forFeature([
       { name: Antidoping.name, schema: AntidopingSchema },
@@ -56,6 +69,10 @@ import { PdfCleanerService } from './pdf-cleaner.service';
       { name: CuestionarioProdromalBreve.name, schema: CuestionarioProdromalBreveSchema },
       { name: TrastornoLimitePersonalidad.name, schema: TrastornoLimitePersonalidadSchema },
       { name: EventoSeguimientoCardiometabolico.name, schema: EventoSeguimientoCardiometabolicoSchema },
+      {
+        name: SeguimientoProgramadoCardiometabolico.name,
+        schema: SeguimientoProgramadoCardiometabolicoSchema,
+      },
     ]),
     forwardRef(() => InformesModule),
     FilesModule, // Nuevo módulo

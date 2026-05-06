@@ -331,9 +331,9 @@ function etiquetaGradoObesidadEsc(g: GradoObesidad | undefined): string {
   if (g == null) return PLACEHOLDER;
   const m: Record<GradoObesidad, string> = {
     [GradoObesidad.SOBREPESO]: 'Sobrepeso',
-    [GradoObesidad.OBESIDAD_I]: 'Obesidad grado I',
-    [GradoObesidad.OBESIDAD_II]: 'Obesidad grado II',
-    [GradoObesidad.OBESIDAD_III]: 'Obesidad grado III',
+    [GradoObesidad.OBESIDAD_I]: 'Obesidad clase I',
+    [GradoObesidad.OBESIDAD_II]: 'Obesidad clase II',
+    [GradoObesidad.OBESIDAD_III]: 'Obesidad clase III',
   };
   return m[g] ?? String(g);
 }

@@ -4,9 +4,9 @@ export enum CategoriaIMC {
   BAJO_PESO = 'Bajo peso',
   NORMAL = 'Normal',
   SOBREPESO = 'Sobrepeso',
-  OBESIDAD_CLASE_I = 'Obesidad grado I',
-  OBESIDAD_CLASE_II = 'Obesidad grado II',
-  OBESIDAD_CLASE_III = 'Obesidad grado III',
+  OBESIDAD_CLASE_I = 'Obesidad clase I',
+  OBESIDAD_CLASE_II = 'Obesidad clase II',
+  OBESIDAD_CLASE_III = 'Obesidad clase III',
 }
 
 export enum CategoriaCircunferenciaCintura {
