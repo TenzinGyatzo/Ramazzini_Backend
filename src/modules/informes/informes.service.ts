@@ -3773,7 +3773,7 @@ export class InformesService {
     );
 
     const datosEventoSeguimientoCardiometabolico = {
-      fechaControlCardiometabolico: eventoSeguimientoCardiometabolico.fechaControlCardiometabolico,
+      fechaEventoSeguimientoCardiometabolico: eventoSeguimientoCardiometabolico.fechaEventoSeguimientoCardiometabolico,
       motivoSeguimiento: eventoSeguimientoCardiometabolico.motivoSeguimiento,
       diagnosticosActivos: eventoSeguimientoCardiometabolico.diagnosticosActivos,
       estadoCondiciones: eventoSeguimientoCardiometabolico.estadoCondiciones,
@@ -3782,8 +3782,7 @@ export class InformesService {
       laboratorio: eventoSeguimientoCardiometabolico.laboratorio,
       adherenciaTerapeutica: eventoSeguimientoCardiometabolico.adherenciaTerapeutica,
       sintomasRelevantes: eventoSeguimientoCardiometabolico.sintomasRelevantes,
-      evaluacionClinica: eventoSeguimientoCardiometabolico.evaluacionClinica,
-      plan: eventoSeguimientoCardiometabolico.plan,
+      riesgosActuales: eventoSeguimientoCardiometabolico.riesgosActuales,
       proximaRevisionSugerida: eventoSeguimientoCardiometabolico.proximaRevisionSugerida,
     };
 
@@ -3881,7 +3880,7 @@ export class InformesService {
         colorInforme: "#343A40",
       };
 
-    const fecha = convertirFechaADDMMAAAA(eventoSeguimientoCardiometabolico.fechaControlCardiometabolico)
+    const fecha = convertirFechaADDMMAAAA(eventoSeguimientoCardiometabolico.fechaEventoSeguimientoCardiometabolico)
       .replace(/\//g, '-')
       .replace(/\\/g, '-');
     const nombreArchivo = `Evento Seguimiento Cardiometabolico ${fecha}.pdf`;

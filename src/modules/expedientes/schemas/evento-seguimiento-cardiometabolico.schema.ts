@@ -4,9 +4,15 @@ import { Trabajador } from 'src/modules/trabajadores/entities/trabajador.entity'
 import { User } from 'src/modules/users/entities/user.entity';
 import {
   CategoriaCircunferenciaCintura,
+  CategoriaColesterolTotal,
   CategoriaFrecuenciaCardiaca,
+  CategoriaGlucosa,
+  CategoriaHbA1c,
+  CategoriaHDL,
   CategoriaIMC,
+  CategoriaLDL,
   CategoriaTensionArterial,
+  CategoriaTrigliceridos,
 } from '../enums/clinical-categories.enum';
 import {
   DiagnosticoCardiometabolico,
@@ -21,6 +27,12 @@ const VALORES_CATEGORIA_IMC = Object.values(CategoriaIMC);
 const VALORES_CATEGORIA_CINTURA = Object.values(CategoriaCircunferenciaCintura);
 const VALORES_CATEGORIA_TA = Object.values(CategoriaTensionArterial);
 const VALORES_CATEGORIA_FC = Object.values(CategoriaFrecuenciaCardiaca);
+const VALORES_CATEGORIA_GLUCOSA = Object.values(CategoriaGlucosa);
+const VALORES_CATEGORIA_HBA1C = Object.values(CategoriaHbA1c);
+const VALORES_CATEGORIA_COLESTEROL_TOTAL = Object.values(CategoriaColesterolTotal);
+const VALORES_CATEGORIA_LDL = Object.values(CategoriaLDL);
+const VALORES_CATEGORIA_HDL = Object.values(CategoriaHDL);
+const VALORES_CATEGORIA_TRIG = Object.values(CategoriaTrigliceridos);
 
 @Schema({ _id: false })
 export class SignosVitalesCardiometabolico {
@@ -66,55 +78,66 @@ export class LaboratorioCardiometabolico {
   @Prop()
   glucosaMgDl?: number;
 
+  @Prop({ enum: VALORES_CATEGORIA_GLUCOSA })
+  categoriaGlucosa?: CategoriaGlucosa;
+
   @Prop()
   hba1cPorcentaje?: number;
+
+  @Prop({ enum: VALORES_CATEGORIA_HBA1C })
+  categoriaHbA1c?: CategoriaHbA1c;
 
   @Prop()
   colesterolTotalMgDl?: number;
 
+  @Prop({ enum: VALORES_CATEGORIA_COLESTEROL_TOTAL })
+  categoriaColesterolTotal?: CategoriaColesterolTotal;
+
   @Prop()
   ldlMgDl?: number;
+
+  @Prop({ enum: VALORES_CATEGORIA_LDL })
+  categoriaLDL?: CategoriaLDL;
 
   @Prop()
   hdlMgDl?: number;
 
+  @Prop({ enum: VALORES_CATEGORIA_HDL })
+  categoriaHDL?: CategoriaHDL;
+
   @Prop()
   trigliceridosMgDl?: number;
+
+  @Prop({ enum: VALORES_CATEGORIA_TRIG })
+  categoriaTrigliceridos?: CategoriaTrigliceridos;
 }
 
 @Schema({ _id: false })
-export class CondicionMetabolicaEstado {
-  @Prop()
-  presente?: boolean;
-
+export class VisitaControlCondicion {
   @Prop({ enum: ESTADOS_CONTROL })
   control?: EstadoControlCondicion;
 }
 
+const VisitaControlCondicionSchema = SchemaFactory.createForClass(VisitaControlCondicion);
+
 @Schema({ _id: false })
 export class CondicionObesidadEstado {
-  @Prop()
-  presente?: boolean;
-
   @Prop({ enum: GRADOS_OBESIDAD })
   grado?: GradoObesidad;
 }
 
-const CondicionMetabolicaEstadoSchema = SchemaFactory.createForClass(
-  CondicionMetabolicaEstado,
-);
 const CondicionObesidadEstadoSchema = SchemaFactory.createForClass(CondicionObesidadEstado);
 
 @Schema({ _id: false })
 export class EstadoCondicionesCardiometabolicas {
-  @Prop({ type: CondicionMetabolicaEstadoSchema })
-  hipertension?: CondicionMetabolicaEstado;
+  @Prop({ type: VisitaControlCondicionSchema })
+  hipertensionArterial?: VisitaControlCondicion;
 
-  @Prop({ type: CondicionMetabolicaEstadoSchema })
-  diabetes?: CondicionMetabolicaEstado;
+  @Prop({ type: VisitaControlCondicionSchema })
+  diabetesMellitusTipo2?: VisitaControlCondicion;
 
-  @Prop({ type: CondicionMetabolicaEstadoSchema })
-  dislipidemia?: CondicionMetabolicaEstado;
+  @Prop({ type: VisitaControlCondicionSchema })
+  dislipidemia?: VisitaControlCondicion;
 
   @Prop({ type: CondicionObesidadEstadoSchema })
   obesidad?: CondicionObesidadEstado;
@@ -137,7 +160,7 @@ const EstadoCondicionesCardiometabolicasSchema = SchemaFactory.createForClass(
 @Schema()
 export class EventoSeguimientoCardiometabolico extends Document {
   @Prop({ required: true })
-  fechaControlCardiometabolico: Date;
+  fechaEventoSeguimientoCardiometabolico: Date;
 
   @Prop({ required: true })
   motivoSeguimiento: string;
@@ -166,10 +189,7 @@ export class EventoSeguimientoCardiometabolico extends Document {
   sintomasRelevantes?: string;
 
   @Prop()
-  evaluacionClinica?: string;
-
-  @Prop()
-  plan?: string;
+  riesgosActuales?: string;
 
   @Prop()
   proximaRevisionSugerida?: Date;
@@ -191,4 +211,4 @@ export const EventoSeguimientoCardiometabolicoSchema = SchemaFactory.createForCl
   EventoSeguimientoCardiometabolico,
 ).set('timestamps', true);
 
-EventoSeguimientoCardiometabolicoSchema.index({ idTrabajador: 1, fechaControlCardiometabolico: -1 });
+EventoSeguimientoCardiometabolicoSchema.index({ idTrabajador: 1, fechaEventoSeguimientoCardiometabolico: -1 });

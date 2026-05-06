@@ -1,7 +1,6 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsBoolean,
   IsDate,
   IsEnum,
   IsMongoId,
@@ -20,28 +19,26 @@ import {
 } from '../schemas/cardiometabolico.enums';
 import {
   CategoriaCircunferenciaCintura,
+  CategoriaColesterolTotal,
   CategoriaFrecuenciaCardiaca,
+  CategoriaGlucosa,
+  CategoriaHbA1c,
+  CategoriaHDL,
   CategoriaIMC,
+  CategoriaLDL,
   CategoriaTensionArterial,
+  CategoriaTrigliceridos,
 } from '../enums/clinical-categories.enum';
 
-export class CondicionMetabolicaEstadoDto {
-  @IsOptional()
-  @IsBoolean({ message: 'presente debe ser booleano' })
-  presente?: boolean;
-
+export class VisitaControlCondicionDto {
   @IsOptional()
   @IsEnum(EstadoControlCondicion, {
-    message: 'control debe ser CONTROLADA, NO_CONTROLADA o NO_VALORABLE',
+    message: 'control de condición debe ser CONTROLADA, NO_CONTROLADA o NO_VALORABLE',
   })
   control?: EstadoControlCondicion;
 }
 
 export class CondicionObesidadEstadoDto {
-  @IsOptional()
-  @IsBoolean({ message: 'presente debe ser booleano' })
-  presente?: boolean;
-
   @IsOptional()
   @IsEnum(GradoObesidad, { message: 'grado de obesidad no válido' })
   grado?: GradoObesidad;
@@ -50,18 +47,18 @@ export class CondicionObesidadEstadoDto {
 export class EstadoCondicionesCardiometabolicasDto {
   @IsOptional()
   @ValidateNested()
-  @Type(() => CondicionMetabolicaEstadoDto)
-  hipertension?: CondicionMetabolicaEstadoDto;
+  @Type(() => VisitaControlCondicionDto)
+  hipertensionArterial?: VisitaControlCondicionDto;
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => CondicionMetabolicaEstadoDto)
-  diabetes?: CondicionMetabolicaEstadoDto;
+  @Type(() => VisitaControlCondicionDto)
+  diabetesMellitusTipo2?: VisitaControlCondicionDto;
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => CondicionMetabolicaEstadoDto)
-  dislipidemia?: CondicionMetabolicaEstadoDto;
+  @Type(() => VisitaControlCondicionDto)
+  dislipidemia?: VisitaControlCondicionDto;
 
   @IsOptional()
   @ValidateNested()
@@ -133,31 +130,59 @@ export class LaboratorioCardiometabolicoDto {
   glucosaMgDl?: number;
 
   @IsOptional()
+  @IsEnum(CategoriaGlucosa, { message: 'Categoría de glucosa no válida' })
+  categoriaGlucosa?: CategoriaGlucosa;
+
+  @IsOptional()
   @IsNumber()
   hba1cPorcentaje?: number;
+
+  @IsOptional()
+  @IsEnum(CategoriaHbA1c, { message: 'Categoría de HbA1c no válida' })
+  categoriaHbA1c?: CategoriaHbA1c;
 
   @IsOptional()
   @IsNumber()
   colesterolTotalMgDl?: number;
 
   @IsOptional()
+  @IsEnum(CategoriaColesterolTotal, {
+    message: 'Categoría de colesterol total no válida',
+  })
+  categoriaColesterolTotal?: CategoriaColesterolTotal;
+
+  @IsOptional()
   @IsNumber()
   ldlMgDl?: number;
+
+  @IsOptional()
+  @IsEnum(CategoriaLDL, { message: 'Categoría de LDL no válida' })
+  categoriaLDL?: CategoriaLDL;
 
   @IsOptional()
   @IsNumber()
   hdlMgDl?: number;
 
   @IsOptional()
+  @IsEnum(CategoriaHDL, { message: 'Categoría de HDL no válida' })
+  categoriaHDL?: CategoriaHDL;
+
+  @IsOptional()
   @IsNumber()
   trigliceridosMgDl?: number;
+
+  @IsOptional()
+  @IsEnum(CategoriaTrigliceridos, {
+    message: 'Categoría de triglicéridos no válida',
+  })
+  categoriaTrigliceridos?: CategoriaTrigliceridos;
 }
 
 export class CreateEventoSeguimientoCardiometabolicoDto {
-  @IsDate({ message: 'La fecha del control debe ser una fecha' })
+  @IsDate({ message: 'La fecha del evento de seguimiento debe ser una fecha' })
   @Type(() => Date)
-  @IsNotEmpty({ message: 'La fecha del control no puede estar vacía' })
-  fechaControlCardiometabolico: Date;
+  @IsNotEmpty({ message: 'La fecha del evento de seguimiento no puede estar vacía' })
+  fechaEventoSeguimientoCardiometabolico: Date;
 
   @IsString({ message: 'El motivo del seguimiento debe ser un string' })
   @IsNotEmpty({ message: 'El motivo del seguimiento no puede estar vacío' })
@@ -197,12 +222,8 @@ export class CreateEventoSeguimientoCardiometabolicoDto {
   sintomasRelevantes?: string;
 
   @IsOptional()
-  @IsString({ message: 'La evaluación clínica debe ser un string' })
-  evaluacionClinica?: string;
-
-  @IsOptional()
-  @IsString({ message: 'El plan debe ser un string' })
-  plan?: string;
+  @IsString({ message: 'Los riesgos actuales deben ser un string' })
+  riesgosActuales?: string;
 
   @IsOptional()
   @IsDate({ message: 'La próxima revisión sugerida debe ser una fecha' })

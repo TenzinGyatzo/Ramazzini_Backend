@@ -103,7 +103,7 @@ export class ExpedientesService {
       trastornosEstadoAnimo: 'fechaTrastornosEstadoAnimo',
       cuestionarioProdromalBreve: 'fechaCuestionarioProdromalBreve',
       trastornoLimitePersonalidad: 'fechaTrastornoLimitePersonalidad',
-      eventoSeguimientoCardiometabolico: 'fechaControlCardiometabolico',
+      eventoSeguimientoCardiometabolico: 'fechaEventoSeguimientoCardiometabolico',
     };
   }
 
