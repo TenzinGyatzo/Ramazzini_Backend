@@ -32,6 +32,13 @@ import {
   calcularAntiguedad,
 } from 'src/utils/dates';
 import { findNearestDocument } from 'src/utils/findNearestDocuments';
+import { findNearestDocumentSameYear } from 'src/utils/findNearestDocumentSameYear';
+import {
+  resumenTablaEntrevistaPsicologica,
+  resumenTablaTrastornosEstadoAnimo,
+  resumenTablaCuestionarioProdromalBreve,
+  resumenTablaTrastornoLimitePersonalidad,
+} from 'src/utils/aptitud-informe-psicologia-resumenes';
 import * as path from 'path';
 import * as fs from 'fs';
 import { UsersService } from '../users/users.service';
@@ -603,6 +610,82 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const [
+      entrevistasPsicologicasList,
+      trastornosEstadoAnimoList,
+      cuestionariosProdromalBreveList,
+      trastornosLimitePersonalidadList,
+    ] = await Promise.all([
+      this.expedientesService.findDocuments('entrevistaPsicologica', trabajadorId),
+      this.expedientesService.findDocuments('trastornosEstadoAnimo', trabajadorId),
+      this.expedientesService.findDocuments('cuestionarioProdromalBreve', trabajadorId),
+      this.expedientesService.findDocuments('trastornoLimitePersonalidad', trabajadorId),
+    ]);
+
+    const fechaAptitudRef = aptitud.fechaAptitudPuesto;
+    const nearestEpPsi = findNearestDocumentSameYear(
+      entrevistasPsicologicasList,
+      fechaAptitudRef,
+      'fechaEntrevistaPsicologica',
+    );
+    const nearestTeaPsi = findNearestDocumentSameYear(
+      trastornosEstadoAnimoList,
+      fechaAptitudRef,
+      'fechaTrastornosEstadoAnimo',
+    );
+    const nearestPqbPsi = findNearestDocumentSameYear(
+      cuestionariosProdromalBreveList,
+      fechaAptitudRef,
+      'fechaCuestionarioProdromalBreve',
+    );
+    const nearestTlpPsi = findNearestDocumentSameYear(
+      trastornosLimitePersonalidadList,
+      fechaAptitudRef,
+      'fechaTrastornoLimitePersonalidad',
+    );
+
+    const filasTamizajePsicologia: {
+      titulo: string;
+      fecha: Date;
+      resumen: string;
+    }[] = [];
+    if (nearestEpPsi) {
+      filasTamizajePsicologia.push({
+        titulo: 'ENTREVISTA PSICOLÓGICA',
+        fecha: nearestEpPsi.fechaEntrevistaPsicologica,
+        resumen: resumenTablaEntrevistaPsicologica(
+          nearestEpPsi as Record<string, unknown>,
+        ),
+      });
+    }
+    if (nearestTeaPsi) {
+      filasTamizajePsicologia.push({
+        titulo: 'TRASTORNOS DEL ESTADO DE ÁNIMO',
+        fecha: nearestTeaPsi.fechaTrastornosEstadoAnimo,
+        resumen: resumenTablaTrastornosEstadoAnimo(
+          nearestTeaPsi as Record<string, unknown>,
+        ),
+      });
+    }
+    if (nearestPqbPsi) {
+      filasTamizajePsicologia.push({
+        titulo: 'CUESTIONARIO PRODROMAL BREVE',
+        fecha: nearestPqbPsi.fechaCuestionarioProdromalBreve,
+        resumen: resumenTablaCuestionarioProdromalBreve(
+          nearestPqbPsi as Record<string, unknown>,
+        ),
+      });
+    }
+    if (nearestTlpPsi) {
+      filasTamizajePsicologia.push({
+        titulo: 'TRASTORNO LÍMITE PERSONALIDAD',
+        fecha: nearestTlpPsi.fechaTrastornoLimitePersonalidad,
+        resumen: resumenTablaTrastornoLimitePersonalidad(
+          nearestTlpPsi as Record<string, unknown>,
+        ),
+      });
+    }
+
     const docDefinition = aptitudPuestoInforme(
       nombreEmpresa,
       datosTrabajador,
@@ -619,6 +702,7 @@ export class InformesService {
       datosResultadoClinicoAnalisisLaboratorio,
       datosMedicoFirmante,
       datosProveedorSalud,
+      filasTamizajePsicologia,
     );
 
     // Generar y guardar el PDF

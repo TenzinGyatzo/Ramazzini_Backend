@@ -98,10 +98,25 @@ const styles: StyleDictionary = {
     alignment: 'center',
     margin: [0, 0, 0, 0],
   },
+  /** Solo filas MDQ, prodromal breve y TLP en tabla resumen aptitud (texto largo en columna estudio) */
+  sectionHeaderTamizajeCompacto: {
+    fontSize: 8,
+    lineHeight: 0.85,
+    bold: true,
+    alignment: 'center',
+    margin: [0, 0, 0, 0],
+  },
 };
 
 // ==================== FUNCIONES REUSABLES ====================
 type Alignment = 'left' | 'center' | 'right' | 'justify';
+
+/** Solo el título (columna 1) en estas filas usa fuente menor; fechas y resumen siguen como `tableCell`. */
+const TITULOS_TAMIZAJE_TEXTO_COMPACTO = new Set<string>([
+  'TRASTORNOS DEL ESTADO DE ÁNIMO',
+  'CUESTIONARIO PRODROMAL BREVE',
+  'TRASTORNO LÍMITE PERSONALIDAD',
+]);
 
 const createTableCell = (
   text: string,
@@ -548,6 +563,13 @@ interface ResultadoClinicoAnalisisLaboratorio {
   tipoAlteracionAnalisisLaboratorio?: string[];
 }
 
+/** Filas opcionales de tamizaje psicológico (misma lógica que el visualizador de aptitud). */
+export interface AptitudInformeFilaTamizajePsicologia {
+  titulo: string;
+  fecha: Date;
+  resumen: string;
+}
+
 interface MedicoFirmante {
   nombre: string;
   tituloProfesional: string;
@@ -598,6 +620,7 @@ export const aptitudPuestoInforme = (
   resultadoAnalisisLaboratorio: ResultadoClinicoAnalisisLaboratorio | null,
   medicoFirmante: MedicoFirmante,
   proveedorSalud: ProveedorSalud,
+  filasTamizajePsicologia: AptitudInformeFilaTamizajePsicologia[] = [],
 ): TDocumentDefinitions => {
 
   // Clonamos los estilos y cambiamos fillColor antes de pasarlos a pdfMake
@@ -870,6 +893,15 @@ if (trabajador.nss || trabajador.curp) {
           ],
         ]
       : []),
+    ...filasTamizajePsicologia.map((fila) => {
+      const compacto = TITULOS_TAMIZAJE_TEXTO_COMPACTO.has(fila.titulo);
+      const headerStyle = compacto ? 'sectionHeaderTamizajeCompacto' : 'sectionHeader';
+      return [
+        createTableCell(fila.titulo, headerStyle, 'center'),
+        createTableCell(formatearFechaUTC(fila.fecha), 'tableCell', 'center'),
+        createTableCell(fila.resumen, 'tableCell', 'center'),
+      ];
+    }),
   ];
 
   // Agregar filas para cada evaluación adicional si existen los datos
