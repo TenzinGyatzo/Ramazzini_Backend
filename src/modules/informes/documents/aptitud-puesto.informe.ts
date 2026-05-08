@@ -922,9 +922,13 @@ if (trabajador.nss || trabajador.curp) {
   const aptitudPuesto = aptitud.aptitudPuesto;
   const aptitudColor = getColorForAptitud(aptitudPuesto, proveedorSalud.semaforizacionActivada);
 
+  /** Más aire entre header y cuerpo en pág. 2+; en p.1 se anula con margen negativo en el primer bloque del contenido. */
+  const pageTopMarginExtraPt = 18;
+  const pageMarginsTop = 60 + pageTopMarginExtraPt;
+
   return {
     pageSize: 'LETTER',
-    pageMargins: [40, 60, 40, 80],
+    pageMargins: [40, pageMarginsTop, 40, 80],
     header: header,
     content: [
       // Nombre de la empresa y fecha
@@ -956,7 +960,7 @@ if (trabajador.nss || trabajador.curp) {
           ],
         },
         layout: 'noBorders',
-        margin: [0, 0, 0, 0],
+        margin: [0, -pageTopMarginExtraPt, 0, 0] as [number, number, number, number],
       },
       // Datos del trabajador
       {
