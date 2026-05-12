@@ -31,6 +31,8 @@ import { EntrevistaPsicologica } from '../expedientes/schemas/entrevista-psicolo
 import { TrastornosEstadoAnimo } from '../expedientes/schemas/trastornos-estado-animo.schema';
 import { CuestionarioProdromalBreve } from '../expedientes/schemas/cuestionario-prodromal-breve.schema';
 import { TrastornoLimitePersonalidad } from '../expedientes/schemas/trastorno-limite-personalidad.schema';
+import { EventoSeguimientoCardiometabolico } from '../expedientes/schemas/evento-seguimiento-cardiometabolico.schema';
+import { InformeLongitudinalCardiometabolico } from '../expedientes/schemas/informe-longitudinal-cardiometabolico.schema';
 import { ResultadoClinico, ResultadoGlobal, TipoEstudio } from '../resultados-clinicos/schemas/resultado-clinico.schema';
 
 @Injectable()
@@ -53,6 +55,8 @@ export class TrabajadoresService {
   @InjectModel(TrastornosEstadoAnimo.name) private trastornosEstadoAnimoModel: Model<TrastornosEstadoAnimo>,
   @InjectModel(CuestionarioProdromalBreve.name) private cuestionarioProdromalBreveModel: Model<CuestionarioProdromalBreve>,
   @InjectModel(TrastornoLimitePersonalidad.name) private trastornoLimitePersonalidadModel: Model<TrastornoLimitePersonalidad>,
+  @InjectModel(EventoSeguimientoCardiometabolico.name) private eventoSeguimientoCardiometabolicoModel: Model<EventoSeguimientoCardiometabolico>,
+  @InjectModel(InformeLongitudinalCardiometabolico.name) private informeLongitudinalCardiometabolicoModel: Model<InformeLongitudinalCardiometabolico>,
   @InjectModel(RiesgoTrabajo.name) private riesgoTrabajoModel: Model<RiesgoTrabajo>,
   @InjectModel(ResultadoClinico.name) private resultadoClinicoModel: Model<ResultadoClinico>,
   @InjectModel(CentroTrabajo.name) private centroTrabajoModel: Model<CentroTrabajo>,
@@ -117,6 +121,8 @@ export class TrabajadoresService {
       consultasAgg,
       audiometriasAgg,
       resultadosAgg,
+      eventoSeguimientoCardiometabolicoAgg,
+      informeLongitudinalCardiometabolicoAgg,
     ] = await Promise.all([
       this.historiaClinicaModel
         .aggregate([
@@ -231,6 +237,30 @@ export class TrabajadoresService {
           },
         ])
         .exec(),
+      this.eventoSeguimientoCardiometabolicoModel
+        .aggregate([
+          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $sort: { fechaEventoSeguimientoCardiometabolico: -1 } },
+          {
+            $group: {
+              _id: '$idTrabajador',
+              fechaEventoSeguimientoCardiometabolico: { $first: '$fechaEventoSeguimientoCardiometabolico' },
+            },
+          },
+        ])
+        .exec(),
+      this.informeLongitudinalCardiometabolicoModel
+        .aggregate([
+          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $sort: { fechaInformeLongitudinalCardiometabolico: -1 } },
+          {
+            $group: {
+              _id: '$idTrabajador',
+              fechaInformeLongitudinalCardiometabolico: { $first: '$fechaInformeLongitudinalCardiometabolico' },
+            },
+          },
+        ])
+        .exec(),
     ]);
 
     const historiasMap = new Map<string, any>(
@@ -251,6 +281,8 @@ export class TrabajadoresService {
     const audiometriasMap = new Map<string, any>(
       audiometriasAgg.map((a) => [a._id.toString(), a]),
     );
+    const eventoSeguimientoCardiometabolicoMap = new Map<string, { fechaEventoSeguimientoCardiometabolico: Date }>();
+    const informeLongitudinalCardiometabolicoMap = new Map<string, { fechaInformeLongitudinalCardiometabolico: Date }>();
 
     const resultadosEspirometriaMap = new Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>();
     const resultadosEkgMap = new Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>();
@@ -2152,6 +2184,8 @@ export class TrabajadoresService {
       TrastornosEstadoAnimo: 'fechaTrastornosEstadoAnimo',
       CuestionarioProdromalBreve: 'fechaCuestionarioProdromalBreve',
       TrastornoLimitePersonalidad: 'fechaTrastornoLimitePersonalidad',
+      EventoSeguimientoCardiometabolico: 'fechaEventoSeguimientoCardiometabolico',
+      InformeLongitudinalCardiometabolico: 'fechaInformeLongitudinalCardiometabolico',
     };
   
     // Determinar el tipo de documento con el nombre del modelo en Mongoose
@@ -2191,6 +2225,8 @@ export class TrabajadoresService {
       TrastornosEstadoAnimo: 'Trastornos Estado Animo',
       CuestionarioProdromalBreve: 'Cuestionario Prodromal Breve',
       TrastornoLimitePersonalidad: 'Trastorno Limite Personalidad',
+      EventoSeguimientoCardiometabolico: 'Evento Seguimiento Cardiometabolico',
+      InformeLongitudinalCardiometabolico: 'Informe Longitudinal Cardiometabolico',
     };
   
     // Si es un Documento Externo, construir el nombre dinámicamente
@@ -2292,6 +2328,8 @@ export class TrabajadoresService {
             this.trastornosEstadoAnimoModel.find({ idTrabajador: id }).session(session).exec(),
             this.cuestionarioProdromalBreveModel.find({ idTrabajador: id }).session(session).exec(),
             this.trastornoLimitePersonalidadModel.find({ idTrabajador: id }).session(session).exec(),
+            this.eventoSeguimientoCardiometabolicoModel.find({ idTrabajador: id }).session(session).exec(),
+            this.informeLongitudinalCardiometabolicoModel.find({ idTrabajador: id }).session(session).exec(),
             this.riesgoTrabajoModel.find({ idTrabajador: id }).session(session).exec(),
           ])
         ).flat();
@@ -2316,6 +2354,8 @@ export class TrabajadoresService {
             this.trastornosEstadoAnimoModel.deleteMany({ idTrabajador: id }).session(session),
             this.cuestionarioProdromalBreveModel.deleteMany({ idTrabajador: id }).session(session),
             this.trastornoLimitePersonalidadModel.deleteMany({ idTrabajador: id }).session(session),
+            this.eventoSeguimientoCardiometabolicoModel.deleteMany({ idTrabajador: id }).session(session),
+            this.informeLongitudinalCardiometabolicoModel.deleteMany({ idTrabajador: id }).session(session),
             this.riesgoTrabajoModel.deleteMany({ idTrabajador: id }).session(session),
           ]);
   

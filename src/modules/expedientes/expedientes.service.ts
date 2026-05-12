@@ -28,6 +28,7 @@ import { convertirFechaISOaDDMMYYYY } from 'src/utils/dates';
 import path from 'path';
 import { parseISO } from 'date-fns';
 import { Trabajador } from '../trabajadores/schemas/trabajador.schema';
+import { InformeLongitudinalCardiometabolico } from './schemas/informe-longitudinal-cardiometabolico.schema';
 
 
 @Injectable()
@@ -56,8 +57,8 @@ export class ExpedientesService {
     @InjectModel(TrastornosEstadoAnimo.name) private trastornosEstadoAnimoModel: Model<TrastornosEstadoAnimo>,
     @InjectModel(CuestionarioProdromalBreve.name) private cuestionarioProdromalBreveModel: Model<CuestionarioProdromalBreve>,
     @InjectModel(TrastornoLimitePersonalidad.name) private trastornoLimitePersonalidadModel: Model<TrastornoLimitePersonalidad>,
-    @InjectModel(EventoSeguimientoCardiometabolico.name)
-    private eventoSeguimientoCardiometabolicoModel: Model<EventoSeguimientoCardiometabolico>,
+    @InjectModel(EventoSeguimientoCardiometabolico.name) private eventoSeguimientoCardiometabolicoModel: Model<EventoSeguimientoCardiometabolico>,
+    @InjectModel(InformeLongitudinalCardiometabolico.name) private informeLongitudinalCardiometabolicoModel: Model<InformeLongitudinalCardiometabolico>,
     private readonly filesService: FilesService
   ) {
     this.models = {
@@ -81,6 +82,7 @@ export class ExpedientesService {
       cuestionarioProdromalBreve: this.cuestionarioProdromalBreveModel,
       trastornoLimitePersonalidad: this.trastornoLimitePersonalidadModel,
       eventoSeguimientoCardiometabolico: this.eventoSeguimientoCardiometabolicoModel,
+      informeLongitudinalCardiometabolico: this.informeLongitudinalCardiometabolicoModel,
     };
 
     this.dateFields = {
@@ -104,6 +106,7 @@ export class ExpedientesService {
       cuestionarioProdromalBreve: 'fechaCuestionarioProdromalBreve',
       trastornoLimitePersonalidad: 'fechaTrastornoLimitePersonalidad',
       eventoSeguimientoCardiometabolico: 'fechaEventoSeguimientoCardiometabolico',
+      informeLongitudinalCardiometabolico: 'fechaInformeLongitudinalCardiometabolico',
     };
   }
 

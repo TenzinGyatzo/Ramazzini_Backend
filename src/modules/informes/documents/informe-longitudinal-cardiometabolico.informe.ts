@@ -3,17 +3,32 @@ import type {
   StyleDictionary,
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
+import { Types } from 'mongoose';
 import {
   DiagnosticoCardiometabolico,
   EstadoControlCondicion,
   GradoObesidad,
 } from '../../expedientes/enums/cardiometabolico.enums';
+import {
+  ConsistenciaSeguimientoLongitudinal,
+  GraficaLongitudinalCardiometabolica,
+  NivelRiesgoLongitudinal,
+} from '../../expedientes/enums/informe-longitudinal-cardiometabolico.enums';
 import type {
   EstadoCondicionesCardiometabolicas,
   LaboratorioCardiometabolico,
   SignosVitalesCardiometabolico,
   SomatometriaCardiometabolico,
 } from '../../expedientes/schemas/evento-seguimiento-cardiometabolico.schema';
+import type {
+  CondicionControlResumenLongitudinal,
+  CondicionObesidadResumenLongitudinal,
+  EventoConcentradoCardiometabolico,
+  ResumenCondicionesCardiometabolicas,
+  ResumenIndicadorLongitudinal,
+  ResumenIndicadoresLongitudinal,
+  SeguimientoProgramadoConcentradoCardiometabolico,
+} from '../../expedientes/schemas/informe-longitudinal-cardiometabolico.schema';
 import { formatearNombreTrabajador } from '../../../utils/names';
 
 // ==================== ESTILOS ====================
@@ -103,7 +118,7 @@ const styles: StyleDictionary = {
 
 // ==================== CONTENIDO ====================
 const headerText: Content = {
-  text: '                                                  EVENTO SEGUIMIENTO CARDIOMETABOLICO\n',
+  text: '                                            INFORME LONGITUDINAL CARDIOMETABOLICO\n',
   style: 'header',
   alignment: 'right',
   margin: [0, 35, 40, 0],
@@ -213,18 +228,40 @@ interface Trabajador {
 }
 
 /** Payload alineado con EventoSeguimientoCardiometabolico (schema expedientes). */
-interface DatosEventoSeguimientoCardiometabolicoInforme {
-  fechaEventoSeguimientoCardiometabolico: Date | string;
-  motivoSeguimiento: string;
-  diagnosticosActivos?: DiagnosticoCardiometabolico[];
-  estadoCondiciones?: EstadoCondicionesCardiometabolicas;
-  signosVitales?: SignosVitalesCardiometabolico;
-  somatometria?: SomatometriaCardiometabolico;
-  laboratorio?: LaboratorioCardiometabolico;
-  adherenciaTerapeutica?: string;
-  sintomasRelevantes?: string;
-  riesgosActuales?: string;
-  proximaRevisionSugerida?: Date | string;
+interface DatosInformeLongitudinalCardiometabolicoInforme {
+  fechaInformeLongitudinalCardiometabolico: Date | string;
+  periodoInicio: Date;
+  periodoFin: Date;
+  fechaUltimoEventoConsiderado?: Date;
+  numeroEventosIncluidos: number;
+  numeroEventosValidos?: number;
+  numeroSeguimientosProgramados?: number;
+  numeroSeguimientosRealizados?: number;
+  numeroInasistencias?: number;
+  numeroCancelaciones?: number;
+  numeroReprogramaciones?: number;
+  porcentajeAsistencia?: number;
+  consistenciaSeguimiento?: ConsistenciaSeguimientoLongitudinal;
+  datosFaltantesRelevantes?: string[];
+  eventosIncluidos?: Types.ObjectId[];
+  seguimientosProgramadosIncluidos?: Types.ObjectId[];
+  resumenCondiciones?: ResumenCondicionesCardiometabolicas;
+  eventosConcentrados?: EventoConcentradoCardiometabolico[];
+  seguimientosProgramadosConcentrados?: SeguimientoProgramadoConcentradoCardiometabolico[];
+  resumenIndicadores?: ResumenIndicadoresLongitudinal;
+  graficasIncluidas?: GraficaLongitudinalCardiometabolica[];
+  nivelRiesgoLongitudinal?: NivelRiesgoLongitudinal;
+  interpretacionRiesgoLongitudinal?: string;
+  factoresPersistentes?: string[];
+  alertasRelevantes?: string[];
+  resumenLongitudinalSugerido?: string;
+  conclusionClinicaSugerida?: string;
+  recomendacionesSugeridas?: string;
+  limitacionesSugeridas?: string;
+  resumenLongitudinal?: string;
+  conclusionClinica?: string;
+  recomendaciones?: string;
+  limitaciones?: string;
 }
 
 interface MedicoFirmante {
@@ -550,366 +587,393 @@ function tablaEstadoCondiciones(
   };
 }
 
-function seccionDiagnosticosActivos(
-  diagnosticosActivos: DiagnosticoCardiometabolico[] | undefined,
-): Content {
-  const activos = new Set<string>(
-    Array.isArray(diagnosticosActivos)
-      ? diagnosticosActivos.map((d) => String(d))
-      : [],
-  );
+type BloqueCondicionResumenLongitudinal =
+  | CondicionControlResumenLongitudinal
+  | CondicionObesidadResumenLongitudinal;
 
-  const izq = DIAGNOSTICOS_ORDEN.slice(0, 2);
-  const der = DIAGNOSTICOS_ORDEN.slice(2, 4);
-
-  return {
-    stack: [
-      {
-        text: 'DIAGNÓSTICOS ACTIVOS',
-        style: 'sectionHeader',
-      },
-      {
-        columns: [
-          tablaDiagnosticosActivos(izq, activos),
-          tablaDiagnosticosActivos(der, activos),
-        ],
-        columnGap: 4,
-      },
-    ],
-    margin: [0, 0, 0, 8],
-  };
+function formatoIndicadorResumenPdf(o: ResumenIndicadorLongitudinal | undefined): string {
+  if (!o || typeof o !== 'object') return '';
+  const vi = o.valorInicial;
+  const vf = o.valorFinal;
+  if (vi == null && vf == null) return '';
+  const tramo =
+    vi != null && vf != null ? `${vi} → ${vf}` : vi != null ? String(vi) : String(vf);
+  const delta =
+    o.cambioAbsoluto != null && vi != null && vf != null ? ` (Δ ${o.cambioAbsoluto})` : '';
+  const tend = o.tendencia ? ` · ${o.tendencia}` : ' · —';
+  return `${tramo}${delta}${tend}`;
 }
 
-function seccionSomatometriaSignosVitales(
-  s: SomatometriaCardiometabolico | undefined,
-  sv: SignosVitalesCardiometabolico | undefined,
-): Content {
-  /** Cada fila debe ser una estructura nueva: si se reusa la misma referencia, pdfmake no pinta bien la 2.ª fila. */
-  const nuevaFilaGuionesSignosVitales = () => [
-    { text: '-', style: 'tableCellMuted' },
-    { text: '-', style: 'tableCellMuted' },
-    { text: '-', style: 'tableCellMuted' },
-  ];
-
-  const somatometriaBody = [
-    [
-      {
-        text: 'SOMATOMETRÍA',
-        style: 'tableHeader',
-        colSpan: 3,
-        alignment: 'center',
-      },
-      {},
-      {},
-    ],
-    [
-      { text: 'Parámetro', style: 'tableHeader', alignment: 'center' },
-      { text: 'Especifique', style: 'tableHeader', alignment: 'center' },
-      { text: 'Categoría', style: 'tableHeader', alignment: 'center' },
-    ],
-    [
-      { text: 'PESO', style: 'tableCellBold' },
-      {
-        text:
-          s?.peso != null
-            ? `${s.peso} kg`
-            : '',
-        style: 'tableCell',
-      },
-      { text: '-', style: 'tableCellMuted' },
-    ],
-    [
-      { text: 'ALTURA', style: 'tableCellBold' },
-      {
-        text:
-          s?.altura != null
-            ? `${s.altura} m`
-            : '',
-        style: 'tableCell',
-      },
-      { text: '-', style: 'tableCellMuted' },
-    ],
-    [
-      { text: 'ÍNDICE DE MASA CORPORAL', style: 'tableCellBold' },
-      { text: fmtOpcional(s?.indiceMasaCorporal), style: 'tableCell' },
-      { text: fmtOpcional(s?.categoriaIMC), style: 'tableCell' },
-    ],
-    [
-      { text: 'CIRCUNFERENCIA CINTURA', style: 'tableCellBold' },
-      {
-        text:
-          s?.circunferenciaCintura != null
-            ? `${s.circunferenciaCintura} cm`
-            : '',
-        style: 'tableCell',
-      },
-      {
-        text: fmtOpcional(s?.categoriaCircunferenciaCintura),
-        style: 'tableCell',
-      },
-    ],
-  ];
-
-  const tensionTexto =
-    sv && (sv.tensionArterialSistolica != null || sv.tensionArterialDiastolica != null)
-      ? `${fmtOpcional(sv.tensionArterialSistolica)}/${fmtOpcional(sv.tensionArterialDiastolica)} mmHg`
-      : '';
-
-  const signosVitalesBody = [
-    [
-      {
-        text: 'SIGNOS VITALES',
-        style: 'tableHeader',
-        colSpan: 3,
-        alignment: 'center',
-      },
-      {},
-      {},
-    ],
-    [
-      { text: 'Parámetro', style: 'tableHeader', alignment: 'center' },
-      { text: 'Especifique', style: 'tableHeader', alignment: 'center' },
-      { text: 'Categoría', style: 'tableHeader', alignment: 'center' },
-    ],
-    [
-      { text: 'TENSIÓN ARTERIAL', style: 'tableCellBold' },
-      { text: tensionTexto, style: 'tableCell' },
-      { text: fmtOpcional(sv?.categoriaTensionArterial), style: 'tableCell' },
-    ],
-    [
-      { text: 'FRECUENCIA CARDIACA', style: 'tableCellBold' },
-      {
-        text:
-          sv?.frecuenciaCardiaca != null
-            ? `${sv.frecuenciaCardiaca} lpm`
-            : '',
-        style: 'tableCell',
-      },
-      {
-        text: fmtOpcional(sv?.categoriaFrecuenciaCardiaca),
-        style: 'tableCell',
-      },
-    ],
-    nuevaFilaGuionesSignosVitales(),
-    nuevaFilaGuionesSignosVitales(),
-  ];
-
-  return {
-    columns: [
-      {
-        style: 'table',
-        table: {
-          widths: ['45%', '25%', '30%'],
-          body: somatometriaBody,
-        },
-        layout: layoutTablaCompacta,
-        margin: [0, 0, 2, 0],
-      },
-      {
-        style: 'table',
-        table: {
-          widths: ['45%', '25%', '30%'],
-          body: signosVitalesBody,
-        },
-        layout: layoutTablaCompacta,
-      },
-    ],
-    margin: [0, 0, 0, 8],
+function lineasEvolucionPrincipalPdf(
+  r: ResumenIndicadoresLongitudinal | undefined,
+): { label: string; texto: string }[] {
+  if (!r) return [];
+  const lines: { label: string; texto: string }[] = [];
+  const push = (label: string, o: ResumenIndicadorLongitudinal | undefined) => {
+    const t = formatoIndicadorResumenPdf(o);
+    if (!t) return;
+    lines.push({ label, texto: t });
   };
+  push('TA sistólica (mmHg)', r.tensionArterialSistolica);
+  push('TA diastólica (mmHg)', r.tensionArterialDiastolica);
+  push('Peso (kg)', r.peso);
+  push('IMC', r.indiceMasaCorporal);
+  push('Glucosa (mg/dL)', r.glucosaMgDl);
+  push('HbA1c (%)', r.hba1cPorcentaje);
+  return lines;
 }
 
-function seccionLaboratorio(L: LaboratorioCardiometabolico | undefined): Content {
-  const filas = filasLaboratorio(L);
-
-  if (filas.length === 0) {
-    return {
-      stack: [
-        {
-          text: 'LABORATORIOS',
-          style: 'sectionHeader',
-        },
-        {
-          text: 'Sin datos de laboratorio.',
-          fontSize: 8,
-          italics: true,
-          color: '#374151',
-          margin: [0, 4, 0, 4],
-          alignment: 'center',
-        },
-      ],
-      margin: [0, 0, 0, 8],
-    };
+function textoCondicionResumenPdf(bloque: BloqueCondicionResumenLongitudinal | undefined): string | null {
+  if (!bloque || typeof bloque !== 'object') return null;
+  const parts: string[] = [];
+  if (bloque.presente != null) parts.push(`Presente: ${bloque.presente ? 'Sí' : 'No'}`);
+  if ('estadoActual' in bloque && bloque.estadoActual) {
+    parts.push(`Estado: ${String(bloque.estadoActual)}`);
   }
+  if ('gradoActual' in bloque && bloque.gradoActual) {
+    parts.push(`Grado: ${String(bloque.gradoActual)}`);
+  }
+  if (bloque.tendencia) parts.push(`Tendencia: ${String(bloque.tendencia)}`);
+  if (bloque.interpretacionAutomatica) parts.push(String(bloque.interpretacionAutomatica));
+  if (bloque.observaciones) parts.push(String(bloque.observaciones));
+  return parts.length ? parts.join(' · ') : null;
+}
 
-  const dosColumnas = filas.length > 1;
-  const mitad = Math.ceil(filas.length / 2);
-  const izq = dosColumnas ? filas.slice(0, mitad) : filas;
-  const der = dosColumnas ? filas.slice(mitad) : [];
+function fechaEventoPdf(d: Date | string | undefined): string {
+  if (d == null) return PLACEHOLDER;
+  const dt = d instanceof Date ? d : new Date(d);
+  if (isNaN(dt.getTime())) return PLACEHOLDER;
+  return formatearFechaUTC(dt);
+}
 
-  const construirTabla = (rows: FilaLaboratorio[]): Content => ({
+function tablaEventosConcentradosPdf(
+  eventos: EventoConcentradoCardiometabolico[] | undefined,
+): Content | null {
+  const ev = eventos?.filter(Boolean) ?? [];
+  if (!ev.length) return null;
+  const headerRow = [
+    { text: 'FECHA', style: 'tableHeader' },
+    { text: 'TA SIS/DIA', style: 'tableHeader' },
+    { text: 'IMC', style: 'tableHeader' },
+    { text: 'GLUCOSA', style: 'tableHeader' },
+    { text: 'HbA1c', style: 'tableHeader' },
+    { text: 'RIESGO', style: 'tableHeader' },
+  ];
+  const body: Content[][] = [headerRow];
+  for (const row of ev) {
+    const sv = row.signosVitales;
+    const ta =
+      sv?.tensionArterialSistolica != null && sv?.tensionArterialDiastolica != null
+        ? `${sv.tensionArterialSistolica}/${sv.tensionArterialDiastolica}`
+        : PLACEHOLDER;
+    const imc =
+      row.somatometria?.indiceMasaCorporal != null
+        ? String(row.somatometria.indiceMasaCorporal)
+        : PLACEHOLDER;
+    const glu =
+      row.laboratorio?.glucosaMgDl != null ? String(row.laboratorio.glucosaMgDl) : PLACEHOLDER;
+    const hba =
+      row.laboratorio?.hba1cPorcentaje != null
+        ? String(row.laboratorio.hba1cPorcentaje)
+        : PLACEHOLDER;
+    body.push([
+      { text: fechaEventoPdf(row.fechaControl), style: 'tableCell' },
+      { text: ta, style: 'tableCell' },
+      { text: imc, style: 'tableCell' },
+      { text: glu, style: 'tableCell' },
+      { text: hba, style: 'tableCell' },
+      { text: fmt(row.riesgoActual), style: 'tableCell' },
+    ]);
+  }
+  return {
     style: 'table',
     table: {
-      widths: ['28%', '*'],
-      body: [
-        [
-          { text: 'Componente', style: 'tableHeader', alignment: 'left' },
-          { text: 'Resultado', style: 'tableHeader', alignment: 'left' },
-        ],
-        ...rows.map((fila) => [
-          { text: fila.etiqueta, style: 'tableCellLeftBold', alignment: 'left' },
-          { text: fila.detalle, style: 'tableCellLeft', alignment: 'left' },
-        ]),
-      ],
+      widths: ['14%', '14%', '11%', '13%', '12%', '*'],
+      body,
+    },
+    layout: layoutTablaCompacta,
+    margin: [0, 4, 0, 6],
+  };
+}
+
+function tablaSeguimientosProgramadosPdf(
+  rows: SeguimientoProgramadoConcentradoCardiometabolico[] | undefined,
+): Content | null {
+  const list = rows?.filter(Boolean) ?? [];
+  if (!list.length) return null;
+  const headerRow = [
+    { text: 'PROGRAMADA', style: 'tableHeader' },
+    { text: 'MOTIVO', style: 'tableHeader' },
+    { text: 'ESTADO', style: 'tableHeader' },
+  ];
+  const body: Content[][] = [headerRow];
+  for (const row of list) {
+    body.push([
+      { text: fechaEventoPdf(row.fechaProgramada), style: 'tableCell' },
+      { text: fmt(row.motivo), style: 'tableCellLeft', alignment: 'left' },
+      { text: fmt(row.estado), style: 'tableCell' },
+    ]);
+  }
+  return {
+    style: 'table',
+    table: {
+      widths: ['22%', '*', '22%'],
+      body,
     },
     layout: layoutTablaTexto,
+    margin: [0, 4, 0, 6],
+  };
+}
+
+/** Cuerpo clínico y evidencia: mismo orden de lectura que el visualizador (sin gráficas en esta fase). */
+function buildCuerpoInformeLongitudinalPdf(ilc: DatosInformeLongitudinalCardiometabolicoInforme): Content[] {
+  const out: Content[] = [];
+
+  const pushSub = (titulo: string, marginTop = 4) => {
+    out.push({
+      text: titulo,
+      fontSize: 8,
+      bold: true,
+      color: '#4B5563',
+      margin: [0, marginTop, 0, 2],
+    });
+  };
+
+  const pushParrafo = (text: string | undefined) => {
+    const t = text?.trim();
+    if (!t) return;
+    out.push({ text: t, fontSize: 9, margin: [0, 0, 0, 6] });
+  };
+
+  out.push({ text: 'INTERPRETACIÓN CLÍNICA', style: 'sectionHeader', margin: [0, 8, 0, 4] });
+
+  out.push({
+    stack: [
+      { text: 'RIESGO LONGITUDINAL', fontSize: 8, bold: true, color: '#9f1239' },
+      { text: fmt(ilc.nivelRiesgoLongitudinal), fontSize: 14, bold: true, color: '#881337', margin: [0, 2, 0, 8] },
+    ],
   });
 
-  return {
-    stack: [
-      {
-        text: 'LABORATORIOS',
-        style: 'sectionHeader',
-      },
-      dosColumnas
-        ? {
-            columns: [construirTabla(izq), construirTabla(der)],
-            columnGap: 4,
-          }
-        : construirTabla(izq),
-    ],
-    margin: [0, 0, 0, 8],
-  };
-}
+  if (ilc.conclusionClinica?.trim()) {
+    pushSub('Conclusión clínica', 0);
+    pushParrafo(ilc.conclusionClinica);
+  }
 
-function seccionAdherenciaSintomas(
-  sintomasRelevantes: string | undefined,
-  adherenciaTerapeutica: string | undefined,
-): Content {
-  return {
-    stack: [
-      {
-        text: 'ADHERENCIA Y SÍNTOMAS',
-        style: 'sectionHeader',
-      },
-      {
-        style: 'table',
-        table: {
-          widths: ['28%', '*'],
-          body: [
-            [
-              { text: 'Campo', style: 'tableHeader', alignment: 'left' },
-              { text: 'Registro', style: 'tableHeader', alignment: 'left' },
-            ],
-            [
-              {
-                text: etiquetaFilaMayusc('Síntomas relevantes'),
-                style: 'tableCellLeftBold',
-                alignment: 'left',
-              },
-              {
-                text: fmt(sintomasRelevantes),
-                style: 'tableCellLeft',
-                alignment: 'left',
-              },
-            ],
-            [
-              {
-                text: etiquetaFilaMayusc('Adherencia terapéutica'),
-                style: 'tableCellLeftBold',
-                alignment: 'left',
-              },
-              {
-                text: fmt(adherenciaTerapeutica),
-                style: 'tableCellLeft',
-                alignment: 'left',
-              },
-            ],
-          ],
-        },
-        layout: layoutTablaTexto,
-      },
-    ],
-    margin: [0, 0, 0, 8],
-  };
-}
+  if (ilc.resumenLongitudinal?.trim()) {
+    pushSub('Resumen longitudinal', 0);
+    pushParrafo(ilc.resumenLongitudinal);
+  }
 
-function seccionEstadoCondiciones(
-  ec: EstadoCondicionesCardiometabolicas | undefined,
-): Content {
-  const izq = FILAS_ESTADO_CONDICION.slice(0, 2);
-  const der = FILAS_ESTADO_CONDICION.slice(2, 4);
+  if (ilc.interpretacionRiesgoLongitudinal?.trim()) {
+    pushSub('Interpretación del riesgo longitudinal', 0);
+    pushParrafo(ilc.interpretacionRiesgoLongitudinal);
+  }
 
-  return {
-    stack: [
-      {
-        text: 'ESTADO POR CONDICIÓN EN ESTA VISITA',
-        style: 'sectionHeader',
-      },
-      {
-        columns: [
-          tablaEstadoCondiciones(izq, ec),
-          tablaEstadoCondiciones(der, ec),
-        ],
-        columnGap: 4,
-      },
-    ],
-    margin: [0, 0, 0, 8],
-  };
-}
+  const factores = ilc.factoresPersistentes?.filter((x) => String(x).trim()) ?? [];
+  if (factores.length) {
+    pushSub('Factores persistentes', 0);
+    out.push({
+      ul: factores.map((x) => String(x)),
+      fontSize: 9,
+      margin: [0, 0, 0, 6],
+    });
+  }
 
-function seccionRiesgosProximaCita(
-  riesgosActuales: string | undefined,
-  proximaRevisionSugerida: Date | string | undefined,
-): Content {
-  return {
-    stack: [
-      {
-        text: 'RIESGOS Y PRÓXIMA CITA',
-        style: 'sectionHeader',
-      },
-      {
-        style: 'table',
-        table: {
-          widths: ['83%', '17%'],
-          body: [
-            [
-              {
-                text: 'Riesgos actuales',
-                style: 'tableHeader',
-                alignment: 'left',
-              },
-              {
-                text: 'Próxima cita',
-                style: 'tableHeader',
-                alignment: 'center',
-              },
-            ],
-            [
-              {
-                text: fmt(riesgosActuales),
-                style: 'tableCellLeftBold',
-                alignment: 'left',
-              },
-              {
-                text: fechaOpcionalInformeEsc(proximaRevisionSugerida),
-                style: 'tableCellBold',
-                alignment: 'center',
-              },
-            ],
-          ],
-        },
-        layout: layoutTablaTexto,
-      },
-    ],
-    margin: [0, 0, 0, 8],
-  };
+  const alertas = ilc.alertasRelevantes?.filter((x) => String(x).trim()) ?? [];
+  if (alertas.length) {
+    pushSub('Alertas relevantes', 0);
+    out.push({
+      ul: alertas.map((x) => String(x)),
+      fontSize: 9,
+      margin: [0, 0, 0, 6],
+    });
+  }
+
+  if (ilc.consistenciaSeguimiento) {
+    pushSub('Consistencia del seguimiento', 0);
+    pushParrafo(String(ilc.consistenciaSeguimiento));
+  }
+
+  const evoLines = lineasEvolucionPrincipalPdf(ilc.resumenIndicadores);
+  if (evoLines.length) {
+    out.push({ text: 'EVOLUCIÓN PRINCIPAL', style: 'sectionHeader', margin: [0, 10, 0, 4] });
+    out.push({
+      stack: evoLines.map((l) => ({
+        text: [{ text: `${l.label}: `, bold: true }, { text: l.texto }],
+        fontSize: 9,
+        margin: [0, 0, 0, 2],
+      })),
+      margin: [0, 0, 0, 6],
+    });
+  }
+
+  const rc = ilc.resumenCondiciones;
+  const bloquesCond: { titulo: string; texto: string }[] = [];
+  if (rc) {
+    const pH = textoCondicionResumenPdf(rc.hipertension);
+    if (pH) bloquesCond.push({ titulo: 'Hipertensión', texto: pH });
+    const pD = textoCondicionResumenPdf(rc.diabetes);
+    if (pD) bloquesCond.push({ titulo: 'Diabetes', texto: pD });
+    const pDi = textoCondicionResumenPdf(rc.dislipidemia);
+    if (pDi) bloquesCond.push({ titulo: 'Dislipidemia', texto: pDi });
+    const pO = textoCondicionResumenPdf(rc.obesidad);
+    if (pO) bloquesCond.push({ titulo: 'Obesidad', texto: pO });
+  }
+  if (bloquesCond.length) {
+    out.push({ text: 'ESTADO POR CONDICIÓN', style: 'sectionHeader', margin: [0, 10, 0, 4] });
+    out.push({
+      stack: bloquesCond.map((b) => ({
+        text: [{ text: `${b.titulo}: `, bold: true }, { text: b.texto }],
+        fontSize: 9,
+        margin: [0, 0, 0, 4],
+      })),
+      margin: [0, 0, 0, 4],
+    });
+  }
+
+  out.push({ text: 'PERIODO Y EVIDENCIA', style: 'sectionHeader', margin: [0, 10, 0, 4] });
+  const pIni = fechaOpcionalInformeEsc(ilc.periodoInicio);
+  const pFin = fechaOpcionalInformeEsc(ilc.periodoFin);
+  out.push({
+    text: `Periodo: ${pIni} – ${pFin}`,
+    fontSize: 9,
+    margin: [0, 0, 0, 2],
+  });
+  out.push({
+    text: `Último evento considerado: ${fechaOpcionalInformeEsc(ilc.fechaUltimoEventoConsiderado)}`,
+    fontSize: 9,
+    margin: [0, 0, 0, 2],
+  });
+  const nProg =
+    ilc.numeroSeguimientosProgramados ?? ilc.seguimientosProgramadosIncluidos?.length ?? 0;
+  out.push({
+    text: `Eventos incluidos: ${fmt(ilc.numeroEventosIncluidos)} · Seguimientos programados: ${fmt(nProg)}`,
+    fontSize: 9,
+    margin: [0, 0, 0, 6],
+  });
+
+  const tablaEv = tablaEventosConcentradosPdf(ilc.eventosConcentrados);
+  if (tablaEv) {
+    pushSub('Eventos concentrados', 0);
+    out.push(tablaEv);
+  }
+
+  const tablaSeg = tablaSeguimientosProgramadosPdf(ilc.seguimientosProgramadosConcentrados);
+  if (tablaSeg) {
+    pushSub('Seguimientos programados', 0);
+    out.push(tablaSeg);
+  }
+
+  out.push({
+    text: 'CONTINUIDAD DEL SEGUIMIENTO',
+    fontSize: 9,
+    bold: true,
+    color: '#6B7280',
+    margin: [0, 10, 0, 4],
+  });
+  const opBits: string[] = [];
+  if (ilc.porcentajeAsistencia != null) {
+    opBits.push(`% asistencia (citas cerradas): ${fmt(ilc.porcentajeAsistencia)}%`);
+  }
+  if (ilc.numeroSeguimientosRealizados != null) {
+    opBits.push(
+      `Realizadas / inasistencias / cancelaciones / reprogramaciones: ${fmt(ilc.numeroSeguimientosRealizados)} / ${fmt(ilc.numeroInasistencias)} / ${fmt(ilc.numeroCancelaciones)} / ${fmt(ilc.numeroReprogramaciones)}`,
+    );
+  }
+  if (opBits.length) {
+    out.push({ text: opBits.join('\n'), fontSize: 8, color: '#374151', margin: [0, 0, 0, 8] });
+  } else {
+    out.push({
+      text: 'Sin métricas operativas registradas.',
+      italics: true,
+      fontSize: 8,
+      color: '#6B7280',
+      margin: [0, 0, 0, 8],
+    });
+  }
+
+  out.push({ text: 'CIERRE CLÍNICO', style: 'sectionHeader', margin: [0, 10, 0, 4] });
+  if (ilc.recomendaciones?.trim()) {
+    pushSub('Recomendaciones', 0);
+    pushParrafo(ilc.recomendaciones);
+  }
+  if (ilc.limitaciones?.trim()) {
+    pushSub('Limitaciones del informe', 0);
+    pushParrafo(ilc.limitaciones);
+  }
+  if (!ilc.recomendaciones?.trim() && !ilc.limitaciones?.trim()) {
+    out.push({
+      text: 'Sin recomendaciones ni limitaciones finales capturadas.',
+      italics: true,
+      fontSize: 8,
+      color: '#6B7280',
+      margin: [0, 0, 0, 6],
+    });
+  }
+
+  const datosFalt = ilc.datosFaltantesRelevantes?.filter((x) => String(x).trim()) ?? [];
+  if (datosFalt.length) {
+    out.push({
+      text: 'LIMITACIONES DE INTERPRETACIÓN',
+      style: 'sectionHeader',
+      margin: [0, 10, 0, 4],
+    });
+    out.push({
+      ul: datosFalt.map((x) => String(x)),
+      fontSize: 9,
+      margin: [0, 0, 0, 8],
+    });
+  }
+
+  const hayBorrador =
+    !!(ilc.resumenLongitudinalSugerido?.trim() ||
+      ilc.conclusionClinicaSugerida?.trim() ||
+      ilc.recomendacionesSugeridas?.trim() ||
+      ilc.limitacionesSugeridas?.trim());
+  if (hayBorrador) {
+    out.push({
+      text: 'BORRADOR AUTOMÁTICO (NO VALIDADO)',
+      fontSize: 8,
+      bold: true,
+      color: '#92400E',
+      margin: [0, 8, 0, 4],
+    });
+    if (ilc.resumenLongitudinalSugerido?.trim()) {
+      pushSub('Resumen sugerido', 0);
+      pushParrafo(ilc.resumenLongitudinalSugerido);
+    }
+    if (ilc.conclusionClinicaSugerida?.trim()) {
+      pushSub('Conclusión sugerida', 0);
+      pushParrafo(ilc.conclusionClinicaSugerida);
+    }
+    if (ilc.recomendacionesSugeridas?.trim()) {
+      pushSub('Recomendaciones sugeridas', 0);
+      pushParrafo(ilc.recomendacionesSugeridas);
+    }
+    if (ilc.limitacionesSugeridas?.trim()) {
+      pushSub('Limitaciones sugeridas', 0);
+      pushParrafo(ilc.limitacionesSugeridas);
+    }
+  }
+
+  if (ilc.graficasIncluidas?.length) {
+    out.push({
+      text: `Gráficas previstas en fase posterior (sin figuras en este PDF): ${ilc.graficasIncluidas.join(', ')}.`,
+      fontSize: 7,
+      color: '#6B7280',
+      italics: true,
+      margin: [0, 6, 0, 0],
+    });
+  }
+
+  return out;
 }
 
 // ==================== INFORME PRINCIPAL ====================
-export const eventoSeguimientoCardiometabolicoInforme = (
+export const informeLongitudinalCardiometabolicoInforme = (
   nombreEmpresa: string,
   trabajador: Trabajador,
-  eventoSeguimientoCardiometabolico: DatosEventoSeguimientoCardiometabolicoInforme,
+  informeLongitudinalCardiometabolico: DatosInformeLongitudinalCardiometabolicoInforme,
   medicoFirmante: MedicoFirmante | null,
   enfermeraFirmante: EnfermeraFirmante | null,
   tecnicoFirmante: TecnicoFirmante | null,
@@ -940,11 +1004,11 @@ export const eventoSeguimientoCardiometabolicoInforme = (
     ? { image: `assets/providers-logos/${proveedorSalud.logotipoEmpresa.data}`, width: 55, margin: [40, 20, 0, 0] }
     : { image: 'assets/RamazziniBrand600x600.png', width: 55, margin: [40, 20, 0, 0] };
 
-  const escc = eventoSeguimientoCardiometabolico;
-  const fechaEventoSeguimientoCardiometabolico =
-    escc.fechaEventoSeguimientoCardiometabolico instanceof Date
-      ? escc.fechaEventoSeguimientoCardiometabolico
-      : new Date(escc.fechaEventoSeguimientoCardiometabolico as string);
+  const ilc = informeLongitudinalCardiometabolico;
+  const fechaInformeLongitudinal =
+    ilc.fechaInformeLongitudinalCardiometabolico instanceof Date
+      ? ilc.fechaInformeLongitudinalCardiometabolico
+      : new Date(ilc.fechaInformeLongitudinalCardiometabolico as string);
 
   // Empresa, fecha y motivo (replica visualizador)
   const nombreEmpresaSeccion: Content = {
@@ -964,7 +1028,7 @@ export const eventoSeguimientoCardiometabolicoInforme = (
             text: [
               { text: 'Fecha: ', style: 'fecha', bold: false },
               {
-                text: formatearFechaUTC(fechaEventoSeguimientoCardiometabolico),
+                text: formatearFechaUTC(fechaInformeLongitudinal),
                 style: 'fecha',
                 bold: true,
                 decoration: 'underline',
@@ -979,7 +1043,7 @@ export const eventoSeguimientoCardiometabolicoInforme = (
             text: [
               { text: 'Motivo de seguimiento: ', style: 'motivo', bold: false },
               {
-                text: fmt(escc.motivoSeguimiento),
+                text: 'Seguimiento longitudinal cardiometabólico',
                 style: 'motivo',
                 bold: true,
               },
@@ -1047,17 +1111,9 @@ export const eventoSeguimientoCardiometabolicoInforme = (
     margin: [0, 0, 0, 8],
   };
 
-  // Crear el array de contenido del cuerpo
-  const content: Content[] = [
-    nombreEmpresaSeccion,
-    trabajadorSeccion,
-    seccionDiagnosticosActivos(escc.diagnosticosActivos),
-    seccionSomatometriaSignosVitales(escc.somatometria, escc.signosVitales),
-    seccionLaboratorio(escc.laboratorio),
-    seccionAdherenciaSintomas(escc.sintomasRelevantes, escc.adherenciaTerapeutica),
-    seccionEstadoCondiciones(escc.estadoCondiciones),
-    seccionRiesgosProximaCita(escc.riesgosActuales, escc.proximaRevisionSugerida),
-  ];
+  const cuerpoInforme = buildCuerpoInformeLongitudinalPdf(ilc);
+
+  const content: Content[] = [nombreEmpresaSeccion, trabajadorSeccion, ...cuerpoInforme];
 
   return {
     pageSize: 'LETTER',

@@ -54,6 +54,8 @@ import { CreateTrastornoLimitePersonalidadDto } from './dto/create-trastorno-lim
 import { UpdateTrastornoLimitePersonalidadDto } from './dto/update-trastorno-limite-personalidad.dto';
 import { CreateEventoSeguimientoCardiometabolicoDto } from './dto/create-evento-seguimiento-cardiometabolico.dto';
 import { UpdateEventoSeguimientoCardiometabolicoDto } from './dto/update-evento-seguimiento-cardiometabolico.dto';
+import { CreateInformeLongitudinalCardiometabolicoDto } from './dto/create-informe-longitudinal-cardiometabolico.dto';
+import { UpdateInformeLongitudinalCardiometabolicoDto } from './dto/update-informe-longitudinal-cardiometabolico.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import path from 'path';
@@ -86,6 +88,7 @@ export class ExpedientesController {
     cuestionarioProdromalBreve: CreateCuestionarioProdromalBreveDto,
     trastornoLimitePersonalidad: CreateTrastornoLimitePersonalidadDto,
     eventoSeguimientoCardiometabolico: CreateEventoSeguimientoCardiometabolicoDto,
+    informeLongitudinalCardiometabolico: CreateInformeLongitudinalCardiometabolicoDto,
   };
 
   private updateDtos = {
@@ -109,6 +112,7 @@ export class ExpedientesController {
     cuestionarioProdromalBreve: UpdateCuestionarioProdromalBreveDto,
     trastornoLimitePersonalidad: UpdateTrastornoLimitePersonalidadDto,
     eventoSeguimientoCardiometabolico: UpdateEventoSeguimientoCardiometabolicoDto,
+    informeLongitudinalCardiometabolico: UpdateInformeLongitudinalCardiometabolicoDto,
   };
 
   @Post(':documentType/crear')

@@ -16,7 +16,7 @@ import {
   DiagnosticoCardiometabolico,
   EstadoControlCondicion,
   GradoObesidad,
-} from '../schemas/cardiometabolico.enums';
+} from '../enums/cardiometabolico.enums';
 import {
   CategoriaCircunferenciaCintura,
   CategoriaColesterolTotal,

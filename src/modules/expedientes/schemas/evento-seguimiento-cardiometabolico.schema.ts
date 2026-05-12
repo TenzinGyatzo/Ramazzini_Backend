@@ -18,7 +18,7 @@ import {
   DiagnosticoCardiometabolico,
   EstadoControlCondicion,
   GradoObesidad,
-} from './cardiometabolico.enums';
+} from '../enums/cardiometabolico.enums';
 
 const DIAGNOSTICOS_CARDIOMETABOLICOS = Object.values(DiagnosticoCardiometabolico);
 const ESTADOS_CONTROL = Object.values(EstadoControlCondicion);

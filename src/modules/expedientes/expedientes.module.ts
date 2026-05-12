@@ -31,6 +31,10 @@ import {
   SeguimientoProgramadoCardiometabolico,
   SeguimientoProgramadoCardiometabolicoSchema,
 } from './schemas/seguimiento-programado-cardiometabolico.schema';
+import {
+  InformeLongitudinalCardiometabolico,
+  InformeLongitudinalCardiometabolicoSchema,
+} from './schemas/informe-longitudinal-cardiometabolico.schema';
 import { Trabajador, TrabajadorSchema } from '../trabajadores/schemas/trabajador.schema';
 import { InformesModule } from '../informes/informes.module';
 import { FilesModule } from '../files/files.module';
@@ -72,6 +76,10 @@ import { PdfCleanerService } from './pdf-cleaner.service';
       {
         name: SeguimientoProgramadoCardiometabolico.name,
         schema: SeguimientoProgramadoCardiometabolicoSchema,
+      },
+      {
+        name: InformeLongitudinalCardiometabolico.name,
+        schema: InformeLongitudinalCardiometabolicoSchema,
       },
     ]),
     forwardRef(() => InformesModule),

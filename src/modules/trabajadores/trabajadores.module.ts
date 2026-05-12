@@ -21,6 +21,14 @@ import { EntrevistaPsicologica, EntrevistaPsicologicaSchema } from '../expedient
 import { TrastornosEstadoAnimo, TrastornosEstadoAnimoSchema } from '../expedientes/schemas/trastornos-estado-animo.schema';
 import { CuestionarioProdromalBreve, CuestionarioProdromalBreveSchema } from '../expedientes/schemas/cuestionario-prodromal-breve.schema';
 import { TrastornoLimitePersonalidad, TrastornoLimitePersonalidadSchema } from '../expedientes/schemas/trastorno-limite-personalidad.schema';
+import {
+  EventoSeguimientoCardiometabolico,
+  EventoSeguimientoCardiometabolicoSchema,
+} from '../expedientes/schemas/evento-seguimiento-cardiometabolico.schema';
+import {
+  InformeLongitudinalCardiometabolico,
+  InformeLongitudinalCardiometabolicoSchema,
+} from '../expedientes/schemas/informe-longitudinal-cardiometabolico.schema';
 import { RiesgoTrabajo, RiesgoTrabajoSchema } from '../riesgos-trabajo/schemas/riesgo-trabajo.schema';
 import { ResultadoClinico, ResultadoClinicoSchema } from '../resultados-clinicos/schemas/resultado-clinico.schema';
 import { FilesModule } from '../files/files.module';
@@ -49,6 +57,14 @@ import { Empresa, EmpresaSchema } from '../empresas/schemas/empresa.schema';
       { name: TrastornosEstadoAnimo.name, schema: TrastornosEstadoAnimoSchema },
       { name: CuestionarioProdromalBreve.name, schema: CuestionarioProdromalBreveSchema },
       { name: TrastornoLimitePersonalidad.name, schema: TrastornoLimitePersonalidadSchema },
+      {
+        name: EventoSeguimientoCardiometabolico.name,
+        schema: EventoSeguimientoCardiometabolicoSchema,
+      },
+      {
+        name: InformeLongitudinalCardiometabolico.name,
+        schema: InformeLongitudinalCardiometabolicoSchema,
+      },
       { name: RiesgoTrabajo.name, schema: RiesgoTrabajoSchema },
       { name: ResultadoClinico.name, schema: ResultadoClinicoSchema },
       { name: CentroTrabajo.name, schema: CentroTrabajoSchema },

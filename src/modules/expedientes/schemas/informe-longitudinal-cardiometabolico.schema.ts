@@ -1,0 +1,369 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Trabajador } from 'src/modules/trabajadores/entities/trabajador.entity';
+import { User } from 'src/modules/users/entities/user.entity';
+import {
+  EstadoSeguimientoProgramadoCardiometabolico,
+  ESTADOS_SEGUIMIENTO_PROGRAMADO_CARDIOMETABOLICO,
+  MotivoSeguimientoProgramadoCardiometabolico,
+  MOTIVOS_SEGUIMIENTO_PROGRAMADO_CARDIOMETABOLICO,
+} from '../enums/seguimiento-programado-cardiometabolico.enum';
+import {
+  EventoSeguimientoCardiometabolico,
+  LaboratorioCardiometabolico,
+  SignosVitalesCardiometabolico,
+  SomatometriaCardiometabolico,
+} from './evento-seguimiento-cardiometabolico.schema';
+import {
+  SeguimientoProgramadoCardiometabolico,
+} from './seguimiento-programado-cardiometabolico.schema';
+import { EstadoControlCondicion, GradoObesidad } from '../enums/cardiometabolico.enums';
+import {
+  ConsistenciaSeguimientoLongitudinal,
+  GRAFICAS_LONGITUDINAL_DEFAULT,
+  GraficaLongitudinalCardiometabolica,
+  NivelRiesgoLongitudinal,
+  VALORES_CONSISTENCIA_SEGUIMIENTO_LONGITUDINAL,
+  VALORES_GRAFICA_LONGITUDINAL_CARDIOMETABOLICA,
+  VALORES_NIVEL_RIESGO_LONGITUDINAL,
+  VALORES_TENDENCIA_LONGITUDINAL,
+  TendenciaLongitudinal,
+} from '../enums/informe-longitudinal-cardiometabolico.enums';
+
+const ESTADOS_CONTROL = Object.values(EstadoControlCondicion);
+const GRADOS_OBESIDAD = Object.values(GradoObesidad);
+
+const SignosVitalesCardiometabolicoSnapshotSchema = SchemaFactory.createForClass(
+  SignosVitalesCardiometabolico,
+);
+const SomatometriaCardiometabolicoSnapshotSchema = SchemaFactory.createForClass(
+  SomatometriaCardiometabolico,
+);
+const LaboratorioCardiometabolicoSnapshotSchema = SchemaFactory.createForClass(
+  LaboratorioCardiometabolico,
+);
+
+@Schema({ _id: false })
+export class CondicionControlResumenLongitudinal {
+  @Prop()
+  presente?: boolean;
+
+  @Prop({ enum: ESTADOS_CONTROL })
+  estadoActual?: EstadoControlCondicion;
+
+  @Prop({ enum: VALORES_TENDENCIA_LONGITUDINAL })
+  tendencia?: TendenciaLongitudinal;
+
+  @Prop()
+  observaciones?: string;
+
+  @Prop()
+  interpretacionAutomatica?: string;
+}
+
+const CondicionControlResumenLongitudinalSchema = SchemaFactory.createForClass(
+  CondicionControlResumenLongitudinal,
+);
+
+@Schema({ _id: false })
+export class CondicionObesidadResumenLongitudinal {
+  @Prop()
+  presente?: boolean;
+
+  @Prop({ enum: GRADOS_OBESIDAD })
+  gradoActual?: GradoObesidad;
+
+  @Prop({ enum: VALORES_TENDENCIA_LONGITUDINAL })
+  tendencia?: TendenciaLongitudinal;
+
+  @Prop()
+  observaciones?: string;
+
+  @Prop()
+  interpretacionAutomatica?: string;
+}
+
+const CondicionObesidadResumenLongitudinalSchema = SchemaFactory.createForClass(
+  CondicionObesidadResumenLongitudinal,
+);
+
+@Schema({ _id: false })
+export class ResumenCondicionesCardiometabolicas {
+  @Prop({ type: CondicionControlResumenLongitudinalSchema })
+  hipertension?: CondicionControlResumenLongitudinal;
+
+  @Prop({ type: CondicionControlResumenLongitudinalSchema })
+  diabetes?: CondicionControlResumenLongitudinal;
+
+  @Prop({ type: CondicionControlResumenLongitudinalSchema })
+  dislipidemia?: CondicionControlResumenLongitudinal;
+
+  @Prop({ type: CondicionObesidadResumenLongitudinalSchema })
+  obesidad?: CondicionObesidadResumenLongitudinal;
+}
+
+const ResumenCondicionesCardiometabolicasSchema = SchemaFactory.createForClass(
+  ResumenCondicionesCardiometabolicas,
+);
+
+@Schema({ _id: false })
+export class ResumenIndicadorLongitudinal {
+  @Prop()
+  valorInicial?: number;
+
+  @Prop()
+  valorFinal?: number;
+
+  @Prop()
+  cambioAbsoluto?: number;
+
+  @Prop()
+  cambioPorcentual?: number;
+
+  @Prop()
+  mejorValor?: number;
+
+  @Prop()
+  peorValor?: number;
+
+  @Prop({ enum: VALORES_TENDENCIA_LONGITUDINAL })
+  tendencia?: TendenciaLongitudinal;
+
+  @Prop()
+  interpretacion?: string;
+
+  @Prop()
+  tieneDatosSuficientes?: boolean;
+
+  @Prop()
+  numeroMediciones?: number;
+}
+
+const ResumenIndicadorLongitudinalSchema = SchemaFactory.createForClass(ResumenIndicadorLongitudinal);
+
+@Schema({ _id: false })
+export class ResumenIndicadoresLongitudinal {
+  @Prop({ type: ResumenIndicadorLongitudinalSchema })
+  tensionArterialSistolica?: ResumenIndicadorLongitudinal;
+
+  @Prop({ type: ResumenIndicadorLongitudinalSchema })
+  tensionArterialDiastolica?: ResumenIndicadorLongitudinal;
+
+  @Prop({ type: ResumenIndicadorLongitudinalSchema })
+  peso?: ResumenIndicadorLongitudinal;
+
+  @Prop({ type: ResumenIndicadorLongitudinalSchema })
+  indiceMasaCorporal?: ResumenIndicadorLongitudinal;
+
+  @Prop({ type: ResumenIndicadorLongitudinalSchema })
+  circunferenciaCintura?: ResumenIndicadorLongitudinal;
+
+  @Prop({ type: ResumenIndicadorLongitudinalSchema })
+  glucosaMgDl?: ResumenIndicadorLongitudinal;
+
+  @Prop({ type: ResumenIndicadorLongitudinalSchema })
+  hba1cPorcentaje?: ResumenIndicadorLongitudinal;
+
+  @Prop({ type: ResumenIndicadorLongitudinalSchema })
+  ldlMgDl?: ResumenIndicadorLongitudinal;
+
+  @Prop({ type: ResumenIndicadorLongitudinalSchema })
+  trigliceridosMgDl?: ResumenIndicadorLongitudinal;
+}
+
+const ResumenIndicadoresLongitudinalSchema = SchemaFactory.createForClass(ResumenIndicadoresLongitudinal);
+
+@Schema({ _id: false })
+export class EventoConcentradoCardiometabolico {
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: EventoSeguimientoCardiometabolico.name })
+  idEventoOriginal?: MongooseSchema.Types.ObjectId;
+
+  @Prop()
+  fechaControl?: Date;
+
+  @Prop({ type: SignosVitalesCardiometabolicoSnapshotSchema })
+  signosVitales?: SignosVitalesCardiometabolico;
+
+  @Prop({ type: SomatometriaCardiometabolicoSnapshotSchema })
+  somatometria?: SomatometriaCardiometabolico;
+
+  @Prop({ type: LaboratorioCardiometabolicoSnapshotSchema })
+  laboratorio?: LaboratorioCardiometabolico;
+
+  @Prop()
+  riesgoActual?: string;
+
+  @Prop()
+  plan?: string;
+}
+
+const EventoConcentradoCardiometabolicoSchema = SchemaFactory.createForClass(EventoConcentradoCardiometabolico);
+
+@Schema({ _id: false })
+export class SeguimientoProgramadoConcentradoCardiometabolico {
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: SeguimientoProgramadoCardiometabolico.name,
+  })
+  idSeguimientoProgramadoOriginal?: MongooseSchema.Types.ObjectId;
+
+  @Prop()
+  fechaProgramada?: Date;
+
+  @Prop()
+  fechaReprogramada?: Date;
+
+  @Prop()
+  esResultadoDeReprogramacion?: boolean;
+
+  @Prop({ enum: ESTADOS_SEGUIMIENTO_PROGRAMADO_CARDIOMETABOLICO })
+  estado?: EstadoSeguimientoProgramadoCardiometabolico;
+
+  @Prop({ enum: MOTIVOS_SEGUIMIENTO_PROGRAMADO_CARDIOMETABOLICO })
+  motivo?: MotivoSeguimientoProgramadoCardiometabolico;
+
+  @Prop()
+  observaciones?: string;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: EventoSeguimientoCardiometabolico.name })
+  idEventoClinico?: MongooseSchema.Types.ObjectId;
+}
+
+const SeguimientoProgramadoConcentradoCardiometabolicoSchema = SchemaFactory.createForClass(
+  SeguimientoProgramadoConcentradoCardiometabolico,
+);
+
+@Schema()
+export class InformeLongitudinalCardiometabolico extends Document {
+  @Prop({ required: true })
+  fechaInformeLongitudinalCardiometabolico: Date;
+
+  @Prop({ required: true })
+  periodoInicio: Date;
+
+  @Prop({ required: true })
+  periodoFin: Date;
+
+  @Prop()
+  fechaUltimoEventoConsiderado?: Date;
+
+  @Prop({ required: true })
+  numeroEventosIncluidos: number;
+
+  @Prop()
+  numeroEventosValidos?: number;
+
+  @Prop()
+  numeroSeguimientosProgramados?: number;
+
+  @Prop()
+  numeroSeguimientosRealizados?: number;
+
+  @Prop()
+  numeroInasistencias?: number;
+
+  @Prop()
+  numeroCancelaciones?: number;
+
+  @Prop()
+  numeroReprogramaciones?: number;
+
+  @Prop()
+  porcentajeAsistencia?: number;
+
+  @Prop({ enum: VALORES_CONSISTENCIA_SEGUIMIENTO_LONGITUDINAL })
+  consistenciaSeguimiento?: ConsistenciaSeguimientoLongitudinal;
+
+  @Prop({ type: [{ type: String }] })
+  datosFaltantesRelevantes?: string[];
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Trabajador', required: true })
+  idTrabajador: Trabajador;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
+  createdBy: User;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
+  updatedBy: User;
+
+  @Prop({
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: EventoSeguimientoCardiometabolico.name }],
+  })
+  eventosIncluidos?: MongooseSchema.Types.ObjectId[];
+
+  @Prop({
+    type: [
+      {
+        type: MongooseSchema.Types.ObjectId,
+        ref: SeguimientoProgramadoCardiometabolico.name,
+      },
+    ],
+  })
+  seguimientosProgramadosIncluidos?: MongooseSchema.Types.ObjectId[];
+
+  @Prop({ type: ResumenCondicionesCardiometabolicasSchema })
+  resumenCondiciones?: ResumenCondicionesCardiometabolicas;
+
+  @Prop({ type: [EventoConcentradoCardiometabolicoSchema] })
+  eventosConcentrados?: EventoConcentradoCardiometabolico[];
+
+  @Prop({ type: [SeguimientoProgramadoConcentradoCardiometabolicoSchema] })
+  seguimientosProgramadosConcentrados?: SeguimientoProgramadoConcentradoCardiometabolico[];
+
+  @Prop({ type: ResumenIndicadoresLongitudinalSchema })
+  resumenIndicadores?: ResumenIndicadoresLongitudinal;
+
+  @Prop({
+    type: [{ type: String, enum: VALORES_GRAFICA_LONGITUDINAL_CARDIOMETABOLICA }],
+    default: GRAFICAS_LONGITUDINAL_DEFAULT,
+  })
+  graficasIncluidas?: GraficaLongitudinalCardiometabolica[];
+
+  @Prop({ enum: VALORES_NIVEL_RIESGO_LONGITUDINAL })
+  nivelRiesgoLongitudinal?: NivelRiesgoLongitudinal;
+
+  @Prop()
+  interpretacionRiesgoLongitudinal?: string;
+
+  @Prop({ type: [{ type: String }] })
+  factoresPersistentes?: string[];
+
+  @Prop({ type: [{ type: String }] })
+  alertasRelevantes?: string[];
+
+  @Prop()
+  resumenLongitudinalSugerido?: string;
+
+  @Prop()
+  conclusionClinicaSugerida?: string;
+
+  @Prop()
+  recomendacionesSugeridas?: string;
+
+  @Prop()
+  limitacionesSugeridas?: string;
+
+  @Prop()
+  resumenLongitudinal?: string;
+
+  @Prop()
+  conclusionClinica?: string;
+
+  @Prop()
+  recomendaciones?: string;
+
+  @Prop()
+  limitaciones?: string;
+
+  @Prop()
+  rutaPDF?: string;
+}
+
+export const InformeLongitudinalCardiometabolicoSchema = SchemaFactory.createForClass(
+  InformeLongitudinalCardiometabolico,
+).set('timestamps', true);
+
+InformeLongitudinalCardiometabolicoSchema.index({
+  idTrabajador: 1,
+  fechaInformeLongitudinalCardiometabolico: -1,
+});
