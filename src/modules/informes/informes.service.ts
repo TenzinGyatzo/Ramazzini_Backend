@@ -3865,6 +3865,7 @@ export class InformesService {
       signosVitales: eventoSeguimientoCardiometabolico.signosVitales,
       somatometria: eventoSeguimientoCardiometabolico.somatometria,
       laboratorio: eventoSeguimientoCardiometabolico.laboratorio,
+      tratamientoActual: eventoSeguimientoCardiometabolico.tratamientoActual,
       adherenciaTerapeutica: eventoSeguimientoCardiometabolico.adherenciaTerapeutica,
       sintomasRelevantes: eventoSeguimientoCardiometabolico.sintomasRelevantes,
       riesgosActuales: eventoSeguimientoCardiometabolico.riesgosActuales,
@@ -4050,9 +4051,11 @@ export class InformesService {
       resumenIndicadores: informeLongitudinalCardiometabolico.resumenIndicadores,
       graficasIncluidas: informeLongitudinalCardiometabolico.graficasIncluidas,
       nivelRiesgoLongitudinal: informeLongitudinalCardiometabolico.nivelRiesgoLongitudinal,
+      tendenciaLongitudinal: informeLongitudinalCardiometabolico.tendenciaLongitudinal,
       interpretacionRiesgoLongitudinal: informeLongitudinalCardiometabolico.interpretacionRiesgoLongitudinal,
       factoresPersistentes: informeLongitudinalCardiometabolico.factoresPersistentes,
       alertasRelevantes: informeLongitudinalCardiometabolico.alertasRelevantes,
+      contextoTerapeutico: informeLongitudinalCardiometabolico.contextoTerapeutico,
       resumenLongitudinalSugerido: informeLongitudinalCardiometabolico.resumenLongitudinalSugerido,
       conclusionClinicaSugerida: informeLongitudinalCardiometabolico.conclusionClinicaSugerida,
       recomendacionesSugeridas: informeLongitudinalCardiometabolico.recomendacionesSugeridas,
@@ -4060,7 +4063,11 @@ export class InformesService {
       resumenLongitudinal: informeLongitudinalCardiometabolico.resumenLongitudinal,
       conclusionClinica: informeLongitudinalCardiometabolico.conclusionClinica,
       recomendaciones: informeLongitudinalCardiometabolico.recomendaciones,
-      limitaciones: informeLongitudinalCardiometabolico.limitaciones
+      limitaciones: informeLongitudinalCardiometabolico.limitaciones,
+      graficaEvolucionGlucemica: informeLongitudinalCardiometabolico.graficaEvolucionGlucemica,
+      graficaEvolucionPresionArterial: informeLongitudinalCardiometabolico.graficaEvolucionPresionArterial,
+      graficaEvolucionPesoImc: informeLongitudinalCardiometabolico.graficaEvolucionPesoImc,
+      graficaEvolucionPerfilLipidico: informeLongitudinalCardiometabolico.graficaEvolucionPerfilLipidico,
     };
 
     const medicoFirmante = await this.medicosFirmantesService.findOneByUserId(userId);

@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsDate,
   IsEnum,
@@ -9,6 +10,7 @@ import {
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -178,6 +180,28 @@ export class LaboratorioCardiometabolicoDto {
   categoriaTrigliceridos?: CategoriaTrigliceridos;
 }
 
+export class TratamientoActualCardiometabolicoDto {
+  @IsOptional()
+  @IsString({ message: 'El medicamento debe ser un string' })
+  @MaxLength(200)
+  medicamento?: string;
+
+  @IsOptional()
+  @IsString({ message: 'La dosis debe ser un string' })
+  @MaxLength(200)
+  dosis?: string;
+
+  @IsOptional()
+  @IsString({ message: 'La frecuencia debe ser un string' })
+  @MaxLength(200)
+  frecuencia?: string;
+
+  @IsOptional()
+  @IsString({ message: 'El motivo de uso debe ser un string' })
+  @MaxLength(500)
+  motivoUso?: string;
+}
+
 export class CreateEventoSeguimientoCardiometabolicoDto {
   @IsDate({ message: 'La fecha del evento de seguimiento debe ser una fecha' })
   @Type(() => Date)
@@ -212,6 +236,13 @@ export class CreateEventoSeguimientoCardiometabolicoDto {
   @ValidateNested()
   @Type(() => LaboratorioCardiometabolicoDto)
   laboratorio?: LaboratorioCardiometabolicoDto;
+
+  @IsOptional()
+  @IsArray({ message: 'El tratamiento actual debe ser un arreglo' })
+  @ArrayMaxSize(15)
+  @ValidateNested({ each: true })
+  @Type(() => TratamientoActualCardiometabolicoDto)
+  tratamientoActual?: TratamientoActualCardiometabolicoDto[];
 
   @IsOptional()
   @IsString({ message: 'La adherencia terapéutica debe ser un string' })

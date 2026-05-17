@@ -7,11 +7,14 @@ import {
   IsMongoId,
   IsNotEmpty,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
+  ArrayMaxSize,
 } from 'class-validator';
 import { EstadoControlCondicion, GradoObesidad } from '../enums/cardiometabolico.enums';
 import {
@@ -19,6 +22,7 @@ import {
   GraficaLongitudinalCardiometabolica,
   NivelRiesgoLongitudinal,
   TendenciaLongitudinal,
+  TrayectoriaLongitudinalInforme,
 } from '../enums/informe-longitudinal-cardiometabolico.enums';
 import {
   EstadoSeguimientoProgramadoCardiometabolico,
@@ -28,6 +32,7 @@ import {
   LaboratorioCardiometabolicoDto,
   SignosVitalesCardiometabolicoDto,
   SomatometriaCardiometabolicoDto,
+  TratamientoActualCardiometabolicoDto,
 } from './create-evento-seguimiento-cardiometabolico.dto';
 
 export class CondicionControlResumenLongitudinalDto {
@@ -226,6 +231,17 @@ export class EventoConcentradoCardiometabolicoDto {
   @IsOptional()
   @IsString()
   plan?: string;
+
+  @IsOptional()
+  @IsObject()
+  estadoCondiciones?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(15)
+  @ValidateNested({ each: true })
+  @Type(() => TratamientoActualCardiometabolicoDto)
+  tratamientoActual?: TratamientoActualCardiometabolicoDto[];
 }
 
 export class SeguimientoProgramadoConcentradoCardiometabolicoDto {
@@ -409,8 +425,18 @@ export class CreateInformeLongitudinalCardiometabolicoDto {
   nivelRiesgoLongitudinal?: NivelRiesgoLongitudinal;
 
   @IsOptional()
+  @IsEnum(TrayectoriaLongitudinalInforme, {
+    message: 'trayectoria longitudinal del informe no válida',
+  })
+  tendenciaLongitudinal?: TrayectoriaLongitudinalInforme;
+
+  @IsOptional()
   @IsString()
   interpretacionRiesgoLongitudinal?: string;
+
+  @IsOptional()
+  @IsString()
+  interpretacionConsistenciaSeguimiento?: string;
 
   @IsOptional()
   @IsArray()
@@ -421,6 +447,11 @@ export class CreateInformeLongitudinalCardiometabolicoDto {
   @IsArray()
   @IsString({ each: true })
   alertasRelevantes?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  contextoTerapeutico?: string[];
 
   @IsOptional()
   @IsString()

@@ -13,6 +13,7 @@ import {
   LaboratorioCardiometabolico,
   SignosVitalesCardiometabolico,
   SomatometriaCardiometabolico,
+  TratamientoActualCardiometabolico,
 } from './evento-seguimiento-cardiometabolico.schema';
 import {
   SeguimientoProgramadoCardiometabolico,
@@ -27,7 +28,9 @@ import {
   VALORES_GRAFICA_LONGITUDINAL_CARDIOMETABOLICA,
   VALORES_NIVEL_RIESGO_LONGITUDINAL,
   VALORES_TENDENCIA_LONGITUDINAL,
+  VALORES_TRAYECTORIA_LONGITUDINAL_INFORME,
   TendenciaLongitudinal,
+  TrayectoriaLongitudinalInforme,
 } from '../enums/informe-longitudinal-cardiometabolico.enums';
 
 const ESTADOS_CONTROL = Object.values(EstadoControlCondicion);
@@ -41,6 +44,9 @@ const SomatometriaCardiometabolicoSnapshotSchema = SchemaFactory.createForClass(
 );
 const LaboratorioCardiometabolicoSnapshotSchema = SchemaFactory.createForClass(
   LaboratorioCardiometabolico,
+);
+const TratamientoActualCardiometabolicoSnapshotSchema = SchemaFactory.createForClass(
+  TratamientoActualCardiometabolico,
 );
 
 @Schema({ _id: false })
@@ -193,8 +199,16 @@ export class EventoConcentradoCardiometabolico {
   @Prop()
   riesgoActual?: string;
 
+  /** Legacy; no usar para tratamiento (ver `tratamientoActual`). */
   @Prop()
   plan?: string;
+
+  @Prop({ type: [TratamientoActualCardiometabolicoSnapshotSchema] })
+  tratamientoActual?: TratamientoActualCardiometabolico[];
+
+  /** Copia ligera de `estadoCondiciones` del evento (control por visita). */
+  @Prop({ type: MongooseSchema.Types.Mixed })
+  estadoCondiciones?: Record<string, unknown>;
 }
 
 const EventoConcentradoCardiometabolicoSchema = SchemaFactory.createForClass(EventoConcentradoCardiometabolico);
@@ -274,6 +288,9 @@ export class InformeLongitudinalCardiometabolico extends Document {
   @Prop({ enum: VALORES_CONSISTENCIA_SEGUIMIENTO_LONGITUDINAL })
   consistenciaSeguimiento?: ConsistenciaSeguimientoLongitudinal;
 
+  @Prop()
+  interpretacionConsistenciaSeguimiento?: string;
+
   @Prop({ type: [{ type: String }] })
   datosFaltantesRelevantes?: string[];
 
@@ -322,6 +339,9 @@ export class InformeLongitudinalCardiometabolico extends Document {
   @Prop({ enum: VALORES_NIVEL_RIESGO_LONGITUDINAL })
   nivelRiesgoLongitudinal?: NivelRiesgoLongitudinal;
 
+  @Prop({ enum: VALORES_TRAYECTORIA_LONGITUDINAL_INFORME })
+  tendenciaLongitudinal?: TrayectoriaLongitudinalInforme;
+
   @Prop()
   interpretacionRiesgoLongitudinal?: string;
 
@@ -330,6 +350,10 @@ export class InformeLongitudinalCardiometabolico extends Document {
 
   @Prop({ type: [{ type: String }] })
   alertasRelevantes?: string[];
+
+  /** Viñetas de contexto terapéutico; solo evidencia de soporte (no alertas). */
+  @Prop({ type: [{ type: String }] })
+  contextoTerapeutico?: string[];
 
   @Prop()
   resumenLongitudinalSugerido?: string;
@@ -354,6 +378,19 @@ export class InformeLongitudinalCardiometabolico extends Document {
 
   @Prop()
   limitaciones?: string;
+
+  /** Imagen PNG en base64 (data URL) para PDF / almacenamiento, patrón audiometría. */
+  @Prop()
+  graficaEvolucionGlucemica?: string;
+
+  @Prop()
+  graficaEvolucionPresionArterial?: string;
+
+  @Prop()
+  graficaEvolucionPesoImc?: string;
+
+  @Prop()
+  graficaEvolucionPerfilLipidico?: string;
 
   @Prop()
   rutaPDF?: string;

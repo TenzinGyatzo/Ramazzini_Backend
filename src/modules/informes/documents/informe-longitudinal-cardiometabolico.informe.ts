@@ -13,12 +13,14 @@ import {
   ConsistenciaSeguimientoLongitudinal,
   GraficaLongitudinalCardiometabolica,
   NivelRiesgoLongitudinal,
+  TrayectoriaLongitudinalInforme,
 } from '../../expedientes/enums/informe-longitudinal-cardiometabolico.enums';
 import type {
   EstadoCondicionesCardiometabolicas,
   LaboratorioCardiometabolico,
   SignosVitalesCardiometabolico,
   SomatometriaCardiometabolico,
+  TratamientoActualCardiometabolico,
 } from '../../expedientes/schemas/evento-seguimiento-cardiometabolico.schema';
 import type {
   CondicionControlResumenLongitudinal,
@@ -29,6 +31,7 @@ import type {
   ResumenIndicadoresLongitudinal,
   SeguimientoProgramadoConcentradoCardiometabolico,
 } from '../../expedientes/schemas/informe-longitudinal-cardiometabolico.schema';
+import { buildTimelineSeguimientoPdfBlock } from '../utils/timeline-seguimiento-informe-longitudinal';
 import { formatearNombreTrabajador } from '../../../utils/names';
 
 // ==================== ESTILOS ====================
@@ -56,11 +59,11 @@ const styles: StyleDictionary = {
   },
   /** Títulos de sección fuera de tabla: no usar tableHeader (texto blanco sin celda con fondo). */
   sectionHeader: {
-    fontSize: 10,
+    fontSize: 8,
     lineHeight: 0.8,
     bold: true,
-    alignment: 'center',
-    color: '#111827',
+    alignment: 'left',
+    color: '#404040',
     margin: [0, 0, 0, 4],
   },
   label: {
@@ -251,9 +254,11 @@ interface DatosInformeLongitudinalCardiometabolicoInforme {
   resumenIndicadores?: ResumenIndicadoresLongitudinal;
   graficasIncluidas?: GraficaLongitudinalCardiometabolica[];
   nivelRiesgoLongitudinal?: NivelRiesgoLongitudinal;
+  tendenciaLongitudinal?: TrayectoriaLongitudinalInforme;
   interpretacionRiesgoLongitudinal?: string;
   factoresPersistentes?: string[];
   alertasRelevantes?: string[];
+  contextoTerapeutico?: string[];
   resumenLongitudinalSugerido?: string;
   conclusionClinicaSugerida?: string;
   recomendacionesSugeridas?: string;
@@ -262,6 +267,11 @@ interface DatosInformeLongitudinalCardiometabolicoInforme {
   conclusionClinica?: string;
   recomendaciones?: string;
   limitaciones?: string;
+  /** data URL PNG (evolución glucémica en PDF). */
+  graficaEvolucionGlucemica?: string;
+  graficaEvolucionPresionArterial?: string;
+  graficaEvolucionPesoImc?: string;
+  graficaEvolucionPerfilLipidico?: string;
 }
 
 interface MedicoFirmante {
@@ -333,6 +343,14 @@ function fmt(v: unknown): string {
 function fmtOpcional(v: unknown): string {
   if (v === undefined || v === null || v === '') return '';
   return String(v);
+}
+
+/** Salida PDF: hasta 2 decimales sin artefactos float (solo presentación). */
+function fmtNumInformePdf(n: unknown): string {
+  if (n === undefined || n === null || n === '') return PLACEHOLDER;
+  const x = Number(n);
+  if (!Number.isFinite(x)) return String(n);
+  return String(Number.parseFloat(x.toFixed(2)));
 }
 
 /** Etiquetas de fila en PDF: mayúsculas tipográficas (es) para dar más peso visual. */
@@ -597,22 +615,49 @@ function formatoIndicadorResumenPdf(o: ResumenIndicadorLongitudinal | undefined)
   const vf = o.valorFinal;
   if (vi == null && vf == null) return '';
   const tramo =
-    vi != null && vf != null ? `${vi} → ${vf}` : vi != null ? String(vi) : String(vf);
+    vi != null && vf != null
+      ? `${fmtNumInformePdf(vi)} → ${fmtNumInformePdf(vf)}`
+      : vi != null
+        ? fmtNumInformePdf(vi)
+        : fmtNumInformePdf(vf);
   const delta =
-    o.cambioAbsoluto != null && vi != null && vf != null ? ` (Δ ${o.cambioAbsoluto})` : '';
+    o.cambioAbsoluto != null && vi != null && vf != null
+      ? ` (Δ ${fmtNumInformePdf(o.cambioAbsoluto)})`
+      : '';
   const tend = o.tendencia ? ` · ${o.tendencia}` : ' · —';
   return `${tramo}${delta}${tend}`;
 }
 
+function detalleIndicadorResumenPdf(o: ResumenIndicadorLongitudinal | undefined): string {
+  if (!o || typeof o !== 'object') return '';
+  const vi = o.valorInicial;
+  const vf = o.valorFinal;
+  if (vi == null && vf == null) return '';
+  const tramo =
+    vi != null && vf != null
+      ? `${fmtNumInformePdf(vi)} → ${fmtNumInformePdf(vf)}`
+      : vi != null
+        ? fmtNumInformePdf(vi)
+        : fmtNumInformePdf(vf);
+  const delta =
+    o.cambioAbsoluto != null && vi != null && vf != null
+      ? ` (Δ ${fmtNumInformePdf(o.cambioAbsoluto)})`
+      : '';
+  return `${tramo}${delta}`;
+}
+
 function lineasEvolucionPrincipalPdf(
   r: ResumenIndicadoresLongitudinal | undefined,
-): { label: string; texto: string }[] {
+): { label: string; tendencia: string; detalle: string }[] {
   if (!r) return [];
-  const lines: { label: string; texto: string }[] = [];
+  const lines: { label: string; tendencia: string; detalle: string }[] = [];
   const push = (label: string, o: ResumenIndicadorLongitudinal | undefined) => {
-    const t = formatoIndicadorResumenPdf(o);
-    if (!t) return;
-    lines.push({ label, texto: t });
+    if (!formatoIndicadorResumenPdf(o)) return;
+    lines.push({
+      label,
+      tendencia: o?.tendencia ? String(o.tendencia) : '—',
+      detalle: detalleIndicadorResumenPdf(o) || '—',
+    });
   };
   push('TA sistólica (mmHg)', r.tensionArterialSistolica);
   push('TA diastólica (mmHg)', r.tensionArterialDiastolica);
@@ -621,6 +666,38 @@ function lineasEvolucionPrincipalPdf(
   push('Glucosa (mg/dL)', r.glucosaMgDl);
   push('HbA1c (%)', r.hba1cPorcentaje);
   return lines;
+}
+
+function tablaEvolucionPrincipalInformeLongitudinalPdf(
+  r: ResumenIndicadoresLongitudinal | undefined,
+): Content | null {
+  const evoLines = lineasEvolucionPrincipalPdf(r);
+  if (!evoLines.length) return null;
+  const headerRow: Content[] = [
+    { text: 'INDICADOR', style: 'tableHeader' },
+    { text: 'TENDENCIA', style: 'tableHeader' },
+    { text: 'VALOR INICIAL → VALOR FINAL (DIFERENCIA ABSOLUTA)', style: 'tableHeader' },
+  ];
+  const body: Content[][] = [
+    headerRow,
+    ...evoLines.map(
+      (l): Content[] =>
+        [
+          { text: l.label, style: 'tableCellLeftBold', alignment: 'left', fontSize: 8 },
+          { text: l.tendencia, style: 'tableCell', fontSize: 8 },
+          { text: l.detalle, style: 'tableCell', fontSize: 7.5, color: '#6B7280' },
+        ] as Content[],
+    ),
+  ];
+  return {
+    style: 'table',
+    table: {
+      widths: ['34%', '24%', '*'],
+      body,
+    },
+    layout: layoutTablaCompacta,
+    margin: [0, 1, 0, 12],
+  };
 }
 
 function textoCondicionResumenPdf(bloque: BloqueCondicionResumenLongitudinal | undefined): string | null {
@@ -653,42 +730,46 @@ function tablaEventosConcentradosPdf(
   if (!ev.length) return null;
   const headerRow = [
     { text: 'FECHA', style: 'tableHeader' },
-    { text: 'TA SIS/DIA', style: 'tableHeader' },
+    { text: 'TA (mmHg)', style: 'tableHeader' },
     { text: 'IMC', style: 'tableHeader' },
-    { text: 'GLUCOSA', style: 'tableHeader' },
-    { text: 'HbA1c', style: 'tableHeader' },
-    { text: 'RIESGO', style: 'tableHeader' },
+    { text: 'C. CINTURA (cm)', style: 'tableHeader' },
+    { text: 'GLUCOSA (mg/dL)', style: 'tableHeader' },
+    { text: 'HbA1c (%)', style: 'tableHeader' },
   ];
   const body: Content[][] = [headerRow];
   for (const row of ev) {
     const sv = row.signosVitales;
     const ta =
       sv?.tensionArterialSistolica != null && sv?.tensionArterialDiastolica != null
-        ? `${sv.tensionArterialSistolica}/${sv.tensionArterialDiastolica}`
+        ? `${fmtNumInformePdf(sv.tensionArterialSistolica)}/${fmtNumInformePdf(sv.tensionArterialDiastolica)}`
         : PLACEHOLDER;
     const imc =
       row.somatometria?.indiceMasaCorporal != null
-        ? String(row.somatometria.indiceMasaCorporal)
+        ? fmtNumInformePdf(row.somatometria.indiceMasaCorporal)
+        : PLACEHOLDER;
+    const cintura =
+      row.somatometria?.circunferenciaCintura != null
+        ? fmtNumInformePdf(row.somatometria.circunferenciaCintura)
         : PLACEHOLDER;
     const glu =
-      row.laboratorio?.glucosaMgDl != null ? String(row.laboratorio.glucosaMgDl) : PLACEHOLDER;
+      row.laboratorio?.glucosaMgDl != null ? fmtNumInformePdf(row.laboratorio.glucosaMgDl) : PLACEHOLDER;
     const hba =
       row.laboratorio?.hba1cPorcentaje != null
-        ? String(row.laboratorio.hba1cPorcentaje)
+        ? fmtNumInformePdf(row.laboratorio.hba1cPorcentaje)
         : PLACEHOLDER;
     body.push([
       { text: fechaEventoPdf(row.fechaControl), style: 'tableCell' },
       { text: ta, style: 'tableCell' },
       { text: imc, style: 'tableCell' },
+      { text: cintura, style: 'tableCell' },
       { text: glu, style: 'tableCell' },
       { text: hba, style: 'tableCell' },
-      { text: fmt(row.riesgoActual), style: 'tableCell' },
     ]);
   }
   return {
     style: 'table',
     table: {
-      widths: ['14%', '14%', '11%', '13%', '12%', '*'],
+      widths: ['16%', '16%', '14%', '14%', '18%', '*'],
       body,
     },
     layout: layoutTablaCompacta,
@@ -696,36 +777,457 @@ function tablaEventosConcentradosPdf(
   };
 }
 
-function tablaSeguimientosProgramadosPdf(
-  rows: SeguimientoProgramadoConcentradoCardiometabolico[] | undefined,
+const MAX_FILAS_TRATAMIENTO_ILC_PDF = 12;
+const DIAS_POR_FILA_TRATAMIENTO_ILC_PDF = 2;
+
+interface CeldaTratamientoDiaPdf {
+  fechaLabel: string;
+  medicamentos: string[];
+  medicamentosOmitidos: number;
+  truncadoLista: boolean;
+}
+
+interface SegmentoTratamientoInternoPdf {
+  fechaInicio: string;
+  fechaFin: string;
+  fingerprint: string;
+  medicamentos: string[];
+  medicamentosOmitidos: number;
+  truncadoLista: boolean;
+}
+
+function filaTratamientoConcentradoTieneDatos(row: TratamientoActualCardiometabolico): boolean {
+  return (
+    String(row.medicamento ?? '').trim() !== '' ||
+    String(row.dosis ?? '').trim() !== '' ||
+    String(row.frecuencia ?? '').trim() !== '' ||
+    String(row.motivoUso ?? '').trim() !== ''
+  );
+}
+
+function formatearLineaMedicamentoConcentradoPdf(fila: TratamientoActualCardiometabolico): string {
+  const med = String(fila.medicamento ?? '').trim();
+  const dosis = String(fila.dosis ?? '').trim();
+  const freq = String(fila.frecuencia ?? '').trim();
+  const motivo = String(fila.motivoUso ?? '').trim();
+  const partes = [med, dosis, freq].filter(Boolean);
+  const cuerpo = partes.join(' ');
+  if (!cuerpo && !motivo) return '';
+  return motivo ? `${cuerpo} — ${motivo}` : cuerpo;
+}
+
+function eventosConcentradosOrdenadosPdf(
+  eventos: EventoConcentradoCardiometabolico[] | undefined,
+): EventoConcentradoCardiometabolico[] {
+  const ev = (eventos ?? []).filter(Boolean);
+  return [...ev].sort((a, b) => {
+    const ta = a.fechaControl ? new Date(a.fechaControl).getTime() : 0;
+    const tb = b.fechaControl ? new Date(b.fechaControl).getTime() : 0;
+    return ta - tb;
+  });
+}
+
+function eventoConcentradoTieneTratamientoPdf(ev: EventoConcentradoCardiometabolico): boolean {
+  return (ev.tratamientoActual ?? []).some(filaTratamientoConcentradoTieneDatos);
+}
+
+function hayEvidenciaTratamientoPeriodoPdf(
+  eventos: EventoConcentradoCardiometabolico[] | undefined,
+): boolean {
+  return eventosConcentradosOrdenadosPdf(eventos).some(eventoConcentradoTieneTratamientoPdf);
+}
+
+function hayEvidenciaClinicaSoporteVisiblePdf(
+  ilc: DatosInformeLongitudinalCardiometabolicoInforme,
+): boolean {
+  const eventos = ilc.eventosConcentrados;
+  if ((ilc.contextoTerapeutico ?? []).some((s) => String(s).trim())) return true;
+  if (hayEvidenciaTratamientoPeriodoPdf(eventos)) return true;
+  return eventosConcentradosOrdenadosPdf(eventos).length > 0;
+}
+
+function buildContextoTerapeuticoBulletsPdf(contexto: string[] | undefined): Content[] {
+  const lineas = (contexto ?? []).map((s) => String(s).trim()).filter(Boolean).slice(0, 3);
+  return lineas.map((t) => ({
+    text: `• ${t}`,
+    fontSize: 8,
+    color: '#4B5563',
+    margin: [0, 0, 0, 2],
+  }));
+}
+
+function normalizarFilaTratamientoPdf(row: TratamientoActualCardiometabolico): TratamientoActualCardiometabolico {
+  const out: TratamientoActualCardiometabolico = {};
+  for (const k of ['medicamento', 'dosis', 'frecuencia', 'motivoUso'] as const) {
+    const v = String(row[k] ?? '').trim();
+    if (v) out[k] = v;
+  }
+  return out;
+}
+
+function fingerprintRegimenTratamientoPdf(ev: EventoConcentradoCardiometabolico): string {
+  const filas = (ev.tratamientoActual ?? [])
+    .map(normalizarFilaTratamientoPdf)
+    .filter(filaTratamientoConcentradoTieneDatos);
+  const lineas = filas
+    .map(formatearLineaMedicamentoConcentradoPdf)
+    .filter((l) => l.trim())
+    .sort();
+  return lineas.join('|');
+}
+
+function labelPeriodoTratamientoPdf(fechaInicio: string, fechaFin: string): string {
+  const a = fechaEventoPdf(fechaInicio);
+  const b = fechaEventoPdf(fechaFin);
+  return a === b ? a : `${a} – ${b}`;
+}
+
+function medicamentosVisiblesDesdeEventoPdf(ev: EventoConcentradoCardiometabolico): {
+  medicamentos: string[];
+  medicamentosOmitidos: number;
+  truncadoLista: boolean;
+} {
+  const filas = (ev.tratamientoActual ?? []).filter(filaTratamientoConcentradoTieneDatos);
+  const lineas = filas.map(formatearLineaMedicamentoConcentradoPdf).filter((l) => l.trim());
+  const truncadoLista = lineas.length > MAX_FILAS_TRATAMIENTO_ILC_PDF;
+  const visibles = truncadoLista ? lineas.slice(0, MAX_FILAS_TRATAMIENTO_ILC_PDF) : lineas;
+  return {
+    medicamentos: visibles,
+    medicamentosOmitidos: Math.max(0, lineas.length - visibles.length),
+    truncadoLista,
+  };
+}
+
+/** Sincronizado con buildSegmentosTratamientoPeriodo en informeLongitudinalTratamiento.ts */
+function buildCeldasTratamientoPeriodoPdf(
+  eventos: EventoConcentradoCardiometabolico[] | undefined,
+): CeldaTratamientoDiaPdf[] {
+  const cron = eventosConcentradosOrdenadosPdf(eventos).filter(eventoConcentradoTieneTratamientoPdf);
+  const segmentos: SegmentoTratamientoInternoPdf[] = [];
+
+  for (const ev of cron) {
+    const rawFecha = ev.fechaControl;
+    const fecha =
+      rawFecha instanceof Date
+        ? rawFecha.toISOString().slice(0, 10)
+        : String(rawFecha ?? '').trim();
+    if (!fecha) continue;
+
+    const fp = fingerprintRegimenTratamientoPdf(ev);
+    const meds = medicamentosVisiblesDesdeEventoPdf(ev);
+    const ultimo = segmentos[segmentos.length - 1];
+
+    if (ultimo && ultimo.fingerprint === fp) {
+      ultimo.fechaFin = fecha;
+      continue;
+    }
+
+    segmentos.push({
+      fechaInicio: fecha,
+      fechaFin: fecha,
+      fingerprint: fp,
+      medicamentos: meds.medicamentos,
+      medicamentosOmitidos: meds.medicamentosOmitidos,
+      truncadoLista: meds.truncadoLista,
+    });
+  }
+
+  return segmentos.map((seg) => ({
+    fechaLabel: labelPeriodoTratamientoPdf(seg.fechaInicio, seg.fechaFin),
+    medicamentos: seg.medicamentos,
+    medicamentosOmitidos: seg.medicamentosOmitidos,
+    truncadoLista: seg.truncadoLista,
+  }));
+}
+
+function buildCeldaTratamientoStackPdf(celda: CeldaTratamientoDiaPdf): Content[] {
+  const stack: Content[] = [
+    {
+      text: celda.fechaLabel,
+      fontSize: 7.5,
+      bold: true,
+      color: '#374151',
+      margin: [0, 0, 0, 1],
+    },
+  ];
+  for (const med of celda.medicamentos) {
+    stack.push({
+      text: `· ${med}`,
+      fontSize: 7.5,
+      color: '#4B5563',
+      margin: [0, 0, 0, 0.5],
+    });
+  }
+  if (celda.medicamentosOmitidos > 0) {
+    stack.push({
+      text: `+${celda.medicamentosOmitidos} más (lista larga en origen)`,
+      fontSize: 7,
+      color: '#6B7280',
+      italics: true,
+      margin: [0, 0, 0, 0.5],
+    });
+  }
+  return stack;
+}
+
+function buildTratamientoPeriodoPdf(
+  eventos: EventoConcentradoCardiometabolico[] | undefined,
+): Content[] {
+  const celdas = buildCeldasTratamientoPeriodoPdf(eventos);
+  if (!celdas.length) return [];
+
+  const blocks: Content[] = [
+    {
+      text: 'TRATAMIENTO REGISTRADO DURANTE EL PERIODO',
+      fontSize: 7.5,
+      bold: true,
+      color: '#6B7280',
+      margin: [0, 4, 0, 2],
+    },
+  ];
+
+  if (celdas.length === 1) {
+    blocks.push({
+      stack: buildCeldaTratamientoStackPdf(celdas[0]),
+      margin: [0, 0, 0, 3],
+    });
+    return blocks;
+  }
+
+  const porFila = DIAS_POR_FILA_TRATAMIENTO_ILC_PDF;
+  for (let i = 0; i < celdas.length; i += porFila) {
+    const fila = celdas.slice(i, i + porFila);
+    const columnas = fila.map((celda) => ({
+      width: '*' as const,
+      stack: buildCeldaTratamientoStackPdf(celda),
+    }));
+    while (columnas.length < porFila) {
+      columnas.push({ width: '*' as const, stack: [] });
+    }
+    blocks.push({
+      columns: columnas,
+      columnGap: 8,
+      margin: [0, 0, 0, 3],
+    });
+  }
+  return blocks;
+}
+
+function buildEvidenciaClinicaSoportePdf(
+  ilc: DatosInformeLongitudinalCardiometabolicoInforme,
+): Content[] {
+  if (!hayEvidenciaClinicaSoporteVisiblePdf(ilc)) return [];
+
+  const eventos = ilc.eventosConcentrados;
+  const tablaEv = tablaEventosConcentradosPdf(eventos);
+  const tablaLip = tablaPerfilLipidicoConcentradoPdf(eventos);
+  const ctxBullets = buildContextoTerapeuticoBulletsPdf(ilc.contextoTerapeutico);
+  const trat = buildTratamientoPeriodoPdf(eventos);
+  const hayTablasConcentrado = !!(tablaEv || tablaLip);
+
+  const out: Content[] = [
+    { text: 'CONTEXTO TERAPÉUTICO', style: 'sectionHeader', margin: [0, 10, 0, 2] },
+    ...ctxBullets,
+    ...trat,
+  ];
+
+  if (hayTablasConcentrado) {
+    const marginTopEvidencia =
+      ctxBullets.length || trat.length ? 8 : 10;
+    out.push({
+      text: 'EVIDENCIA CLÍNICA DE SOPORTE',
+      style: 'sectionHeader',
+      margin: [0, marginTopEvidencia, 0, 4],
+    });
+    if (tablaEv) out.push(tablaEv);
+    if (tablaLip) {
+      out.push({
+        text: 'PERFIL LIPÍDICO',
+        fontSize: 7.5,
+        bold: true,
+        color: '#6B7280',
+        margin: [0, tablaEv ? 4 : 2, 0, 2],
+      });
+      out.push(tablaLip);
+    }
+  }
+
+  return out;
+}
+
+function tablaPerfilLipidicoConcentradoPdf(
+  eventos: EventoConcentradoCardiometabolico[] | undefined,
 ): Content | null {
-  const list = rows?.filter(Boolean) ?? [];
-  if (!list.length) return null;
+  const ev = eventos?.filter(Boolean) ?? [];
+  if (!ev.length) return null;
   const headerRow = [
-    { text: 'PROGRAMADA', style: 'tableHeader' },
-    { text: 'MOTIVO', style: 'tableHeader' },
-    { text: 'ESTADO', style: 'tableHeader' },
+    { text: 'FECHA', style: 'tableHeader' },
+    { text: 'CT (mg/dL)', style: 'tableHeader' },
+    { text: 'LDL (mg/dL)', style: 'tableHeader' },
+    { text: 'HDL (mg/dL)', style: 'tableHeader' },
+    { text: 'TG (mg/dL)', style: 'tableHeader' },
   ];
   const body: Content[][] = [headerRow];
-  for (const row of list) {
+  for (const row of ev) {
+    const lab = row.laboratorio;
+    const ct =
+      lab?.colesterolTotalMgDl != null ? fmtNumInformePdf(lab.colesterolTotalMgDl) : PLACEHOLDER;
+    const ldl = lab?.ldlMgDl != null ? fmtNumInformePdf(lab.ldlMgDl) : PLACEHOLDER;
+    const hdl = lab?.hdlMgDl != null ? fmtNumInformePdf(lab.hdlMgDl) : PLACEHOLDER;
+    const tg =
+      lab?.trigliceridosMgDl != null ? fmtNumInformePdf(lab.trigliceridosMgDl) : PLACEHOLDER;
     body.push([
-      { text: fechaEventoPdf(row.fechaProgramada), style: 'tableCell' },
-      { text: fmt(row.motivo), style: 'tableCellLeft', alignment: 'left' },
-      { text: fmt(row.estado), style: 'tableCell' },
+      { text: fechaEventoPdf(row.fechaControl), style: 'tableCell' },
+      { text: ct, style: 'tableCell' },
+      { text: ldl, style: 'tableCell' },
+      { text: hdl, style: 'tableCell' },
+      { text: tg, style: 'tableCell' },
     ]);
   }
   return {
     style: 'table',
     table: {
-      widths: ['22%', '*', '22%'],
+      widths: ['20%', '20%', '20%', '20%', '*'],
       body,
     },
-    layout: layoutTablaTexto,
+    layout: layoutTablaCompacta,
     margin: [0, 4, 0, 6],
   };
 }
 
-/** Cuerpo clínico y evidencia: mismo orden de lectura que el visualizador (sin gráficas en esta fase). */
+/** Color de texto semáforo (solo valores; etiquetas siguen en gris). Alineado con Step2 del frontend. */
+const PDF_TEXT_SEMAFORO = {
+  ok: '#047857',
+  warn: '#b45309',
+  bad: '#b91c1c',
+  neutral: '#4b5563',
+} as const;
+
+function pdfTextColorRiesgoLongitudinal(nivel: unknown): string {
+  const s = nivel == null ? '' : String(nivel).trim();
+  if (!s) return PDF_TEXT_SEMAFORO.neutral;
+  if (s === 'Muy Bajo' || s === 'Bajo') return PDF_TEXT_SEMAFORO.ok;
+  if (s === 'Moderado') return PDF_TEXT_SEMAFORO.warn;
+  if (s === 'Alto' || s === 'Crítico') return PDF_TEXT_SEMAFORO.bad;
+  return PDF_TEXT_SEMAFORO.neutral;
+}
+
+function pdfTextColorTrayectoriaLongitudinal(t: unknown): string {
+  const s = t == null ? '' : String(t).trim();
+  if (!s) return PDF_TEXT_SEMAFORO.neutral;
+  if (s === 'Favorable' || s === 'Estable') return PDF_TEXT_SEMAFORO.ok;
+  if (s === 'Mixta') return PDF_TEXT_SEMAFORO.warn;
+  if (s === 'Desfavorable') return PDF_TEXT_SEMAFORO.bad;
+  return PDF_TEXT_SEMAFORO.neutral;
+}
+
+function pdfTextColorPorcentajeAsistencia(p: unknown): string {
+  if (p == null || p === '') return PDF_TEXT_SEMAFORO.neutral;
+  const n = Number(p);
+  if (!Number.isFinite(n)) return PDF_TEXT_SEMAFORO.neutral;
+  if (n >= 70) return PDF_TEXT_SEMAFORO.ok;
+  if (n >= 50) return PDF_TEXT_SEMAFORO.warn;
+  return PDF_TEXT_SEMAFORO.bad;
+}
+
+function pdfTextColorConsistenciaSeguimiento(c: unknown): string {
+  const s = c == null ? '' : String(c).trim();
+  if (!s) return PDF_TEXT_SEMAFORO.neutral;
+  if (s === 'Adecuado') return PDF_TEXT_SEMAFORO.ok;
+  if (s === 'Irregular') return PDF_TEXT_SEMAFORO.warn;
+  if (s === 'Insuficiente') return PDF_TEXT_SEMAFORO.bad;
+  return PDF_TEXT_SEMAFORO.neutral;
+}
+
+/**
+ * Seguimiento operativo (asistencia, consistencia, conteos): mismo patrón que
+ * RIESGO LONGITUDINAL / TRAYECTORIA DEL PERIODO (columnas, etiquetas #6B7280, valores grandes semáforo).
+ */
+function buildSeguimientoOperativoInformePdf(
+  ilc: DatosInformeLongitudinalCardiometabolicoInforme,
+  hayTimelineSeguimiento: boolean,
+): Content[] {
+  const blocks: Content[] = [];
+
+  const hasPct = ilc.porcentajeAsistencia != null && Number.isFinite(Number(ilc.porcentajeAsistencia));
+  const hasCons =
+    ilc.consistenciaSeguimiento != null && String(ilc.consistenciaSeguimiento).trim() !== '';
+  const hasConteos = ilc.numeroSeguimientosRealizados != null;
+
+  const marginTopPrimero = hayTimelineSeguimiento ? 10 : 0;
+
+  if (!hayTimelineSeguimiento) {
+    blocks.push({
+      text: 'CONTINUIDAD DEL SEGUIMIENTO',
+      fontSize: 7.5,
+      bold: true,
+      color: '#9CA3AF',
+      margin: [0, 12, 0, 3],
+    });
+  }
+
+  if (hasPct || hasCons) {
+    blocks.push({
+      columns: [
+        {
+          width: '*',
+          stack: [
+            { text: '% DE ASISTENCIA', fontSize: 8, bold: true, color: '#6B7280' },
+            {
+              text: hasPct ? `${fmtNumInformePdf(ilc.porcentajeAsistencia!)}%` : '—',
+              fontSize: 18,
+              bold: true,
+              color: hasPct
+                ? pdfTextColorPorcentajeAsistencia(ilc.porcentajeAsistencia)
+                : PDF_TEXT_SEMAFORO.neutral,
+              margin: [0, 2, 0, 0],
+            },
+          ],
+        },
+        {
+          width: '*',
+          stack: [
+            { text: 'CONSISTENCIA DEL SEGUIMIENTO', fontSize: 8, bold: true, color: '#6B7280' },
+            {
+              text: hasCons ? String(ilc.consistenciaSeguimiento) : '—',
+              fontSize: 16,
+              bold: true,
+              color: hasCons
+                ? pdfTextColorConsistenciaSeguimiento(ilc.consistenciaSeguimiento)
+                : PDF_TEXT_SEMAFORO.neutral,
+              margin: [0, 2, 0, 0],
+            },
+          ],
+        },
+      ],
+      columnGap: 10,
+      margin: [0, marginTopPrimero, 0, hasConteos ? 4 : 6],
+    });
+  }
+
+  if (hasConteos) {
+    blocks.push({
+      text: `Eventos / inasistencias / cancelaciones: ${fmt(ilc.numeroSeguimientosRealizados)} / ${fmt(ilc.numeroInasistencias)} / ${fmt(ilc.numeroCancelaciones)}`,
+      fontSize: 9,
+      color: '#6B7280',
+      margin: [0, hasPct || hasCons ? 0 : marginTopPrimero, 0, 8],
+    });
+  }
+
+  if (!hasPct && !hasCons && !hasConteos) {
+    blocks.push({
+      text: 'Sin métricas operativas registradas.',
+      italics: true,
+      fontSize: 8,
+      color: '#9CA3AF',
+      margin: [0, hayTimelineSeguimiento ? 10 : 0, 0, 8],
+    });
+  }
+
+  return blocks;
+}
+
+/** Cuerpo clínico y evidencia: jerarquía alineada con el visualizador. */
 function buildCuerpoInformeLongitudinalPdf(ilc: DatosInformeLongitudinalCardiometabolicoInforme): Content[] {
   const out: Content[] = [];
 
@@ -739,72 +1241,174 @@ function buildCuerpoInformeLongitudinalPdf(ilc: DatosInformeLongitudinalCardiome
     });
   };
 
-  const pushParrafo = (text: string | undefined) => {
-    const t = text?.trim();
-    if (!t) return;
-    out.push({ text: t, fontSize: 9, margin: [0, 0, 0, 6] });
+  const pushSubDiscrete = (titulo: string, marginTop = 6) => {
+    out.push({
+      text: titulo,
+      fontSize: 7.5,
+      bold: true,
+      color: '#6B7280',
+      margin: [0, marginTop, 0, 2],
+    });
   };
 
-  out.push({ text: 'INTERPRETACIÓN CLÍNICA', style: 'sectionHeader', margin: [0, 8, 0, 4] });
+  const pushParrafo = (text: string | undefined, opts?: { fontSize?: number; marginBottom?: number }) => {
+    const t = text?.trim();
+    if (!t) return;
+    out.push({
+      text: t,
+      fontSize: opts?.fontSize ?? 9,
+      margin: [0, 0, 0, opts?.marginBottom ?? 6],
+    });
+  };
 
   out.push({
-    stack: [
-      { text: 'RIESGO LONGITUDINAL', fontSize: 8, bold: true, color: '#9f1239' },
-      { text: fmt(ilc.nivelRiesgoLongitudinal), fontSize: 14, bold: true, color: '#881337', margin: [0, 2, 0, 8] },
+    columns: [
+      {
+        width: '*',
+        stack: [
+          { text: 'RIESGO LONGITUDINAL', fontSize: 8, bold: true, color: '#6B7280' },
+          {
+            text: fmt(ilc.nivelRiesgoLongitudinal),
+            fontSize: 18,
+            bold: true,
+            color: pdfTextColorRiesgoLongitudinal(ilc.nivelRiesgoLongitudinal),
+            margin: [0, 2, 0, 0],
+          },
+        ],
+      },
+      {
+        width: '*',
+        stack: [
+          { text: 'TRAYECTORIA DEL PERIODO', fontSize: 8, bold: true, color: '#6B7280' },
+          {
+            text: fmt(ilc.tendenciaLongitudinal),
+            fontSize: 16,
+            bold: true,
+            color: pdfTextColorTrayectoriaLongitudinal(ilc.tendenciaLongitudinal),
+            margin: [0, 2, 0, 0],
+          },
+        ],
+      },
     ],
+    columnGap: 10,
+    margin: [0, 0, 0, 6],
   });
 
-  if (ilc.conclusionClinica?.trim()) {
-    pushSub('Conclusión clínica', 0);
-    pushParrafo(ilc.conclusionClinica);
-  }
-
-  if (ilc.resumenLongitudinal?.trim()) {
-    pushSub('Resumen longitudinal', 0);
-    pushParrafo(ilc.resumenLongitudinal);
-  }
-
   if (ilc.interpretacionRiesgoLongitudinal?.trim()) {
-    pushSub('Interpretación del riesgo longitudinal', 0);
-    pushParrafo(ilc.interpretacionRiesgoLongitudinal);
+    pushSub('INTERPRETACIÓN DEL RIESGO', 0);
+    pushParrafo(ilc.interpretacionRiesgoLongitudinal, { marginBottom: 6 });
   }
 
   const factores = ilc.factoresPersistentes?.filter((x) => String(x).trim()) ?? [];
   if (factores.length) {
-    pushSub('Factores persistentes', 0);
+    pushSubDiscrete('Factores persistentes', 4);
     out.push({
       ul: factores.map((x) => String(x)),
-      fontSize: 9,
-      margin: [0, 0, 0, 6],
+      fontSize: 7.5,
+      color: '#6B7280',
+      margin: [0, 0, 0, 5],
     });
   }
 
   const alertas = ilc.alertasRelevantes?.filter((x) => String(x).trim()) ?? [];
   if (alertas.length) {
-    pushSub('Alertas relevantes', 0);
+    pushSubDiscrete('Alertas relevantes', 2);
     out.push({
       ul: alertas.map((x) => String(x)),
-      fontSize: 9,
+      fontSize: 7.5,
+      color: '#6B7280',
       margin: [0, 0, 0, 6],
     });
   }
 
-  if (ilc.consistenciaSeguimiento) {
-    pushSub('Consistencia del seguimiento', 0);
-    pushParrafo(String(ilc.consistenciaSeguimiento));
-  }
-
-  const evoLines = lineasEvolucionPrincipalPdf(ilc.resumenIndicadores);
-  if (evoLines.length) {
-    out.push({ text: 'EVOLUCIÓN PRINCIPAL', style: 'sectionHeader', margin: [0, 10, 0, 4] });
+  const tablaEvo = tablaEvolucionPrincipalInformeLongitudinalPdf(ilc.resumenIndicadores);
+  if (tablaEvo) {
     out.push({
-      stack: evoLines.map((l) => ({
-        text: [{ text: `${l.label}: `, bold: true }, { text: l.texto }],
-        fontSize: 9,
-        margin: [0, 0, 0, 2],
-      })),
-      margin: [0, 0, 0, 6],
+      text: 'EVOLUCIÓN PRINCIPAL / TENDENCIA EN INDICADORES',
+      style: 'sectionHeader',
+      margin: [0, 4, 0, 3],
     });
+    out.push(tablaEvo);
+  }
+
+  // PNG de evolución (Chart.js en el visualizador): contraste grid vs referencias, ver VisualizadorInformeLongitudinalCardiometabolico.vue (ILC_CHART_*).
+  const imgGlucemia = ilc.graficaEvolucionGlucemica?.trim();
+  if (imgGlucemia) {
+    out.push({ text: 'EVOLUCIÓN GLUCÉMICA', style: 'sectionHeader', margin: [0, 16, 0, 2] });
+    out.push({
+      text: 'Glucosa y HbA1c durante el periodo evaluado',
+      fontSize: 8,
+      color: '#6B7280',
+      margin: [0, 0, 0, 4],
+    });
+    out.push({
+      image: imgGlucemia,
+      width: 460,
+      alignment: 'center',
+      margin: [0, 0, 0, 8],
+      pageBreak: 'after',
+    });
+  }
+
+  const imgPresionArterial = ilc.graficaEvolucionPresionArterial?.trim();
+  if (imgPresionArterial) {
+    out.push({ text: 'EVOLUCIÓN DE PRESIÓN ARTERIAL', style: 'sectionHeader', margin: [0, 12, 0, 2] });
+    out.push({
+      text: 'Presión sistólica y diastólica durante el periodo evaluado',
+      fontSize: 8,
+      color: '#6B7280',
+      margin: [0, 0, 0, 4],
+    });
+    out.push({
+      image: imgPresionArterial,
+      width: 460,
+      alignment: 'center',
+      margin: [0, 0, 0, 8],
+    });
+  }
+
+  const imgPesoImc = ilc.graficaEvolucionPesoImc?.trim();
+  if (imgPesoImc) {
+    out.push({ text: 'EVOLUCIÓN DE PESO E IMC', style: 'sectionHeader', margin: [0, 6, 0, 2] });
+    out.push({
+      text: 'Cambios de peso corporal e índice de masa corporal durante el periodo evaluado',
+      fontSize: 8,
+      color: '#6B7280',
+      margin: [0, 0, 0, 4],
+    });
+    out.push({
+      image: imgPesoImc,
+      width: 460,
+      alignment: 'center',
+      margin: [0, 0, 0, 8],
+    });
+  }
+
+  const imgPerfilLipidico = ilc.graficaEvolucionPerfilLipidico?.trim();
+  if (imgPerfilLipidico) {
+    out.push({ text: 'EVOLUCIÓN DEL PERFIL LIPÍDICO', style: 'sectionHeader', margin: [0, 6, 0, 2] });
+    out.push({
+      text: 'Colesterol total, LDL, HDL y triglicéridos durante el periodo evaluado',
+      fontSize: 8,
+      color: '#6B7280',
+      margin: [0, 0, 0, 4],
+    });
+    out.push({
+      image: imgPerfilLipidico,
+      width: 460,
+      alignment: 'center',
+      margin: [0, 0, 0, 8],
+    });
+  }
+
+  if (ilc.conclusionClinica?.trim()) {
+    pushSub('Conclusión clínica longitudinal', 6);
+    pushParrafo(ilc.conclusionClinica, { fontSize: 10, marginBottom: 8 });
+  }
+
+  if (ilc.resumenLongitudinal?.trim()) {
+    pushSub('Resumen longitudinal', 0);
+    pushParrafo(ilc.resumenLongitudinal);
   }
 
   const rc = ilc.resumenCondiciones;
@@ -825,74 +1429,30 @@ function buildCuerpoInformeLongitudinalPdf(ilc: DatosInformeLongitudinalCardiome
       stack: bloquesCond.map((b) => ({
         text: [{ text: `${b.titulo}: `, bold: true }, { text: b.texto }],
         fontSize: 9,
-        margin: [0, 0, 0, 4],
+        margin: [0, 0, 0, 5],
       })),
       margin: [0, 0, 0, 4],
     });
   }
 
-  out.push({ text: 'PERIODO Y EVIDENCIA', style: 'sectionHeader', margin: [0, 10, 0, 4] });
-  const pIni = fechaOpcionalInformeEsc(ilc.periodoInicio);
-  const pFin = fechaOpcionalInformeEsc(ilc.periodoFin);
-  out.push({
-    text: `Periodo: ${pIni} – ${pFin}`,
-    fontSize: 9,
-    margin: [0, 0, 0, 2],
-  });
-  out.push({
-    text: `Último evento considerado: ${fechaOpcionalInformeEsc(ilc.fechaUltimoEventoConsiderado)}`,
-    fontSize: 9,
-    margin: [0, 0, 0, 2],
-  });
-  const nProg =
-    ilc.numeroSeguimientosProgramados ?? ilc.seguimientosProgramadosIncluidos?.length ?? 0;
-  out.push({
-    text: `Eventos incluidos: ${fmt(ilc.numeroEventosIncluidos)} · Seguimientos programados: ${fmt(nProg)}`,
-    fontSize: 9,
-    margin: [0, 0, 0, 6],
-  });
+  const timelinePdf = buildTimelineSeguimientoPdfBlock(
+    ilc.eventosConcentrados,
+    ilc.seguimientosProgramadosConcentrados,
+  );
+  if (timelinePdf) {
+    out.push(timelinePdf);
+  }
+  const hayTimelineSeguimiento = !!timelinePdf;
 
-  const tablaEv = tablaEventosConcentradosPdf(ilc.eventosConcentrados);
-  if (tablaEv) {
-    pushSub('Eventos concentrados', 0);
-    out.push(tablaEv);
+  for (const bloque of buildSeguimientoOperativoInformePdf(ilc, hayTimelineSeguimiento)) {
+    out.push(bloque);
   }
 
-  const tablaSeg = tablaSeguimientosProgramadosPdf(ilc.seguimientosProgramadosConcentrados);
-  if (tablaSeg) {
-    pushSub('Seguimientos programados', 0);
-    out.push(tablaSeg);
+  for (const bloque of buildEvidenciaClinicaSoportePdf(ilc)) {
+    out.push(bloque);
   }
 
-  out.push({
-    text: 'CONTINUIDAD DEL SEGUIMIENTO',
-    fontSize: 9,
-    bold: true,
-    color: '#6B7280',
-    margin: [0, 10, 0, 4],
-  });
-  const opBits: string[] = [];
-  if (ilc.porcentajeAsistencia != null) {
-    opBits.push(`% asistencia (citas cerradas): ${fmt(ilc.porcentajeAsistencia)}%`);
-  }
-  if (ilc.numeroSeguimientosRealizados != null) {
-    opBits.push(
-      `Realizadas / inasistencias / cancelaciones / reprogramaciones: ${fmt(ilc.numeroSeguimientosRealizados)} / ${fmt(ilc.numeroInasistencias)} / ${fmt(ilc.numeroCancelaciones)} / ${fmt(ilc.numeroReprogramaciones)}`,
-    );
-  }
-  if (opBits.length) {
-    out.push({ text: opBits.join('\n'), fontSize: 8, color: '#374151', margin: [0, 0, 0, 8] });
-  } else {
-    out.push({
-      text: 'Sin métricas operativas registradas.',
-      italics: true,
-      fontSize: 8,
-      color: '#6B7280',
-      margin: [0, 0, 0, 8],
-    });
-  }
-
-  out.push({ text: 'CIERRE CLÍNICO', style: 'sectionHeader', margin: [0, 10, 0, 4] });
+  /* out.push({ text: 'CIERRE CLÍNICO', style: 'sectionHeader', margin: [0, 10, 0, 4] });
   if (ilc.recomendaciones?.trim()) {
     pushSub('Recomendaciones', 0);
     pushParrafo(ilc.recomendaciones);
@@ -909,62 +1469,7 @@ function buildCuerpoInformeLongitudinalPdf(ilc: DatosInformeLongitudinalCardiome
       color: '#6B7280',
       margin: [0, 0, 0, 6],
     });
-  }
-
-  const datosFalt = ilc.datosFaltantesRelevantes?.filter((x) => String(x).trim()) ?? [];
-  if (datosFalt.length) {
-    out.push({
-      text: 'LIMITACIONES DE INTERPRETACIÓN',
-      style: 'sectionHeader',
-      margin: [0, 10, 0, 4],
-    });
-    out.push({
-      ul: datosFalt.map((x) => String(x)),
-      fontSize: 9,
-      margin: [0, 0, 0, 8],
-    });
-  }
-
-  const hayBorrador =
-    !!(ilc.resumenLongitudinalSugerido?.trim() ||
-      ilc.conclusionClinicaSugerida?.trim() ||
-      ilc.recomendacionesSugeridas?.trim() ||
-      ilc.limitacionesSugeridas?.trim());
-  if (hayBorrador) {
-    out.push({
-      text: 'BORRADOR AUTOMÁTICO (NO VALIDADO)',
-      fontSize: 8,
-      bold: true,
-      color: '#92400E',
-      margin: [0, 8, 0, 4],
-    });
-    if (ilc.resumenLongitudinalSugerido?.trim()) {
-      pushSub('Resumen sugerido', 0);
-      pushParrafo(ilc.resumenLongitudinalSugerido);
-    }
-    if (ilc.conclusionClinicaSugerida?.trim()) {
-      pushSub('Conclusión sugerida', 0);
-      pushParrafo(ilc.conclusionClinicaSugerida);
-    }
-    if (ilc.recomendacionesSugeridas?.trim()) {
-      pushSub('Recomendaciones sugeridas', 0);
-      pushParrafo(ilc.recomendacionesSugeridas);
-    }
-    if (ilc.limitacionesSugeridas?.trim()) {
-      pushSub('Limitaciones sugeridas', 0);
-      pushParrafo(ilc.limitacionesSugeridas);
-    }
-  }
-
-  if (ilc.graficasIncluidas?.length) {
-    out.push({
-      text: `Gráficas previstas en fase posterior (sin figuras en este PDF): ${ilc.graficasIncluidas.join(', ')}.`,
-      fontSize: 7,
-      color: '#6B7280',
-      italics: true,
-      margin: [0, 6, 0, 0],
-    });
-  }
+  } */
 
   return out;
 }
@@ -1010,7 +1515,7 @@ export const informeLongitudinalCardiometabolicoInforme = (
       ? ilc.fechaInformeLongitudinalCardiometabolico
       : new Date(ilc.fechaInformeLongitudinalCardiometabolico as string);
 
-  // Empresa, fecha y motivo (replica visualizador)
+  // Empresa, subtítulo, fecha y periodo (alineado con visualizador)
   const nombreEmpresaSeccion: Content = {
     style: 'table',
     table: {
@@ -1018,15 +1523,23 @@ export const informeLongitudinalCardiometabolicoInforme = (
       body: [
         [
           {
-            text: nombreEmpresa,
-            style: 'nombreEmpresa',
+            stack: [
+              { text: nombreEmpresa, style: 'nombreEmpresa', alignment: 'center' },
+              {
+                text: '',
+                fontSize: 9,
+                alignment: 'center',
+                color: '#4B5563',
+                margin: [0, 3, 0, 0],
+              },
+            ],
             alignment: 'center',
             margin: [0, 0, 0, 0],
             rowSpan: 2,
           },
           {
             text: [
-              { text: 'Fecha: ', style: 'fecha', bold: false },
+              { text: 'Fecha del informe: ', style: 'fecha', bold: false },
               {
                 text: formatearFechaUTC(fechaInformeLongitudinal),
                 style: 'fecha',
@@ -1041,9 +1554,9 @@ export const informeLongitudinalCardiometabolicoInforme = (
           {} as Content,
           {
             text: [
-              { text: 'Motivo de seguimiento: ', style: 'motivo', bold: false },
+              { text: 'Periodo evaluado: ', style: 'motivo', bold: false },
               {
-                text: 'Seguimiento longitudinal cardiometabólico',
+                text: `${fechaOpcionalInformeEsc(ilc.periodoInicio)} – ${fechaOpcionalInformeEsc(ilc.periodoFin)}`,
                 style: 'motivo',
                 bold: true,
               },

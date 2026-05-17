@@ -13,6 +13,7 @@ import type {
   LaboratorioCardiometabolico,
   SignosVitalesCardiometabolico,
   SomatometriaCardiometabolico,
+  TratamientoActualCardiometabolico,
 } from '../../expedientes/schemas/evento-seguimiento-cardiometabolico.schema';
 import { formatearNombreTrabajador } from '../../../utils/names';
 
@@ -221,6 +222,7 @@ interface DatosEventoSeguimientoCardiometabolicoInforme {
   signosVitales?: SignosVitalesCardiometabolico;
   somatometria?: SomatometriaCardiometabolico;
   laboratorio?: LaboratorioCardiometabolico;
+  tratamientoActual?: TratamientoActualCardiometabolico[];
   adherenciaTerapeutica?: string;
   sintomasRelevantes?: string;
   riesgosActuales?: string;
@@ -781,6 +783,79 @@ function seccionLaboratorio(L: LaboratorioCardiometabolico | undefined): Content
   };
 }
 
+const MAX_FILAS_TRATAMIENTO_PDF = 12;
+
+function filaTratamientoTieneDatos(row: TratamientoActualCardiometabolico): boolean {
+  return (
+    String(row.medicamento ?? '').trim() !== '' ||
+    String(row.dosis ?? '').trim() !== '' ||
+    String(row.frecuencia ?? '').trim() !== '' ||
+    String(row.motivoUso ?? '').trim() !== ''
+  );
+}
+
+function seccionTratamientoActual(
+  tratamientoActual: TratamientoActualCardiometabolico[] | undefined,
+): Content {
+  const filas = (tratamientoActual ?? []).filter(filaTratamientoTieneDatos);
+
+  if (!filas.length) {
+    return {
+      stack: [
+        { text: 'TRATAMIENTO ACTUAL', style: 'sectionHeader' },
+        {
+          text: 'Sin medicamentos registrados en esta visita.',
+          style: 'tableCellLeft',
+          alignment: 'left',
+        },
+      ],
+      margin: [0, 0, 0, 8],
+    };
+  }
+
+  const truncado = filas.length > MAX_FILAS_TRATAMIENTO_PDF;
+  const visibles = truncado
+    ? filas.slice(0, MAX_FILAS_TRATAMIENTO_PDF)
+    : filas;
+
+  const headerRow = [
+    { text: 'Medicamento', style: 'tableHeader', alignment: 'left' as const },
+    { text: 'Dosis', style: 'tableHeader', alignment: 'left' as const },
+    { text: 'Frecuencia', style: 'tableHeader', alignment: 'left' as const },
+    { text: 'Motivo de uso', style: 'tableHeader', alignment: 'left' as const },
+  ];
+  const dataRows = visibles.map((fila) => [
+    { text: fmt(fila.medicamento), style: 'tableCellLeft', alignment: 'left' as const },
+    { text: fmt(fila.dosis), style: 'tableCellLeft', alignment: 'left' as const },
+    { text: fmt(fila.frecuencia), style: 'tableCellLeft', alignment: 'left' as const },
+    { text: fmt(fila.motivoUso), style: 'tableCellLeft', alignment: 'left' as const },
+  ]);
+  const body = [headerRow, ...dataRows];
+
+  const stack: Content[] = [
+    { text: 'TRATAMIENTO ACTUAL', style: 'sectionHeader' },
+    {
+      style: 'table',
+      table: {
+        widths: ['*', '18%', '22%', '24%'],
+        body,
+      },
+      layout: layoutTablaTexto,
+    },
+  ];
+
+  if (truncado) {
+    stack.push({
+      text: `Se muestran ${MAX_FILAS_TRATAMIENTO_PDF} de ${filas.length} medicamentos registrados.`,
+      fontSize: 7,
+      color: '#6B7280',
+      margin: [0, 2, 0, 0],
+    });
+  }
+
+  return { stack, margin: [0, 0, 0, 8] };
+}
+
 function seccionAdherenciaSintomas(
   sintomasRelevantes: string | undefined,
   adherenciaTerapeutica: string | undefined,
@@ -802,24 +877,24 @@ function seccionAdherenciaSintomas(
             ],
             [
               {
-                text: etiquetaFilaMayusc('Síntomas relevantes'),
-                style: 'tableCellLeftBold',
-                alignment: 'left',
-              },
-              {
-                text: fmt(sintomasRelevantes),
-                style: 'tableCellLeft',
-                alignment: 'left',
-              },
-            ],
-            [
-              {
                 text: etiquetaFilaMayusc('Adherencia terapéutica'),
                 style: 'tableCellLeftBold',
                 alignment: 'left',
               },
               {
                 text: fmt(adherenciaTerapeutica),
+                style: 'tableCellLeft',
+                alignment: 'left',
+              },
+            ],
+            [
+              {
+                text: etiquetaFilaMayusc('Síntomas relevantes'),
+                style: 'tableCellLeftBold',
+                alignment: 'left',
+              },
+              {
+                text: fmt(sintomasRelevantes),
                 style: 'tableCellLeft',
                 alignment: 'left',
               },
@@ -1054,6 +1129,7 @@ export const eventoSeguimientoCardiometabolicoInforme = (
     seccionDiagnosticosActivos(escc.diagnosticosActivos),
     seccionSomatometriaSignosVitales(escc.somatometria, escc.signosVitales),
     seccionLaboratorio(escc.laboratorio),
+    seccionTratamientoActual(escc.tratamientoActual),
     seccionAdherenciaSintomas(escc.sintomasRelevantes, escc.adherenciaTerapeutica),
     seccionEstadoCondiciones(escc.estadoCondiciones),
     seccionRiesgosProximaCita(escc.riesgosActuales, escc.proximaRevisionSugerida),

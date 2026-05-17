@@ -157,6 +157,25 @@ const EstadoCondicionesCardiometabolicasSchema = SchemaFactory.createForClass(
   EstadoCondicionesCardiometabolicas,
 );
 
+@Schema({ _id: false })
+export class TratamientoActualCardiometabolico {
+  @Prop()
+  medicamento?: string;
+
+  @Prop()
+  dosis?: string;
+
+  @Prop()
+  frecuencia?: string;
+
+  @Prop()
+  motivoUso?: string;
+}
+
+const TratamientoActualCardiometabolicoSchema = SchemaFactory.createForClass(
+  TratamientoActualCardiometabolico,
+);
+
 @Schema()
 export class EventoSeguimientoCardiometabolico extends Document {
   @Prop({ required: true })
@@ -181,6 +200,9 @@ export class EventoSeguimientoCardiometabolico extends Document {
 
   @Prop({ type: LaboratorioCardiometabolicoSchema })
   laboratorio?: LaboratorioCardiometabolico;
+
+  @Prop({ type: [TratamientoActualCardiometabolicoSchema] })
+  tratamientoActual?: TratamientoActualCardiometabolico[];
 
   @Prop()
   adherenciaTerapeutica?: string;

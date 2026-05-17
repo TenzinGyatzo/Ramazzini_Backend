@@ -14,9 +14,11 @@ export enum GraficaLongitudinalCardiometabolica {
 }
 
 export enum NivelRiesgoLongitudinal {
+  MUY_BAJO = 'Muy Bajo',
   BAJO = 'Bajo',
   MODERADO = 'Moderado',
   ALTO = 'Alto',
+  CRITICO = 'Crítico',
   NO_VALORABLE = 'No valorable',
 }
 
@@ -27,7 +29,17 @@ export enum ConsistenciaSeguimientoLongitudinal {
   NO_VALORABLE = 'No valorable',
 }
 
+/** Trayectoria agregada del informe (periodo completo); distinta de `TendenciaLongitudinal` por eje. */
+export enum TrayectoriaLongitudinalInforme {
+  FAVORABLE = 'Favorable',
+  ESTABLE = 'Estable',
+  DESFAVORABLE = 'Desfavorable',
+  MIXTA = 'Mixta',
+  INSUFICIENTE_INFORMACION = 'Insuficiente información',
+}
+
 export const VALORES_TENDENCIA_LONGITUDINAL = Object.values(TendenciaLongitudinal);
+export const VALORES_TRAYECTORIA_LONGITUDINAL_INFORME = Object.values(TrayectoriaLongitudinalInforme);
 export const VALORES_GRAFICA_LONGITUDINAL_CARDIOMETABOLICA = Object.values(
   GraficaLongitudinalCardiometabolica,
 );
