@@ -1842,6 +1842,8 @@ export class InformesService {
       numeroEmpleado: trabajador.numeroEmpleado,
       nss: trabajador.nss,
       curp: trabajador.curp,
+      contactoEmergenciaNombre: trabajador.contactoEmergenciaNombre ?? '',
+      contactoEmergenciaTelefono: trabajador.contactoEmergenciaTelefono ?? '',
     };
 
     const historiaClinica = await this.expedientesService.findDocument(

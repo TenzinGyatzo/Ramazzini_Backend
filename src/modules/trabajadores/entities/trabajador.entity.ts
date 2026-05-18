@@ -13,6 +13,8 @@ export class Trabajador extends Document {
     puesto: string;
     fechaIngreso?: Date;
     telefono: string;
+    contactoEmergenciaNombre?: string;
+    contactoEmergenciaTelefono?: string;
     estadoCivil: string;
     numeroEmpleado: string;
     nss: string;

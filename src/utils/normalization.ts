@@ -63,6 +63,8 @@ export function normalizeTrabajadorData(
     puesto: dto.puesto?.trim(),
     fechaIngreso: dto.fechaIngreso,
     telefono: dto.telefono?.trim(),
+    contactoEmergenciaNombre: dto.contactoEmergenciaNombre?.trim(),
+    contactoEmergenciaTelefono: dto.contactoEmergenciaTelefono?.trim(),
     estadoCivil: dto.estadoCivil?.trim(),
     numeroEmpleado: dto.numeroEmpleado?.trim(),
     nss: dto.nss?.trim(),

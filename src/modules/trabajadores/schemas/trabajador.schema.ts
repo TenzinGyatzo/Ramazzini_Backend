@@ -57,6 +57,12 @@ export class Trabajador extends Document {
     @Prop({ required: false, match: /^$|^\+?[0-9]\d{3,14}$/ })
     telefono: string;
 
+    @Prop({ required: false })
+    contactoEmergenciaNombre: string;
+
+    @Prop({ required: false, match: /^$|^\+?[0-9]\d{3,14}$/ })
+    contactoEmergenciaTelefono: string;
+
     @Prop({ required: true, enum: estadosCiviles })
     estadoCivil: string;
 
