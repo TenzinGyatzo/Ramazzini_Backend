@@ -1003,7 +1003,7 @@ export const historiaClinicaInforme = (
         // Fila principal con encabezado
         [
           {
-            text: 'SUFRIÓ ALGÚN ACCIDENTE DE TRABAJO',
+            text: 'SUFRIÓ ALGÚN RIESGO DE TRABAJO',
             style: 'tableCellBold',
             alignment: 'left',
             colSpan: 2,
