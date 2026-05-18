@@ -11,7 +11,6 @@ import {
 } from '../../expedientes/enums/cardiometabolico.enums';
 import {
   ConsistenciaSeguimientoLongitudinal,
-  GraficaLongitudinalCardiometabolica,
   NivelRiesgoLongitudinal,
   TrayectoriaLongitudinalInforme,
 } from '../../expedientes/enums/informe-longitudinal-cardiometabolico.enums';
@@ -23,14 +22,17 @@ import type {
   TratamientoActualCardiometabolico,
 } from '../../expedientes/schemas/evento-seguimiento-cardiometabolico.schema';
 import type {
-  CondicionControlResumenLongitudinal,
-  CondicionObesidadResumenLongitudinal,
   EventoConcentradoCardiometabolico,
   ResumenCondicionesCardiometabolicas,
   ResumenIndicadorLongitudinal,
   ResumenIndicadoresLongitudinal,
   SeguimientoProgramadoConcentradoCardiometabolico,
 } from '../../expedientes/schemas/informe-longitudinal-cardiometabolico.schema';
+import {
+  bloquesResumenCondicionesParaVista,
+  type BloqueResumenCondicionVista,
+  type LineaResumenCondicionVista,
+} from '../utils/informe-longitudinal-resumen-condiciones-vista';
 import { buildTimelineSeguimientoPdfBlock } from '../utils/timeline-seguimiento-informe-longitudinal';
 import { formatearNombreTrabajador } from '../../../utils/names';
 
@@ -235,7 +237,6 @@ interface DatosInformeLongitudinalCardiometabolicoInforme {
   fechaInformeLongitudinalCardiometabolico: Date | string;
   periodoInicio: Date;
   periodoFin: Date;
-  fechaUltimoEventoConsiderado?: Date;
   numeroEventosIncluidos: number;
   numeroEventosValidos?: number;
   numeroSeguimientosProgramados?: number;
@@ -252,21 +253,10 @@ interface DatosInformeLongitudinalCardiometabolicoInforme {
   eventosConcentrados?: EventoConcentradoCardiometabolico[];
   seguimientosProgramadosConcentrados?: SeguimientoProgramadoConcentradoCardiometabolico[];
   resumenIndicadores?: ResumenIndicadoresLongitudinal;
-  graficasIncluidas?: GraficaLongitudinalCardiometabolica[];
   nivelRiesgoLongitudinal?: NivelRiesgoLongitudinal;
   tendenciaLongitudinal?: TrayectoriaLongitudinalInforme;
   interpretacionRiesgoLongitudinal?: string;
-  factoresPersistentes?: string[];
-  alertasRelevantes?: string[];
   contextoTerapeutico?: string[];
-  resumenLongitudinalSugerido?: string;
-  conclusionClinicaSugerida?: string;
-  recomendacionesSugeridas?: string;
-  limitacionesSugeridas?: string;
-  resumenLongitudinal?: string;
-  conclusionClinica?: string;
-  recomendaciones?: string;
-  limitaciones?: string;
   /** data URL PNG (evolución glucémica en PDF). */
   graficaEvolucionGlucemica?: string;
   graficaEvolucionPresionArterial?: string;
@@ -351,6 +341,16 @@ function fmtNumInformePdf(n: unknown): string {
   const x = Number(n);
   if (!Number.isFinite(x)) return String(n);
   return String(Number.parseFloat(x.toFixed(2)));
+}
+
+/** Cambio inicial→final: (+ 2), (- 0.2) o (0); sin símbolo Δ. */
+function formatearCambioIndicadorConSignoPdf(cambio: unknown): string {
+  if (cambio === undefined || cambio === null || cambio === '') return '';
+  const n = Number(cambio);
+  if (!Number.isFinite(n)) return '';
+  if (n === 0) return ' (0)';
+  const mag = fmtNumInformePdf(Math.abs(n));
+  return n > 0 ? ` (+${mag})` : ` (-${mag})`;
 }
 
 /** Etiquetas de fila en PDF: mayúsculas tipográficas (es) para dar más peso visual. */
@@ -605,10 +605,6 @@ function tablaEstadoCondiciones(
   };
 }
 
-type BloqueCondicionResumenLongitudinal =
-  | CondicionControlResumenLongitudinal
-  | CondicionObesidadResumenLongitudinal;
-
 function formatoIndicadorResumenPdf(o: ResumenIndicadorLongitudinal | undefined): string {
   if (!o || typeof o !== 'object') return '';
   const vi = o.valorInicial;
@@ -621,42 +617,50 @@ function formatoIndicadorResumenPdf(o: ResumenIndicadorLongitudinal | undefined)
         ? fmtNumInformePdf(vi)
         : fmtNumInformePdf(vf);
   const delta =
-    o.cambioAbsoluto != null && vi != null && vf != null
-      ? ` (Δ ${fmtNumInformePdf(o.cambioAbsoluto)})`
+    vi != null && vf != null
+      ? formatearCambioIndicadorConSignoPdf(
+          o.cambioAbsoluto ?? Number(vf) - Number(vi),
+        )
       : '';
   const tend = o.tendencia ? ` · ${o.tendencia}` : ' · —';
   return `${tramo}${delta}${tend}`;
 }
 
-function detalleIndicadorResumenPdf(o: ResumenIndicadorLongitudinal | undefined): string {
+function tramoIndicadorResumenPdf(o: ResumenIndicadorLongitudinal | undefined): string {
   if (!o || typeof o !== 'object') return '';
   const vi = o.valorInicial;
   const vf = o.valorFinal;
   if (vi == null && vf == null) return '';
-  const tramo =
-    vi != null && vf != null
-      ? `${fmtNumInformePdf(vi)} → ${fmtNumInformePdf(vf)}`
-      : vi != null
-        ? fmtNumInformePdf(vi)
-        : fmtNumInformePdf(vf);
-  const delta =
-    o.cambioAbsoluto != null && vi != null && vf != null
-      ? ` (Δ ${fmtNumInformePdf(o.cambioAbsoluto)})`
-      : '';
-  return `${tramo}${delta}`;
+  if (vi != null && vf != null) {
+    return `${fmtNumInformePdf(vi)} → ${fmtNumInformePdf(vf)}`;
+  }
+  return vi != null ? fmtNumInformePdf(vi) : fmtNumInformePdf(vf);
+}
+
+function diferenciaIndicadorResumenPdf(o: ResumenIndicadorLongitudinal | undefined): string {
+  if (!o || typeof o !== 'object') return '';
+  const vi = o.valorInicial;
+  const vf = o.valorFinal;
+  if (vi == null || vf == null) return '';
+  return (
+    formatearCambioIndicadorConSignoPdf(
+      o.cambioAbsoluto ?? Number(vf) - Number(vi),
+    ) || ''
+  );
 }
 
 function lineasEvolucionPrincipalPdf(
   r: ResumenIndicadoresLongitudinal | undefined,
-): { label: string; tendencia: string; detalle: string }[] {
+): { label: string; tendencia: string; tramo: string; diferencia: string }[] {
   if (!r) return [];
-  const lines: { label: string; tendencia: string; detalle: string }[] = [];
+  const lines: { label: string; tendencia: string; tramo: string; diferencia: string }[] = [];
   const push = (label: string, o: ResumenIndicadorLongitudinal | undefined) => {
     if (!formatoIndicadorResumenPdf(o)) return;
     lines.push({
       label,
       tendencia: o?.tendencia ? String(o.tendencia) : '—',
-      detalle: detalleIndicadorResumenPdf(o) || '—',
+      tramo: tramoIndicadorResumenPdf(o) || '—',
+      diferencia: diferenciaIndicadorResumenPdf(o) || '—',
     });
   };
   push('TA sistólica (mmHg)', r.tensionArterialSistolica);
@@ -676,7 +680,8 @@ function tablaEvolucionPrincipalInformeLongitudinalPdf(
   const headerRow: Content[] = [
     { text: 'INDICADOR', style: 'tableHeader' },
     { text: 'TENDENCIA', style: 'tableHeader' },
-    { text: 'VALOR INICIAL → VALOR FINAL (DIFERENCIA ABSOLUTA)', style: 'tableHeader' },
+    { text: 'VALOR INICIAL → FINAL', style: 'tableHeader' },
+    { text: 'DIF. ABSOLUTA', style: 'tableHeader' },
   ];
   const body: Content[][] = [
     headerRow,
@@ -685,35 +690,121 @@ function tablaEvolucionPrincipalInformeLongitudinalPdf(
         [
           { text: l.label, style: 'tableCellLeftBold', alignment: 'left', fontSize: 8 },
           { text: l.tendencia, style: 'tableCell', fontSize: 8 },
-          { text: l.detalle, style: 'tableCell', fontSize: 7.5, color: '#6B7280' },
+          { text: l.tramo, style: 'tableCell', fontSize: 7.5, color: '#6B7280' },
+          { text: l.diferencia, style: 'tableCell', fontSize: 7.5, color: '#6B7280' },
         ] as Content[],
     ),
   ];
   return {
     style: 'table',
     table: {
-      widths: ['34%', '24%', '*'],
+      widths: ['25%', '25%', '25%', '25%'],
       body,
     },
     layout: layoutTablaCompacta,
-    margin: [0, 1, 0, 12],
+    margin: [0, 1, 0, 6],
   };
 }
 
-function textoCondicionResumenPdf(bloque: BloqueCondicionResumenLongitudinal | undefined): string | null {
-  if (!bloque || typeof bloque !== 'object') return null;
-  const parts: string[] = [];
-  if (bloque.presente != null) parts.push(`Presente: ${bloque.presente ? 'Sí' : 'No'}`);
-  if ('estadoActual' in bloque && bloque.estadoActual) {
-    parts.push(`Estado: ${String(bloque.estadoActual)}`);
+/** Separación entre renglones lógicos distintos (Diagnóstico, Hallazgo, etc.), no entre líneas del mismo wrap. */
+const layoutTablaLineasCondicionPdf = {
+  hLineWidth: () => 0,
+  vLineWidth: () => 0,
+  paddingLeft: () => 0,
+  paddingRight: () => 0,
+  paddingTop: () => 0,
+  paddingBottom: () => 1.5,
+};
+
+/** Solo interlineado al cortar un mismo texto en varias líneas (pdfmake lineHeight). */
+const LINE_HEIGHT_WRAP_CONDICION_PDF = 0.8;
+
+function celdaLineaCondicionPdf(ln: LineaResumenCondicionVista): Content {
+  const lineHeight = LINE_HEIGHT_WRAP_CONDICION_PDF;
+  const fontSize = 7.5;
+  if (ln.soloValor) {
+    return {
+      text: ln.valor,
+      fontSize,
+      color: '#334155',
+      lineHeight,
+    };
   }
-  if ('gradoActual' in bloque && bloque.gradoActual) {
-    parts.push(`Grado: ${String(bloque.gradoActual)}`);
-  }
-  if (bloque.tendencia) parts.push(`Tendencia: ${String(bloque.tendencia)}`);
-  if (bloque.interpretacionAutomatica) parts.push(String(bloque.interpretacionAutomatica));
-  if (bloque.observaciones) parts.push(String(bloque.observaciones));
-  return parts.length ? parts.join(' · ') : null;
+  return {
+    text: [
+      { text: `${ln.etiqueta}: `, color: '#475569', fontSize },
+      { text: ln.valor, color: '#0F172A', fontSize, bold: true },
+    ],
+    lineHeight,
+  };
+}
+
+function tarjetaCondicionResumenPdf(b: BloqueResumenCondicionVista): Content {
+  const filasLineas: Content[][] =
+    b.lineas.length > 0
+      ? b.lineas.map((ln) => [celdaLineaCondicionPdf(ln)])
+      : [[{ text: '', fontSize: 7.5, lineHeight: LINE_HEIGHT_WRAP_CONDICION_PDF }]];
+
+  return {
+    table: {
+      widths: ['*'],
+      body: [
+        [
+          {
+            stack: [
+              {
+                text: b.titulo,
+                fontSize: 8.5,
+                bold: true,
+                color: '#0F172A',
+                margin: [0, 0, 0, 2] as [number, number, number, number],
+                lineHeight: 1,
+              },
+              {
+                table: {
+                  widths: ['*'],
+                  body: filasLineas,
+                },
+                layout: layoutTablaLineasCondicionPdf,
+              },
+            ],
+            margin: [2, 2, 2, 2] as [number, number, number, number],
+          },
+        ],
+      ],
+    },
+    layout: {
+      hLineWidth: () => 0.5,
+      vLineWidth: () => 0.5,
+      hLineColor: () => '#E2E8F0',
+      vLineColor: () => '#E2E8F0',
+      paddingLeft: () => 2,
+      paddingRight: () => 2,
+      paddingTop: () => 2,
+      paddingBottom: () => 2,
+    },
+  };
+}
+
+/** Paridad con visualizador: 4 tarjetas compactas en una fila. */
+function buildEstadoClinicoPorCondicionPdfSection(
+  rc: ResumenCondicionesCardiometabolicas | undefined,
+  resumenIndicadores?: ResumenIndicadoresLongitudinal,
+): Content {
+  const bloques = bloquesResumenCondicionesParaVista(rc, { resumenIndicadores });
+  return {
+    stack: [
+      { text: 'ESTADO CLÍNICO DURANTE EL PERIODO', style: 'sectionHeader', margin: [0, 2, 0, 3] },
+      {
+        columns: bloques.map((b) => ({
+          width: '*',
+          stack: [tarjetaCondicionResumenPdf(b)],
+        })),
+        columnGap: 6,
+      },
+    ],
+    margin: [0, 8, 0, 2] as [number, number, number, number],
+  };
 }
 
 function fechaEventoPdf(d: Date | string | undefined): string {
@@ -773,12 +864,14 @@ function tablaEventosConcentradosPdf(
       body,
     },
     layout: layoutTablaCompacta,
-    margin: [0, 4, 0, 6],
+    margin: [0, 4, 0, 2],
   };
 }
 
 const MAX_FILAS_TRATAMIENTO_ILC_PDF = 12;
 const DIAS_POR_FILA_TRATAMIENTO_ILC_PDF = 2;
+const TEXTO_SEGMENTO_SIN_TRATAMIENTO_ILC_PDF =
+  'Sin tratamiento farmacológico registrado en este periodo.';
 
 interface CeldaTratamientoDiaPdf {
   fechaLabel: string;
@@ -834,7 +927,11 @@ function eventoConcentradoTieneTratamientoPdf(ev: EventoConcentradoCardiometabol
 function hayEvidenciaTratamientoPeriodoPdf(
   eventos: EventoConcentradoCardiometabolico[] | undefined,
 ): boolean {
-  return eventosConcentradosOrdenadosPdf(eventos).some(eventoConcentradoTieneTratamientoPdf);
+  return eventosConcentradosOrdenadosPdf(eventos).some((ev) => {
+    const raw = ev.fechaControl;
+    if (raw instanceof Date) return !Number.isNaN(raw.getTime());
+    return Boolean(String(raw ?? '').trim());
+  });
 }
 
 function hayEvidenciaClinicaSoporteVisiblePdf(
@@ -898,11 +995,26 @@ function medicamentosVisiblesDesdeEventoPdf(ev: EventoConcentradoCardiometabolic
   };
 }
 
+function contenidoMedicamentosSegmentoPdf(ev: EventoConcentradoCardiometabolico): {
+  medicamentos: string[];
+  medicamentosOmitidos: number;
+  truncadoLista: boolean;
+} {
+  if (!eventoConcentradoTieneTratamientoPdf(ev)) {
+    return {
+      medicamentos: [TEXTO_SEGMENTO_SIN_TRATAMIENTO_ILC_PDF],
+      medicamentosOmitidos: 0,
+      truncadoLista: false,
+    };
+  }
+  return medicamentosVisiblesDesdeEventoPdf(ev);
+}
+
 /** Sincronizado con buildSegmentosTratamientoPeriodo en informeLongitudinalTratamiento.ts */
 function buildCeldasTratamientoPeriodoPdf(
   eventos: EventoConcentradoCardiometabolico[] | undefined,
 ): CeldaTratamientoDiaPdf[] {
-  const cron = eventosConcentradosOrdenadosPdf(eventos).filter(eventoConcentradoTieneTratamientoPdf);
+  const cron = eventosConcentradosOrdenadosPdf(eventos);
   const segmentos: SegmentoTratamientoInternoPdf[] = [];
 
   for (const ev of cron) {
@@ -914,7 +1026,7 @@ function buildCeldasTratamientoPeriodoPdf(
     if (!fecha) continue;
 
     const fp = fingerprintRegimenTratamientoPdf(ev);
-    const meds = medicamentosVisiblesDesdeEventoPdf(ev);
+    const meds = contenidoMedicamentosSegmentoPdf(ev);
     const ultimo = segmentos[segmentos.length - 1];
 
     if (ultimo && ultimo.fingerprint === fp) {
@@ -951,10 +1063,12 @@ function buildCeldaTratamientoStackPdf(celda: CeldaTratamientoDiaPdf): Content[]
     },
   ];
   for (const med of celda.medicamentos) {
+    const sinTrat = med === TEXTO_SEGMENTO_SIN_TRATAMIENTO_ILC_PDF;
     stack.push({
-      text: `· ${med}`,
+      text: sinTrat ? med : `· ${med}`,
       fontSize: 7.5,
-      color: '#4B5563',
+      color: sinTrat ? '#6B7280' : '#4B5563',
+      italics: sinTrat,
       margin: [0, 0, 0, 0.5],
     });
   }
@@ -1299,28 +1413,6 @@ function buildCuerpoInformeLongitudinalPdf(ilc: DatosInformeLongitudinalCardiome
     pushParrafo(ilc.interpretacionRiesgoLongitudinal, { marginBottom: 6 });
   }
 
-  const factores = ilc.factoresPersistentes?.filter((x) => String(x).trim()) ?? [];
-  if (factores.length) {
-    pushSubDiscrete('Factores persistentes', 4);
-    out.push({
-      ul: factores.map((x) => String(x)),
-      fontSize: 7.5,
-      color: '#6B7280',
-      margin: [0, 0, 0, 5],
-    });
-  }
-
-  const alertas = ilc.alertasRelevantes?.filter((x) => String(x).trim()) ?? [];
-  if (alertas.length) {
-    pushSubDiscrete('Alertas relevantes', 2);
-    out.push({
-      ul: alertas.map((x) => String(x)),
-      fontSize: 7.5,
-      color: '#6B7280',
-      margin: [0, 0, 0, 6],
-    });
-  }
-
   const tablaEvo = tablaEvolucionPrincipalInformeLongitudinalPdf(ilc.resumenIndicadores);
   if (tablaEvo) {
     out.push({
@@ -1331,10 +1423,12 @@ function buildCuerpoInformeLongitudinalPdf(ilc: DatosInformeLongitudinalCardiome
     out.push(tablaEvo);
   }
 
+  out.push(buildEstadoClinicoPorCondicionPdfSection(ilc.resumenCondiciones, ilc.resumenIndicadores));
+
   // PNG de evolución (Chart.js en el visualizador): contraste grid vs referencias, ver VisualizadorInformeLongitudinalCardiometabolico.vue (ILC_CHART_*).
   const imgGlucemia = ilc.graficaEvolucionGlucemica?.trim();
   if (imgGlucemia) {
-    out.push({ text: 'EVOLUCIÓN GLUCÉMICA', style: 'sectionHeader', margin: [0, 16, 0, 2] });
+    out.push({ text: 'EVOLUCIÓN GLUCÉMICA', style: 'sectionHeader', margin: [0, 10, 0, 2] });
     out.push({
       text: 'Glucosa y HbA1c durante el periodo evaluado',
       fontSize: 8,
@@ -1401,40 +1495,6 @@ function buildCuerpoInformeLongitudinalPdf(ilc: DatosInformeLongitudinalCardiome
     });
   }
 
-  if (ilc.conclusionClinica?.trim()) {
-    pushSub('Conclusión clínica longitudinal', 6);
-    pushParrafo(ilc.conclusionClinica, { fontSize: 10, marginBottom: 8 });
-  }
-
-  if (ilc.resumenLongitudinal?.trim()) {
-    pushSub('Resumen longitudinal', 0);
-    pushParrafo(ilc.resumenLongitudinal);
-  }
-
-  const rc = ilc.resumenCondiciones;
-  const bloquesCond: { titulo: string; texto: string }[] = [];
-  if (rc) {
-    const pH = textoCondicionResumenPdf(rc.hipertension);
-    if (pH) bloquesCond.push({ titulo: 'Hipertensión', texto: pH });
-    const pD = textoCondicionResumenPdf(rc.diabetes);
-    if (pD) bloquesCond.push({ titulo: 'Diabetes', texto: pD });
-    const pDi = textoCondicionResumenPdf(rc.dislipidemia);
-    if (pDi) bloquesCond.push({ titulo: 'Dislipidemia', texto: pDi });
-    const pO = textoCondicionResumenPdf(rc.obesidad);
-    if (pO) bloquesCond.push({ titulo: 'Obesidad', texto: pO });
-  }
-  if (bloquesCond.length) {
-    out.push({ text: 'ESTADO POR CONDICIÓN', style: 'sectionHeader', margin: [0, 10, 0, 4] });
-    out.push({
-      stack: bloquesCond.map((b) => ({
-        text: [{ text: `${b.titulo}: `, bold: true }, { text: b.texto }],
-        fontSize: 9,
-        margin: [0, 0, 0, 5],
-      })),
-      margin: [0, 0, 0, 4],
-    });
-  }
-
   const timelinePdf = buildTimelineSeguimientoPdfBlock(
     ilc.eventosConcentrados,
     ilc.seguimientosProgramadosConcentrados,
@@ -1451,25 +1511,6 @@ function buildCuerpoInformeLongitudinalPdf(ilc: DatosInformeLongitudinalCardiome
   for (const bloque of buildEvidenciaClinicaSoportePdf(ilc)) {
     out.push(bloque);
   }
-
-  /* out.push({ text: 'CIERRE CLÍNICO', style: 'sectionHeader', margin: [0, 10, 0, 4] });
-  if (ilc.recomendaciones?.trim()) {
-    pushSub('Recomendaciones', 0);
-    pushParrafo(ilc.recomendaciones);
-  }
-  if (ilc.limitaciones?.trim()) {
-    pushSub('Limitaciones del informe', 0);
-    pushParrafo(ilc.limitaciones);
-  }
-  if (!ilc.recomendaciones?.trim() && !ilc.limitaciones?.trim()) {
-    out.push({
-      text: 'Sin recomendaciones ni limitaciones finales capturadas.',
-      italics: true,
-      fontSize: 8,
-      color: '#6B7280',
-      margin: [0, 0, 0, 6],
-    });
-  } */
 
   return out;
 }

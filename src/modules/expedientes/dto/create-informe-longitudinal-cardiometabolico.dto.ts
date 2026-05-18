@@ -19,7 +19,6 @@ import {
 import { EstadoControlCondicion, GradoObesidad } from '../enums/cardiometabolico.enums';
 import {
   ConsistenciaSeguimientoLongitudinal,
-  GraficaLongitudinalCardiometabolica,
   NivelRiesgoLongitudinal,
   TendenciaLongitudinal,
   TrayectoriaLongitudinalInforme,
@@ -121,35 +120,10 @@ export class ResumenIndicadorLongitudinalDto {
   cambioAbsoluto?: number;
 
   @IsOptional()
-  @IsNumber()
-  cambioPorcentual?: number;
-
-  @IsOptional()
-  @IsNumber()
-  mejorValor?: number;
-
-  @IsOptional()
-  @IsNumber()
-  peorValor?: number;
-
-  @IsOptional()
   @IsEnum(TendenciaLongitudinal, {
     message: 'tendencia longitudinal no válida',
   })
   tendencia?: TendenciaLongitudinal;
-
-  @IsOptional()
-  @IsString()
-  interpretacion?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  tieneDatosSuficientes?: boolean;
-
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 0 })
-  @Min(0)
-  numeroMediciones?: number;
 }
 
 export class ResumenIndicadoresLongitudinalDto {
@@ -176,27 +150,12 @@ export class ResumenIndicadoresLongitudinalDto {
   @IsOptional()
   @ValidateNested()
   @Type(() => ResumenIndicadorLongitudinalDto)
-  circunferenciaCintura?: ResumenIndicadorLongitudinalDto;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => ResumenIndicadorLongitudinalDto)
   glucosaMgDl?: ResumenIndicadorLongitudinalDto;
 
   @IsOptional()
   @ValidateNested()
   @Type(() => ResumenIndicadorLongitudinalDto)
   hba1cPorcentaje?: ResumenIndicadorLongitudinalDto;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => ResumenIndicadorLongitudinalDto)
-  ldlMgDl?: ResumenIndicadorLongitudinalDto;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => ResumenIndicadorLongitudinalDto)
-  trigliceridosMgDl?: ResumenIndicadorLongitudinalDto;
 }
 
 export class EventoConcentradoCardiometabolicoDto {
@@ -223,14 +182,6 @@ export class EventoConcentradoCardiometabolicoDto {
   @ValidateNested()
   @Type(() => LaboratorioCardiometabolicoDto)
   laboratorio?: LaboratorioCardiometabolicoDto;
-
-  @IsOptional()
-  @IsString()
-  riesgoActual?: string;
-
-  @IsOptional()
-  @IsString()
-  plan?: string;
 
   @IsOptional()
   @IsObject()
@@ -301,11 +252,6 @@ export class CreateInformeLongitudinalCardiometabolicoDto {
   @Type(() => Date)
   @IsNotEmpty({ message: 'periodoFin no puede estar vacío' })
   periodoFin: Date;
-
-  @IsOptional()
-  @IsDate({ message: 'fechaUltimoEventoConsiderado debe ser una fecha' })
-  @Type(() => Date)
-  fechaUltimoEventoConsiderado?: Date;
 
   @IsNumber({ maxDecimalPlaces: 0 })
   @Min(0)
@@ -411,14 +357,6 @@ export class CreateInformeLongitudinalCardiometabolicoDto {
   resumenIndicadores?: ResumenIndicadoresLongitudinalDto;
 
   @IsOptional()
-  @IsArray()
-  @IsEnum(GraficaLongitudinalCardiometabolica, {
-    each: true,
-    message: 'gráfica longitudinal no válida',
-  })
-  graficasIncluidas?: GraficaLongitudinalCardiometabolica[];
-
-  @IsOptional()
   @IsEnum(NivelRiesgoLongitudinal, {
     message: 'nivel de riesgo longitudinal no válido',
   })
@@ -435,55 +373,9 @@ export class CreateInformeLongitudinalCardiometabolicoDto {
   interpretacionRiesgoLongitudinal?: string;
 
   @IsOptional()
-  @IsString()
-  interpretacionConsistenciaSeguimiento?: string;
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  factoresPersistentes?: string[];
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  alertasRelevantes?: string[];
-
-  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   contextoTerapeutico?: string[];
-
-  @IsOptional()
-  @IsString()
-  resumenLongitudinalSugerido?: string;
-
-  @IsOptional()
-  @IsString()
-  conclusionClinicaSugerida?: string;
-
-  @IsOptional()
-  @IsString()
-  recomendacionesSugeridas?: string;
-
-  @IsOptional()
-  @IsString()
-  limitacionesSugeridas?: string;
-
-  @IsOptional()
-  @IsString()
-  resumenLongitudinal?: string;
-
-  @IsOptional()
-  @IsString()
-  conclusionClinica?: string;
-
-  @IsOptional()
-  @IsString()
-  recomendaciones?: string;
-
-  @IsOptional()
-  @IsString()
-  limitaciones?: string;
 
   @IsOptional()
   @IsString()

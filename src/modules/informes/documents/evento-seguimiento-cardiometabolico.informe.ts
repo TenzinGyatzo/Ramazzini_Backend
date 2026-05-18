@@ -805,8 +805,11 @@ function seccionTratamientoActual(
         { text: 'TRATAMIENTO ACTUAL', style: 'sectionHeader' },
         {
           text: 'Sin medicamentos registrados en esta visita.',
-          style: 'tableCellLeft',
-          alignment: 'left',
+          fontSize: 8,
+          italics: true,
+          color: '#374151',
+          margin: [0, 4, 0, 4],
+          alignment: 'center',
         },
       ],
       margin: [0, 0, 0, 8],

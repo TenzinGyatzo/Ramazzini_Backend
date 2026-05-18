@@ -21,11 +21,8 @@ import {
 import { EstadoControlCondicion, GradoObesidad } from '../enums/cardiometabolico.enums';
 import {
   ConsistenciaSeguimientoLongitudinal,
-  GRAFICAS_LONGITUDINAL_DEFAULT,
-  GraficaLongitudinalCardiometabolica,
   NivelRiesgoLongitudinal,
   VALORES_CONSISTENCIA_SEGUIMIENTO_LONGITUDINAL,
-  VALORES_GRAFICA_LONGITUDINAL_CARDIOMETABOLICA,
   VALORES_NIVEL_RIESGO_LONGITUDINAL,
   VALORES_TENDENCIA_LONGITUDINAL,
   VALORES_TRAYECTORIA_LONGITUDINAL_INFORME,
@@ -51,11 +48,19 @@ const TratamientoActualCardiometabolicoSnapshotSchema = SchemaFactory.createForC
 
 @Schema({ _id: false })
 export class CondicionControlResumenLongitudinal {
+  /** True solo si hubo diagnóstico activo documentado en el periodo (no por hallazgo/alteración). */
   @Prop()
   presente?: boolean;
 
   @Prop({ enum: ESTADOS_CONTROL })
   estadoActual?: EstadoControlCondicion;
+
+  /** Última visita con dato relevante (motor ESC): hallazgo, alteración o control. */
+  @Prop()
+  codigoEstadoVigencia?: string;
+
+  @Prop()
+  razonUltimaVisita?: string;
 
   @Prop({ enum: VALORES_TENDENCIA_LONGITUDINAL })
   tendencia?: TendenciaLongitudinal;
@@ -123,26 +128,8 @@ export class ResumenIndicadorLongitudinal {
   @Prop()
   cambioAbsoluto?: number;
 
-  @Prop()
-  cambioPorcentual?: number;
-
-  @Prop()
-  mejorValor?: number;
-
-  @Prop()
-  peorValor?: number;
-
   @Prop({ enum: VALORES_TENDENCIA_LONGITUDINAL })
   tendencia?: TendenciaLongitudinal;
-
-  @Prop()
-  interpretacion?: string;
-
-  @Prop()
-  tieneDatosSuficientes?: boolean;
-
-  @Prop()
-  numeroMediciones?: number;
 }
 
 const ResumenIndicadorLongitudinalSchema = SchemaFactory.createForClass(ResumenIndicadorLongitudinal);
@@ -162,19 +149,10 @@ export class ResumenIndicadoresLongitudinal {
   indiceMasaCorporal?: ResumenIndicadorLongitudinal;
 
   @Prop({ type: ResumenIndicadorLongitudinalSchema })
-  circunferenciaCintura?: ResumenIndicadorLongitudinal;
-
-  @Prop({ type: ResumenIndicadorLongitudinalSchema })
   glucosaMgDl?: ResumenIndicadorLongitudinal;
 
   @Prop({ type: ResumenIndicadorLongitudinalSchema })
   hba1cPorcentaje?: ResumenIndicadorLongitudinal;
-
-  @Prop({ type: ResumenIndicadorLongitudinalSchema })
-  ldlMgDl?: ResumenIndicadorLongitudinal;
-
-  @Prop({ type: ResumenIndicadorLongitudinalSchema })
-  trigliceridosMgDl?: ResumenIndicadorLongitudinal;
 }
 
 const ResumenIndicadoresLongitudinalSchema = SchemaFactory.createForClass(ResumenIndicadoresLongitudinal);
@@ -196,15 +174,11 @@ export class EventoConcentradoCardiometabolico {
   @Prop({ type: LaboratorioCardiometabolicoSnapshotSchema })
   laboratorio?: LaboratorioCardiometabolico;
 
-  @Prop()
-  riesgoActual?: string;
-
-  /** Legacy; no usar para tratamiento (ver `tratamientoActual`). */
-  @Prop()
-  plan?: string;
-
   @Prop({ type: [TratamientoActualCardiometabolicoSnapshotSchema] })
   tratamientoActual?: TratamientoActualCardiometabolico[];
+
+  @Prop({ type: [String] })
+  diagnosticosActivos?: string[];
 
   /** Copia ligera de `estadoCondiciones` del evento (control por visita). */
   @Prop({ type: MongooseSchema.Types.Mixed })
@@ -258,9 +232,6 @@ export class InformeLongitudinalCardiometabolico extends Document {
   @Prop({ required: true })
   periodoFin: Date;
 
-  @Prop()
-  fechaUltimoEventoConsiderado?: Date;
-
   @Prop({ required: true })
   numeroEventosIncluidos: number;
 
@@ -287,9 +258,6 @@ export class InformeLongitudinalCardiometabolico extends Document {
 
   @Prop({ enum: VALORES_CONSISTENCIA_SEGUIMIENTO_LONGITUDINAL })
   consistenciaSeguimiento?: ConsistenciaSeguimientoLongitudinal;
-
-  @Prop()
-  interpretacionConsistenciaSeguimiento?: string;
 
   @Prop({ type: [{ type: String }] })
   datosFaltantesRelevantes?: string[];
@@ -330,12 +298,6 @@ export class InformeLongitudinalCardiometabolico extends Document {
   @Prop({ type: ResumenIndicadoresLongitudinalSchema })
   resumenIndicadores?: ResumenIndicadoresLongitudinal;
 
-  @Prop({
-    type: [{ type: String, enum: VALORES_GRAFICA_LONGITUDINAL_CARDIOMETABOLICA }],
-    default: GRAFICAS_LONGITUDINAL_DEFAULT,
-  })
-  graficasIncluidas?: GraficaLongitudinalCardiometabolica[];
-
   @Prop({ enum: VALORES_NIVEL_RIESGO_LONGITUDINAL })
   nivelRiesgoLongitudinal?: NivelRiesgoLongitudinal;
 
@@ -345,39 +307,9 @@ export class InformeLongitudinalCardiometabolico extends Document {
   @Prop()
   interpretacionRiesgoLongitudinal?: string;
 
-  @Prop({ type: [{ type: String }] })
-  factoresPersistentes?: string[];
-
-  @Prop({ type: [{ type: String }] })
-  alertasRelevantes?: string[];
-
   /** Viñetas de contexto terapéutico; solo evidencia de soporte (no alertas). */
   @Prop({ type: [{ type: String }] })
   contextoTerapeutico?: string[];
-
-  @Prop()
-  resumenLongitudinalSugerido?: string;
-
-  @Prop()
-  conclusionClinicaSugerida?: string;
-
-  @Prop()
-  recomendacionesSugeridas?: string;
-
-  @Prop()
-  limitacionesSugeridas?: string;
-
-  @Prop()
-  resumenLongitudinal?: string;
-
-  @Prop()
-  conclusionClinica?: string;
-
-  @Prop()
-  recomendaciones?: string;
-
-  @Prop()
-  limitaciones?: string;
 
   /** Imagen PNG en base64 (data URL) para PDF / almacenamiento, patrón audiometría. */
   @Prop()
