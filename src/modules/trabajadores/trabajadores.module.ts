@@ -56,35 +56,22 @@ import {
   NotaAclaratoriaSchema,
 } from '../expedientes/schemas/nota-aclaratoria.schema';
 import { Receta, RecetaSchema } from '../expedientes/schemas/receta.schema';
+import { ConstanciaAptitud, ConstanciaAptitudSchema } from '../expedientes/schemas/constancia-aptitud.schema';
+import { EntrevistaPsicologica, EntrevistaPsicologicaSchema } from '../expedientes/schemas/entrevista-psicologica.schema';
+import { TrastornosEstadoAnimo, TrastornosEstadoAnimoSchema } from '../expedientes/schemas/trastornos-estado-animo.schema';
+import { CuestionarioProdromalBreve, CuestionarioProdromalBreveSchema } from '../expedientes/schemas/cuestionario-prodromal-breve.schema';
+import { TrastornoLimitePersonalidad, TrastornoLimitePersonalidadSchema } from '../expedientes/schemas/trastorno-limite-personalidad.schema';
 import {
-  ConstanciaAptitud,
-  ConstanciaAptitudSchema,
-} from '../expedientes/schemas/constancia-aptitud.schema';
+  EventoSeguimientoCardiometabolico,
+  EventoSeguimientoCardiometabolicoSchema,
+} from '../expedientes/schemas/evento-seguimiento-cardiometabolico.schema';
 import {
-  EntrevistaPsicologica,
-  EntrevistaPsicologicaSchema,
-} from '../expedientes/schemas/entrevista-psicologica.schema';
-import {
-  TrastornosEstadoAnimo,
-  TrastornosEstadoAnimoSchema,
-} from '../expedientes/schemas/trastornos-estado-animo.schema';
-import {
-  CuestionarioProdromalBreve,
-  CuestionarioProdromalBreveSchema,
-} from '../expedientes/schemas/cuestionario-prodromal-breve.schema';
-import {
-  TrastornoLimitePersonalidad,
-  TrastornoLimitePersonalidadSchema,
-} from '../expedientes/schemas/trastorno-limite-personalidad.schema';
-import {
-  RiesgoTrabajo,
-  RiesgoTrabajoSchema,
-} from '../riesgos-trabajo/schemas/riesgo-trabajo.schema';
+  InformeLongitudinalCardiometabolico,
+  InformeLongitudinalCardiometabolicoSchema,
+} from '../expedientes/schemas/informe-longitudinal-cardiometabolico.schema';
+import { RiesgoTrabajo, RiesgoTrabajoSchema } from '../riesgos-trabajo/schemas/riesgo-trabajo.schema';
 import { Lesion, LesionSchema } from '../expedientes/schemas/lesion.schema';
-import {
-  ResultadoClinico,
-  ResultadoClinicoSchema,
-} from '../resultados-clinicos/schemas/resultado-clinico.schema';
+import { ResultadoClinico, ResultadoClinicoSchema } from '../resultados-clinicos/schemas/resultado-clinico.schema';
 import { FilesModule } from '../files/files.module';
 import {
   CentroTrabajo,
@@ -120,6 +107,14 @@ import { Empresa, EmpresaSchema } from '../empresas/schemas/empresa.schema';
       {
         name: TrastornoLimitePersonalidad.name,
         schema: TrastornoLimitePersonalidadSchema,
+      },
+      {
+        name: EventoSeguimientoCardiometabolico.name,
+        schema: EventoSeguimientoCardiometabolicoSchema,
+      },
+      {
+        name: InformeLongitudinalCardiometabolico.name,
+        schema: InformeLongitudinalCardiometabolicoSchema,
       },
       { name: RiesgoTrabajo.name, schema: RiesgoTrabajoSchema },
       { name: Lesion.name, schema: LesionSchema },

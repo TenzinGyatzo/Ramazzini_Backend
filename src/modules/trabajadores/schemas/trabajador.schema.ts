@@ -56,6 +56,12 @@ export class Trabajador extends Document {
   @Prop({ required: false, match: /^$|^\+?[0-9]\d{3,14}$/ })
   telefono: string;
 
+  @Prop({ required: false })
+  contactoEmergenciaNombre: string;
+
+  @Prop({ required: false, match: /^$|^\+?[0-9]\d{3,14}$/ })
+  contactoEmergenciaTelefono: string;
+
   @Prop({ required: true, enum: estadosCiviles })
   estadoCivil: string;
 
@@ -161,6 +167,7 @@ export const TrabajadorSchema = SchemaFactory.createForClass(Trabajador).set(
 );
 // Índices para conteos y búsquedas comunes
 TrabajadorSchema.index({ idCentroTrabajo: 1 });
+TrabajadorSchema.index({ idCentroTrabajo: 1, fechaTransferencia: 1, createdAt: 1 });
 TrabajadorSchema.index({ numeroEmpleado: 1 });
 TrabajadorSchema.index({ estadoLaboral: 1 });
 TrabajadorSchema.index({ folio: 1 });

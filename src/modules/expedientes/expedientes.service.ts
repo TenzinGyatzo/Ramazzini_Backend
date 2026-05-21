@@ -24,6 +24,8 @@ import { EntrevistaPsicologica } from './schemas/entrevista-psicologica.schema';
 import { TrastornosEstadoAnimo } from './schemas/trastornos-estado-animo.schema';
 import { CuestionarioProdromalBreve } from './schemas/cuestionario-prodromal-breve.schema';
 import { TrastornoLimitePersonalidad } from './schemas/trastorno-limite-personalidad.schema';
+import { EventoSeguimientoCardiometabolico } from './schemas/evento-seguimiento-cardiometabolico.schema';
+import { InformeLongitudinalCardiometabolico } from './schemas/informe-longitudinal-cardiometabolico.schema';
 import { FilesService } from '../files/files.service';
 import { convertirFechaISOaDDMMYYYY } from 'src/utils/dates';
 import path from 'path';
@@ -64,6 +66,7 @@ import { UsersService } from '../users/users.service';
 import { hasCIE10Min4Chars } from '../../utils/cie10.util';
 import { isCieAfeccionLesionAllowedRanges } from '../giis-export/utils/cie-lesion.utils';
 import { WorkerFusionService } from '../trabajadores/worker-fusion.service';
+
 
 @Injectable()
 export class ExpedientesService {
@@ -107,6 +110,10 @@ export class ExpedientesService {
     private trastornoLimitePersonalidadModel: Model<TrastornoLimitePersonalidad>,
     @InjectModel(Lesion.name) private lesionModel: Model<Lesion>,
     @InjectModel(Deteccion.name) private deteccionModel: Model<Deteccion>,
+    @InjectModel(EventoSeguimientoCardiometabolico.name)
+    private eventoSeguimientoCardiometabolicoModel: Model<EventoSeguimientoCardiometabolico>,
+    @InjectModel(InformeLongitudinalCardiometabolico.name)
+    private informeLongitudinalCardiometabolicoModel: Model<InformeLongitudinalCardiometabolico>,
     @InjectModel(CentroTrabajo.name)
     private centroTrabajoModel: Model<CentroTrabajo>,
     @InjectModel(Empresa.name) private empresaModel: Model<Empresa>,
@@ -147,6 +154,8 @@ export class ExpedientesService {
       trastornosEstadoAnimo: this.trastornosEstadoAnimoModel,
       cuestionarioProdromalBreve: this.cuestionarioProdromalBreveModel,
       trastornoLimitePersonalidad: this.trastornoLimitePersonalidadModel,
+      eventoSeguimientoCardiometabolico: this.eventoSeguimientoCardiometabolicoModel,
+      informeLongitudinalCardiometabolico: this.informeLongitudinalCardiometabolicoModel,
     };
 
     this.dateFields = {
@@ -171,6 +180,8 @@ export class ExpedientesService {
       trastornosEstadoAnimo: 'fechaTrastornosEstadoAnimo',
       cuestionarioProdromalBreve: 'fechaCuestionarioProdromalBreve',
       trastornoLimitePersonalidad: 'fechaTrastornoLimitePersonalidad',
+      eventoSeguimientoCardiometabolico: 'fechaEventoSeguimientoCardiometabolico',
+      informeLongitudinalCardiometabolico: 'fechaInformeLongitudinalCardiometabolico',
     };
   }
 

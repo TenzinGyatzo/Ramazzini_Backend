@@ -55,6 +55,8 @@ import { CuestionarioProdromalBreve } from '../expedientes/schemas/cuestionario-
 import { TrastornoLimitePersonalidad } from '../expedientes/schemas/trastorno-limite-personalidad.schema';
 import { generateFolioFromWorkerData } from 'src/utils/folio-generator.util';
 import { WorkerFusionService } from './worker-fusion.service';
+import { EventoSeguimientoCardiometabolico } from '../expedientes/schemas/evento-seguimiento-cardiometabolico.schema';
+import { InformeLongitudinalCardiometabolico } from '../expedientes/schemas/informe-longitudinal-cardiometabolico.schema';
 import {
   ResultadoClinico,
   ResultadoGlobal,
@@ -94,6 +96,10 @@ export class TrabajadoresService {
     private cuestionarioProdromalBreveModel: Model<CuestionarioProdromalBreve>,
     @InjectModel(TrastornoLimitePersonalidad.name)
     private trastornoLimitePersonalidadModel: Model<TrastornoLimitePersonalidad>,
+    @InjectModel(EventoSeguimientoCardiometabolico.name)
+    private eventoSeguimientoCardiometabolicoModel: Model<EventoSeguimientoCardiometabolico>,
+    @InjectModel(InformeLongitudinalCardiometabolico.name)
+    private informeLongitudinalCardiometabolicoModel: Model<InformeLongitudinalCardiometabolico>,
     @InjectModel(RiesgoTrabajo.name)
     private riesgoTrabajoModel: Model<RiesgoTrabajo>,
     @InjectModel(Lesion.name)
@@ -605,174 +611,234 @@ export class TrabajadoresService {
   }
 
   async findWorkersWithHistoriaDataByCenter(centroId: string): Promise<any[]> {
-    // Obtener todos los trabajadores del centro
+    const LISTADO_TRABAJADOR_FIELDS =
+      '_id primerApellido segundoApellido nombre fechaNacimiento sexo escolaridad puesto fechaIngreso telefono contactoEmergenciaNombre contactoEmergenciaTelefono estadoCivil numeroEmpleado nss curp agentesRiesgoActuales estadoLaboral idCentroTrabajo createdBy updatedBy fechaTransferencia createdAt updatedAt';
+
     const trabajadores = await this.trabajadorModel
       .find({ idCentroTrabajo: centroId })
+      .select(LISTADO_TRABAJADOR_FIELDS)
       .lean();
 
-    // Ordenar por fecha efectiva: fechaTransferencia si existe, sino createdAt
     trabajadores.sort((a, b) => {
       const fechaA = a.fechaTransferencia || (a as any).createdAt;
       const fechaB = b.fechaTransferencia || (b as any).createdAt;
-
-      // Orden ascendente (más antiguo primero)
       return new Date(fechaA).getTime() - new Date(fechaB).getTime();
     });
+
     const trabajadoresIds = trabajadores.map((t) => t._id);
-
-    // HISTORIAS CLÍNICAS
-    const historias = await this.historiaClinicaModel
-      .find({ idTrabajador: { $in: trabajadoresIds } })
-      .lean();
-
-    const historiasMap = new Map<string, any>();
-    for (const historia of historias) {
-      const id = historia.idTrabajador.toString();
-      const actual = historiasMap.get(id);
-      if (
-        !actual ||
-        new Date(historia.fechaHistoriaClinica) >
-          new Date(actual.fechaHistoriaClinica)
-      ) {
-        historiasMap.set(id, historia);
-      }
+    if (trabajadoresIds.length === 0) {
+      return [];
     }
 
-    // APTITUD PUESTO
-    const aptitudes = await this.aptitudModel
-      .find({ idTrabajador: { $in: trabajadoresIds } })
-      .lean();
+    const tiposRcLista = [
+      TipoEstudio.ESPIROMETRIA,
+      TipoEstudio.EKG,
+      TipoEstudio.RAYOS_X,
+      TipoEstudio.ANALISIS_LABORATORIO,
+    ];
 
-    const aptitudesMap = new Map<string, any>();
-    for (const aptitud of aptitudes) {
-      const id = aptitud.idTrabajador.toString();
-      const actual = aptitudesMap.get(id);
-      if (
-        !actual ||
-        new Date(aptitud.fechaAptitudPuesto) >
-          new Date(actual.fechaAptitudPuesto)
-      ) {
-        aptitudesMap.set(id, aptitud);
-      }
-    }
+    const [
+      historiasAgg,
+      aptitudesAgg,
+      exploracionesAgg,
+      examenesAgg,
+      consultasAgg,
+      audiometriasAgg,
+      resultadosAgg,
+      eventoSeguimientoCardiometabolicoAgg,
+      informeLongitudinalCardiometabolicoAgg,
+    ] = await Promise.all([
+      this.historiaClinicaModel
+        .aggregate([
+          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $sort: { fechaHistoriaClinica: -1 } },
+          {
+            $group: {
+              _id: '$idTrabajador',
+              lumbalgias: { $first: '$lumbalgias' },
+              diabeticosPP: { $first: '$diabeticosPP' },
+              cardiopaticosPP: { $first: '$cardiopaticosPP' },
+              alergicos: { $first: '$alergicos' },
+              hipertensivosPP: { $first: '$hipertensivosPP' },
+              respiratorios: { $first: '$respiratorios' },
+              epilepticosPP: { $first: '$epilepticosPP' },
+              accidentes: { $first: '$accidentes' },
+              quirurgicos: { $first: '$quirurgicos' },
+              otros: { $first: '$otros' },
+              alcoholismoEspecificar: { $first: '$alcoholismoEspecificar' },
+              tabaquismoEspecificar: { $first: '$tabaquismoEspecificar' },
+              accidenteLaboral: { $first: '$accidenteLaboral' },
+            },
+          },
+        ])
+        .exec(),
+      this.aptitudModel
+        .aggregate([
+          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $sort: { fechaAptitudPuesto: -1 } },
+          {
+            $group: {
+              _id: '$idTrabajador',
+              aptitudPuesto: { $first: '$aptitudPuesto' },
+              fechaAptitudPuesto: { $first: '$fechaAptitudPuesto' },
+            },
+          },
+        ])
+        .exec(),
+      this.exploracionFisicaModel
+        .aggregate([
+          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $sort: { fechaExploracionFisica: -1 } },
+          {
+            $group: {
+              _id: '$idTrabajador',
+              categoriaIMC: { $first: '$categoriaIMC' },
+              categoriaCircunferenciaCintura: { $first: '$categoriaCircunferenciaCintura' },
+              categoriaTensionArterial: { $first: '$categoriaTensionArterial' },
+              resumenExploracionFisica: { $first: '$resumenExploracionFisica' },
+            },
+          },
+        ])
+        .exec(),
+      this.examenVistaModel
+        .aggregate([
+          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $sort: { fechaExamenVista: -1 } },
+          {
+            $group: {
+              _id: '$idTrabajador',
+              requiereLentesUsoGeneral: { $first: '$requiereLentesUsoGeneral' },
+              interpretacionIshihara: { $first: '$interpretacionIshihara' },
+              sinCorreccionLejanaInterpretacion: { $first: '$sinCorreccionLejanaInterpretacion' },
+              ojoIzquierdoLejanaConCorreccion: { $first: '$ojoIzquierdoLejanaConCorreccion' },
+              ojoDerechoLejanaConCorreccion: { $first: '$ojoDerechoLejanaConCorreccion' },
+            },
+          },
+        ])
+        .exec(),
+      this.notaMedicaModel
+        .aggregate([
+          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $sort: { fechaNotaMedica: -1 } },
+          {
+            $group: {
+              _id: '$idTrabajador',
+              fechaNotaMedica: { $first: '$fechaNotaMedica' },
+            },
+          },
+        ])
+        .exec(),
+      this.audiometriaModel
+        .aggregate([
+          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $sort: { fechaAudiometria: -1 } },
+          {
+            $group: {
+              _id: '$idTrabajador',
+              hipoacusiaBilateralCombinada: { $first: '$hipoacusiaBilateralCombinada' },
+              perdidaAuditivaBilateralAMA: { $first: '$perdidaAuditivaBilateralAMA' },
+              metodoAudiometria: { $first: '$metodoAudiometria' },
+              diagnosticoAudiometria: { $first: '$diagnosticoAudiometria' },
+            },
+          },
+        ])
+        .exec(),
+      this.resultadoClinicoModel
+        .aggregate([
+          {
+            $match: {
+              idTrabajador: { $in: trabajadoresIds },
+              tipoEstudio: { $in: tiposRcLista },
+            },
+          },
+          { $sort: { fechaEstudio: -1 } },
+          {
+            $group: {
+              _id: { tid: '$idTrabajador', tipo: '$tipoEstudio' },
+              resultadoGlobal: { $first: '$resultadoGlobal' },
+              fechaEstudio: { $first: '$fechaEstudio' },
+            },
+          },
+        ])
+        .exec(),
+      this.eventoSeguimientoCardiometabolicoModel
+        .aggregate([
+          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $sort: { fechaEventoSeguimientoCardiometabolico: -1 } },
+          {
+            $group: {
+              _id: '$idTrabajador',
+              fechaEventoSeguimientoCardiometabolico: { $first: '$fechaEventoSeguimientoCardiometabolico' },
+            },
+          },
+        ])
+        .exec(),
+      this.informeLongitudinalCardiometabolicoModel
+        .aggregate([
+          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $sort: { fechaInformeLongitudinalCardiometabolico: -1 } },
+          {
+            $group: {
+              _id: '$idTrabajador',
+              fechaInformeLongitudinalCardiometabolico: { $first: '$fechaInformeLongitudinalCardiometabolico' },
+            },
+          },
+        ])
+        .exec(),
+    ]);
 
-    // EXPLORACIÓN FÍSICA
-    const exploraciones = await this.exploracionFisicaModel
-      .find({ idTrabajador: { $in: trabajadoresIds } })
-      .lean();
-
-    const exploracionesMap = new Map<string, any>();
-    for (const exploracion of exploraciones) {
-      const id = exploracion.idTrabajador.toString();
-      const actual = exploracionesMap.get(id);
-      if (
-        !actual ||
-        new Date(exploracion.fechaExploracionFisica) >
-          new Date(actual.fechaExploracionFisica)
-      ) {
-        exploracionesMap.set(id, exploracion);
-      }
-    }
-
-    // EXÁMENES DE VISTA
-    const examenesVista = await this.examenVistaModel
-      .find({ idTrabajador: { $in: trabajadoresIds } })
-      .lean();
-
-    const examenesVistaMap = new Map<string, any>();
-    for (const examen of examenesVista) {
-      const id = examen.idTrabajador.toString();
-      const actual = examenesVistaMap.get(id);
-      if (
-        !actual ||
-        new Date(examen.fechaExamenVista) > new Date(actual.fechaExamenVista)
-      ) {
-        examenesVistaMap.set(id, examen);
-      }
-    }
-
-    // CONSULTAS
-    const consultas = await this.notaMedicaModel
-      .find({ idTrabajador: { $in: trabajadoresIds } })
-      .lean();
-
-    const consultasMap = new Map<string, any>();
-    for (const consulta of consultas) {
-      const id = consulta.idTrabajador.toString();
-      const actual = consultasMap.get(id);
-      if (
-        !actual ||
-        new Date(consulta.fechaNotaMedica) > new Date(actual.fechaNotaMedica)
-      ) {
-        consultasMap.set(id, consulta);
-      }
-    }
-
-    // AUDIOMETRIA
-    const audiometrias = await this.audiometriaModel
-      .find({ idTrabajador: { $in: trabajadoresIds } })
-      .lean();
-
-    const audiometriasMap = new Map<string, any>();
-    for (const audiometria of audiometrias) {
-      const id = audiometria.idTrabajador.toString();
-      const actual = audiometriasMap.get(id);
-      if (
-        !actual ||
-        new Date(audiometria.fechaAudiometria) >
-          new Date(actual.fechaAudiometria)
-      ) {
-        audiometriasMap.set(id, audiometria);
-      }
-    }
-
-    // RESULTADOS CLÍNICOS (Espirometría, EKG, Rayos X, Laboratorio): último por trabajador y tipo
-    const resultadosClinicosDocs = await this.resultadoClinicoModel
-      .find({
-        idTrabajador: { $in: trabajadoresIds },
-        tipoEstudio: {
-          $in: [
-            TipoEstudio.ESPIROMETRIA,
-            TipoEstudio.EKG,
-            TipoEstudio.RAYOS_X,
-            TipoEstudio.ANALISIS_LABORATORIO,
-          ],
-        },
-      })
-      .select('idTrabajador tipoEstudio fechaEstudio resultadoGlobal')
-      .lean();
+    const historiasMap = new Map<string, any>(
+      historiasAgg.map((h) => [h._id.toString(), h]),
+    );
+    const aptitudesMap = new Map<string, any>(
+      aptitudesAgg.map((a) => [a._id.toString(), a]),
+    );
+    const exploracionesMap = new Map<string, any>(
+      exploracionesAgg.map((e) => [e._id.toString(), e]),
+    );
+    const examenesVistaMap = new Map<string, any>(
+      examenesAgg.map((e) => [e._id.toString(), e]),
+    );
+    const consultasMap = new Map<string, any>(
+      consultasAgg.map((c) => [c._id.toString(), c]),
+    );
+    const audiometriasMap = new Map<string, any>(
+      audiometriasAgg.map((a) => [a._id.toString(), a]),
+    );
+    const eventoSeguimientoCardiometabolicoMap = new Map<string, { fechaEventoSeguimientoCardiometabolico: Date }>(
+      eventoSeguimientoCardiometabolicoAgg.map((e) => [e._id.toString(), e]),
+    );
+    const informeLongitudinalCardiometabolicoMap = new Map<string, { fechaInformeLongitudinalCardiometabolico: Date }>(
+      informeLongitudinalCardiometabolicoAgg.map((e) => [e._id.toString(), e]),
+    );
 
     const resultadosEspirometriaMap = new Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>();
     const resultadosEkgMap = new Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>();
     const resultadosRayosXMap = new Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>();
     const resultadosAnalisisLabMap = new Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>();
 
-    for (const doc of resultadosClinicosDocs) {
-      const tid = doc.idTrabajador.toString();
-      let targetMap: Map<string, { resultadoGlobal?: string; fechaEstudio: Date }>;
-      switch (doc.tipoEstudio) {
+    for (const row of resultadosAgg) {
+      const tid = row._id.tid.toString();
+      const tipo = row._id.tipo as TipoEstudio;
+      const entry = {
+        resultadoGlobal: row.resultadoGlobal ?? undefined,
+        fechaEstudio: new Date(row.fechaEstudio),
+      };
+      switch (tipo) {
         case TipoEstudio.ESPIROMETRIA:
-          targetMap = resultadosEspirometriaMap;
+          resultadosEspirometriaMap.set(tid, entry);
           break;
         case TipoEstudio.EKG:
-          targetMap = resultadosEkgMap;
+          resultadosEkgMap.set(tid, entry);
           break;
         case TipoEstudio.RAYOS_X:
-          targetMap = resultadosRayosXMap;
+          resultadosRayosXMap.set(tid, entry);
           break;
         case TipoEstudio.ANALISIS_LABORATORIO:
-          targetMap = resultadosAnalisisLabMap;
+          resultadosAnalisisLabMap.set(tid, entry);
           break;
         default:
-          continue;
-      }
-      const actual = targetMap.get(tid);
-      const fecha = new Date(doc.fechaEstudio);
-      if (!actual || fecha > new Date(actual.fechaEstudio)) {
-        targetMap.set(tid, {
-          resultadoGlobal: doc.resultadoGlobal ?? undefined,
-          fechaEstudio: fecha,
-        });
+          break;
       }
     }
 
@@ -783,19 +849,6 @@ export class TrabajadoresService {
       return '-';
     };
 
-    // RIESGOS DE TRABAJO
-    const riesgos = await this.riesgoTrabajoModel
-      .find({ idTrabajador: { $in: trabajadoresIds } })
-      .lean();
-
-    const riesgosMap = new Map<string, any[]>();
-    for (const riesgo of riesgos) {
-      const id = riesgo.idTrabajador.toString();
-      if (!riesgosMap.has(id)) riesgosMap.set(id, []);
-      riesgosMap.get(id).push(riesgo);
-    }
-
-    // COMBINAR
     const resultado = trabajadores.map((trabajador) => {
       const id = trabajador._id.toString();
 
@@ -829,8 +882,9 @@ export class TrabajadoresService {
           ? {
               aptitudPuesto: aptitud.aptitudPuesto ?? null,
               fechaAptitudPuesto:
-                format(new Date(aptitud.fechaAptitudPuesto), 'dd/MM/yyyy') ??
-                null,
+                aptitud.fechaAptitudPuesto != null
+                  ? format(new Date(aptitud.fechaAptitudPuesto), 'dd/MM/yyyy')
+                  : null,
             }
           : null,
         exploracionFisicaResumen: exploracion
@@ -861,11 +915,11 @@ export class TrabajadoresService {
         consultaResumen: consulta
           ? {
               fechaNotaMedica:
-                format(new Date(consulta.fechaNotaMedica), 'dd/MM/yyyy') ??
-                null,
+                consulta.fechaNotaMedica != null
+                  ? format(new Date(consulta.fechaNotaMedica), 'dd/MM/yyyy')
+                  : null,
             }
           : null,
-        riesgosTrabajo: riesgosMap.get(id) ?? [],
         audiometriaResumen: audiometria
           ? {
               hipoacusiaBilateralCombinada:
@@ -3171,6 +3225,8 @@ export class TrabajadoresService {
       TrastornosEstadoAnimo: 'fechaTrastornosEstadoAnimo',
       CuestionarioProdromalBreve: 'fechaCuestionarioProdromalBreve',
       TrastornoLimitePersonalidad: 'fechaTrastornoLimitePersonalidad',
+      EventoSeguimientoCardiometabolico: 'fechaEventoSeguimientoCardiometabolico',
+      InformeLongitudinalCardiometabolico: 'fechaInformeLongitudinalCardiometabolico',
     };
 
     // Determinar el tipo de documento con el nombre del modelo en Mongoose
@@ -3213,6 +3269,8 @@ export class TrabajadoresService {
       TrastornosEstadoAnimo: 'Trastornos Estado Animo',
       CuestionarioProdromalBreve: 'Cuestionario Prodromal Breve',
       TrastornoLimitePersonalidad: 'Trastorno Limite Personalidad',
+      EventoSeguimientoCardiometabolico: 'Evento Seguimiento Cardiometabolico',
+      InformeLongitudinalCardiometabolico: 'Informe Longitudinal Cardiometabolico',
     };
 
     // Mapeo de tipos de documentos técnicos a nombres legibles (para Nota Aclaratoria)
@@ -3441,6 +3499,14 @@ export class TrabajadoresService {
               .find({ idTrabajador: id })
               .session(session)
               .exec(),
+            this.eventoSeguimientoCardiometabolicoModel
+              .find({ idTrabajador: id })
+              .session(session)
+              .exec(),
+            this.informeLongitudinalCardiometabolicoModel
+              .find({ idTrabajador: id })
+              .session(session)
+              .exec(),
             this.riesgoTrabajoModel
               .find({ idTrabajador: id })
               .session(session)
@@ -3500,6 +3566,12 @@ export class TrabajadoresService {
               .deleteMany({ idTrabajador: id })
               .session(session),
             this.trastornoLimitePersonalidadModel
+              .deleteMany({ idTrabajador: id })
+              .session(session),
+            this.eventoSeguimientoCardiometabolicoModel
+              .deleteMany({ idTrabajador: id })
+              .session(session),
+            this.informeLongitudinalCardiometabolicoModel
               .deleteMany({ idTrabajador: id })
               .session(session),
             this.riesgoTrabajoModel

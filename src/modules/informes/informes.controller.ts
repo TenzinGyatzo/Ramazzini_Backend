@@ -561,4 +561,39 @@ export class InformesController {
       .status(200)
       .json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
   }
+
+  // Vigilancia Médica 
+  @Get('eventoSeguimientoCardiometabolico/:empresaId/:trabajadorId/:eventoSeguimientoCardiometabolicoId/:userId')
+  async getInformeEventoSeguimientoCardiometabolico(
+    @Param('empresaId') empresaId: string,
+    @Param('trabajadorId') trabajadorId: string,
+    @Param('eventoSeguimientoCardiometabolicoId') eventoSeguimientoCardiometabolicoId: string,
+    @Param('userId') userId: string,
+    @Res() res: Response,
+  ) {
+    const rutaPDF = await this.informesService.getInformeEventoSeguimientoCardiometabolico(
+      empresaId,
+      trabajadorId,
+      eventoSeguimientoCardiometabolicoId,
+      userId,
+    );
+    return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
+  }
+
+  @Get('informeLongitudinalCardiometabolico/:empresaId/:trabajadorId/:informeLongitudinalCardiometabolicoId/:userId')
+  async getInformeLongitudinalCardiometabolico(
+    @Param('empresaId') empresaId: string,
+    @Param('trabajadorId') trabajadorId: string,
+    @Param('informeLongitudinalCardiometabolicoId') informeLongitudinalCardiometabolicoId: string,
+    @Param('userId') userId: string,
+    @Res() res: Response,
+  ) {
+    const rutaPDF = await this.informesService.getInformeLongitudinalCardiometabolico(
+      empresaId,
+      trabajadorId,
+      informeLongitudinalCardiometabolicoId,
+      userId,
+    );
+    return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
+  }
 }

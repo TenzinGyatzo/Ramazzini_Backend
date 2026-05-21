@@ -134,3 +134,4 @@ export class AptitudPuesto extends Document {
 export const AptitudPuestoSchema = SchemaFactory.createForClass(
   AptitudPuesto,
 ).set('timestamps', true);
+AptitudPuestoSchema.index({ idTrabajador: 1, fechaAptitudPuesto: -1 });

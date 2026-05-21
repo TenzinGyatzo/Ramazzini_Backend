@@ -130,6 +130,7 @@ export class ResultadoClinico extends Document {
 }
 
 export const ResultadoClinicoSchema = SchemaFactory.createForClass(ResultadoClinico);
+ResultadoClinicoSchema.index({ idTrabajador: 1, tipoEstudio: 1, fechaEstudio: -1 });
 
 // Índice compuesto para optimizar consultas por trabajador y año
 ResultadoClinicoSchema.index({ idTrabajador: 1, anioEstudio: 1 });

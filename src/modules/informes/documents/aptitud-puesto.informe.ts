@@ -100,10 +100,25 @@ const styles: StyleDictionary = {
     alignment: 'center',
     margin: [0, 0, 0, 0],
   },
+  /** Solo filas MDQ, prodromal breve y TLP en tabla resumen aptitud (texto largo en columna estudio) */
+  sectionHeaderTamizajeCompacto: {
+    fontSize: 8,
+    lineHeight: 0.85,
+    bold: true,
+    alignment: 'center',
+    margin: [0, 0, 0, 0],
+  },
 };
 
 // ==================== FUNCIONES REUSABLES ====================
 type Alignment = 'left' | 'center' | 'right' | 'justify';
+
+/** Solo el título (columna 1) en estas filas usa fuente menor; fechas y resumen siguen como `tableCell`. */
+const TITULOS_TAMIZAJE_TEXTO_COMPACTO = new Set<string>([
+  'TRASTORNOS DEL ESTADO DE ÁNIMO',
+  'CUESTIONARIO PRODROMAL BREVE',
+  'TRASTORNO LÍMITE PERSONALIDAD',
+]);
 
 const createTableCell = (
   text: string,
@@ -558,6 +573,13 @@ interface ResultadoClinicoAnalisisLaboratorio {
   tipoAlteracionAnalisisLaboratorio?: string[];
 }
 
+/** Filas opcionales de tamizaje psicológico (misma lógica que el visualizador de aptitud). */
+export interface AptitudInformeFilaTamizajePsicologia {
+  titulo: string;
+  fecha: Date;
+  resumen: string;
+}
+
 interface MedicoFirmante {
   nombre: string;
   tituloProfesional: string;
@@ -609,6 +631,7 @@ export const aptitudPuestoInforme = (
   medicoFirmante: MedicoFirmante,
   proveedorSalud: ProveedorSalud,
   footerFirmantesData?: FooterFirmantesData,
+  filasTamizajePsicologia: AptitudInformeFilaTamizajePsicologia[] = [],
 ): TDocumentDefinitions => {
   // Clonamos los estilos y cambiamos fillColor antes de pasarlos a pdfMake
   const updatedStyles: StyleDictionary = { ...styles };
@@ -903,6 +926,15 @@ export const aptitudPuestoInforme = (
           ],
         ]
       : []),
+    ...filasTamizajePsicologia.map((fila) => {
+      const compacto = TITULOS_TAMIZAJE_TEXTO_COMPACTO.has(fila.titulo);
+      const headerStyle = compacto ? 'sectionHeaderTamizajeCompacto' : 'sectionHeader';
+      return [
+        createTableCell(fila.titulo, headerStyle, 'center'),
+        createTableCell(formatearFechaUTC(fila.fecha), 'tableCell', 'center'),
+        createTableCell(fila.resumen, 'tableCell', 'center'),
+      ];
+    }),
   ];
 
   // Agregar filas para cada evaluación adicional si existen los datos
@@ -926,9 +958,13 @@ export const aptitudPuestoInforme = (
     proveedorSalud.semaforizacionActivada,
   );
 
+  /** Más aire entre header y cuerpo en pág. 2+; en p.1 se anula con margen negativo en el primer bloque del contenido. */
+  const pageTopMarginExtraPt = 18;
+  const pageMarginsTop = 60 + pageTopMarginExtraPt;
+
   return {
     pageSize: 'LETTER',
-    pageMargins: [40, 60, 40, 80],
+    pageMargins: [40, pageMarginsTop, 40, 80],
     header: header,
     content: [
       // Nombre de la empresa y fecha
@@ -960,7 +996,7 @@ export const aptitudPuestoInforme = (
           ],
         },
         layout: 'noBorders',
-        margin: [0, 0, 0, 0],
+        margin: [0, -pageTopMarginExtraPt, 0, 0] as [number, number, number, number],
       },
       // Datos del trabajador
       {

@@ -129,6 +129,28 @@ export class CreateTrabajadorDto {
   telefono?: string; // El operador `?` también indica que es opcional en TypeScript
 
   @ApiProperty({
+    description: 'Nombre del contacto de emergencia del trabajador',
+    example: 'María López García',
+    required: false,
+  })
+  @IsOptional()
+  @IsString({ message: 'El nombre del contacto de emergencia debe ser un string' })
+  contactoEmergenciaNombre?: string;
+
+  @ApiProperty({
+    description: 'Teléfono del contacto de emergencia (opcional, formato internacional)',
+    example: '+526681078205',
+    required: false,
+  })
+  @IsOptional()
+  @IsString({ message: 'El teléfono del contacto de emergencia debe ser un string' })
+  @Matches(/^$|^\+?[0-9]\d{3,14}$/, {
+    message:
+      'El teléfono del contacto de emergencia debe estar vacío o tener entre 4 y 15 dígitos (formato internacional)',
+  })
+  contactoEmergenciaTelefono?: string;
+
+  @ApiProperty({
     description: 'Estado Civil del trabajador',
     enum: estadosCiviles,
     example: 'Casado/a',

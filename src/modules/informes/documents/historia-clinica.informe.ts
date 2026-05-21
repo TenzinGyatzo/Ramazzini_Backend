@@ -194,6 +194,8 @@ interface Trabajador {
   telefono: string;
   estadoCivil: string;
   numeroEmpleado: string;
+  contactoEmergenciaNombre?: string;
+  contactoEmergenciaTelefono?: string;
 }
 
 interface HistoriaClinica {
@@ -628,6 +630,12 @@ export const historiaClinicaInforme = (
           { text: 'NUM. DE EMPLEADO', style: 'label' },
           { text: trabajador.numeroEmpleado || '-', style: 'value' },
         ],
+        [
+          { text: 'C. EMERGENCIA', style: 'label' },
+          { text: trabajador.contactoEmergenciaNombre || '-', style: 'value' },
+          { text: 'TEL. C. EMERGENCIA', style: 'label' },
+          { text: trabajador.contactoEmergenciaTelefono || '-', style: 'value' },
+        ],
       ],
     },
     layout: {
@@ -1019,7 +1027,7 @@ export const historiaClinicaInforme = (
         // Fila principal con encabezado
         [
           {
-            text: 'SUFRIÓ ALGÚN ACCIDENTE DE TRABAJO',
+            text: 'SUFRIÓ ALGÚN RIESGO DE TRABAJO',
             style: 'tableCellBold',
             alignment: 'left',
             colSpan: 2,

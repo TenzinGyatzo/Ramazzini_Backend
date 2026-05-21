@@ -1,6 +1,8 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { ExpedientesService } from './expedientes.service';
 import { ExpedientesController } from './expedientes.controller';
+import { SeguimientoProgramadoCardiometabolicoController } from './seguimiento-programado-cardiometabolico.controller';
+import { SeguimientoProgramadoCardiometabolicoService } from './seguimiento-programado-cardiometabolico.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Antidoping, AntidopingSchema } from './schemas/antidoping.schema';
 import {
@@ -51,10 +53,6 @@ import { Receta, RecetaSchema } from './schemas/receta.schema';
 import { Lesion, LesionSchema } from './schemas/lesion.schema';
 import { Deteccion, DeteccionSchema } from './schemas/deteccion.schema';
 import {
-  Trabajador,
-  TrabajadorSchema,
-} from '../trabajadores/schemas/trabajador.schema';
-import {
   EntrevistaPsicologica,
   EntrevistaPsicologicaSchema,
 } from './schemas/entrevista-psicologica.schema';
@@ -70,6 +68,22 @@ import {
   TrastornoLimitePersonalidad,
   TrastornoLimitePersonalidadSchema,
 } from './schemas/trastorno-limite-personalidad.schema';
+import {
+  EventoSeguimientoCardiometabolico,
+  EventoSeguimientoCardiometabolicoSchema,
+} from './schemas/evento-seguimiento-cardiometabolico.schema';
+import {
+  SeguimientoProgramadoCardiometabolico,
+  SeguimientoProgramadoCardiometabolicoSchema,
+} from './schemas/seguimiento-programado-cardiometabolico.schema';
+import {
+  InformeLongitudinalCardiometabolico,
+  InformeLongitudinalCardiometabolicoSchema,
+} from './schemas/informe-longitudinal-cardiometabolico.schema';
+import {
+  Trabajador,
+  TrabajadorSchema,
+} from '../trabajadores/schemas/trabajador.schema';
 import { InformesModule } from '../informes/informes.module';
 import { FilesModule } from '../files/files.module';
 import { PdfCleanerService } from './pdf-cleaner.service';
@@ -93,10 +107,14 @@ import { UsersModule } from '../users/users.module';
 import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
 
 @Module({
-  controllers: [ExpedientesController],
+  controllers: [
+    ExpedientesController,
+    SeguimientoProgramadoCardiometabolicoController,
+  ],
   providers: [
     ExpedientesService,
     PdfCleanerService,
+    SeguimientoProgramadoCardiometabolicoService,
     Cie10CatalogLookupService,
     DailyConsentGuard,
   ],
@@ -133,6 +151,18 @@ import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
       {
         name: TrastornoLimitePersonalidad.name,
         schema: TrastornoLimitePersonalidadSchema,
+      },
+      {
+        name: EventoSeguimientoCardiometabolico.name,
+        schema: EventoSeguimientoCardiometabolicoSchema,
+      },
+      {
+        name: SeguimientoProgramadoCardiometabolico.name,
+        schema: SeguimientoProgramadoCardiometabolicoSchema,
+      },
+      {
+        name: InformeLongitudinalCardiometabolico.name,
+        schema: InformeLongitudinalCardiometabolicoSchema,
       },
     ]),
     forwardRef(() => InformesModule),

@@ -27,6 +27,8 @@ import { trastornoLimitePersonalidadInforme } from './documents/tratorno-limite-
 import { cuestionarioProdromalBreveInforme } from './documents/cuestionario-prodromal-breve.informe';
 import { trastornosEstadoAnimoInforme } from './documents/trastornos-estado-animo.informe';
 import { dashboardInforme } from './documents/dashboard.informe';
+import { eventoSeguimientoCardiometabolicoInforme } from './documents/evento-seguimiento-cardiometabolico.informe';
+import { informeLongitudinalCardiometabolicoInforme } from './documents/informe-longitudinal-cardiometabolico.informe';
 import { EmpresasService } from '../empresas/empresas.service';
 import { TrabajadoresService } from '../trabajadores/trabajadores.service';
 import { ExpedientesService } from '../expedientes/expedientes.service';
@@ -38,6 +40,13 @@ import {
   calcularAntiguedad,
 } from 'src/utils/dates';
 import { findNearestDocument } from 'src/utils/findNearestDocuments';
+import { findNearestDocumentSameYear } from 'src/utils/findNearestDocumentSameYear';
+import {
+  resumenTablaEntrevistaPsicologica,
+  resumenTablaTrastornosEstadoAnimo,
+  resumenTablaCuestionarioProdromalBreve,
+  resumenTablaTrastornoLimitePersonalidad,
+} from 'src/utils/aptitud-informe-psicologia-resumenes';
 import * as path from 'path';
 import * as fs from 'fs';
 import { UsersService } from '../users/users.service';
@@ -406,6 +415,20 @@ export class InformesService {
             finalizadorId,
             undefined,
           );
+        case 'eventoSeguimientoCardiometabolico':
+          return await this.getInformeEventoSeguimientoCardiometabolico(
+            empresaId,
+            trabajador._id,
+            documentId,
+            finalizadorId,
+          );
+        case 'informeLongitudinalCardiometabolico':
+          return await this.getInformeLongitudinalCardiometabolico(
+            empresaId,
+            trabajador._id,
+            documentId,
+            finalizadorId,
+          );
         default:
           console.warn(
             `regenerarInformeAlFinalizar: Tipo de documento ${normalizedType} no soportado`,
@@ -587,6 +610,20 @@ export class InformesService {
           documentId,
           finalizadorId,
           footerFirmantesData,
+        );
+      case 'eventoSeguimientoCardiometabolico':
+        return await this.getInformeEventoSeguimientoCardiometabolico(
+          empresaId,
+          trabajador._id,
+          documentId,
+          finalizadorId,
+        );
+      case 'informeLongitudinalCardiometabolico':
+        return await this.getInformeLongitudinalCardiometabolico(
+          empresaId,
+          trabajador._id,
+          documentId,
+          finalizadorId,
         );
       default:
         console.warn(
@@ -1315,6 +1352,82 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const [
+      entrevistasPsicologicasList,
+      trastornosEstadoAnimoList,
+      cuestionariosProdromalBreveList,
+      trastornosLimitePersonalidadList,
+    ] = await Promise.all([
+      this.expedientesService.findDocuments('entrevistaPsicologica', trabajadorId),
+      this.expedientesService.findDocuments('trastornosEstadoAnimo', trabajadorId),
+      this.expedientesService.findDocuments('cuestionarioProdromalBreve', trabajadorId),
+      this.expedientesService.findDocuments('trastornoLimitePersonalidad', trabajadorId),
+    ]);
+
+    const fechaAptitudRef = aptitud.fechaAptitudPuesto;
+    const nearestEpPsi = findNearestDocumentSameYear(
+      entrevistasPsicologicasList,
+      fechaAptitudRef,
+      'fechaEntrevistaPsicologica',
+    );
+    const nearestTeaPsi = findNearestDocumentSameYear(
+      trastornosEstadoAnimoList,
+      fechaAptitudRef,
+      'fechaTrastornosEstadoAnimo',
+    );
+    const nearestPqbPsi = findNearestDocumentSameYear(
+      cuestionariosProdromalBreveList,
+      fechaAptitudRef,
+      'fechaCuestionarioProdromalBreve',
+    );
+    const nearestTlpPsi = findNearestDocumentSameYear(
+      trastornosLimitePersonalidadList,
+      fechaAptitudRef,
+      'fechaTrastornoLimitePersonalidad',
+    );
+
+    const filasTamizajePsicologia: {
+      titulo: string;
+      fecha: Date;
+      resumen: string;
+    }[] = [];
+    if (nearestEpPsi) {
+      filasTamizajePsicologia.push({
+        titulo: 'ENTREVISTA PSICOLÓGICA',
+        fecha: nearestEpPsi.fechaEntrevistaPsicologica,
+        resumen: resumenTablaEntrevistaPsicologica(
+          nearestEpPsi as Record<string, unknown>,
+        ),
+      });
+    }
+    if (nearestTeaPsi) {
+      filasTamizajePsicologia.push({
+        titulo: 'TRASTORNOS DEL ESTADO DE ÁNIMO',
+        fecha: nearestTeaPsi.fechaTrastornosEstadoAnimo,
+        resumen: resumenTablaTrastornosEstadoAnimo(
+          nearestTeaPsi as Record<string, unknown>,
+        ),
+      });
+    }
+    if (nearestPqbPsi) {
+      filasTamizajePsicologia.push({
+        titulo: 'CUESTIONARIO PRODROMAL BREVE',
+        fecha: nearestPqbPsi.fechaCuestionarioProdromalBreve,
+        resumen: resumenTablaCuestionarioProdromalBreve(
+          nearestPqbPsi as Record<string, unknown>,
+        ),
+      });
+    }
+    if (nearestTlpPsi) {
+      filasTamizajePsicologia.push({
+        titulo: 'TRASTORNO LÍMITE PERSONALIDAD',
+        fecha: nearestTlpPsi.fechaTrastornoLimitePersonalidad,
+        resumen: resumenTablaTrastornoLimitePersonalidad(
+          nearestTlpPsi as Record<string, unknown>,
+        ),
+      });
+    }
+
     const docDefinition = aptitudPuestoInforme(
       nombreEmpresa,
       datosTrabajador,
@@ -1332,6 +1445,7 @@ export class InformesService {
       datosMedicoFirmante,
       datosProveedorSalud,
       footerData,
+      filasTamizajePsicologia,
     );
 
     // Generar y guardar el PDF
@@ -2873,6 +2987,8 @@ export class InformesService {
       numeroEmpleado: trabajador.numeroEmpleado,
       nss: trabajador.nss,
       curp: trabajador.curp,
+      contactoEmergenciaNombre: trabajador.contactoEmergenciaNombre ?? '',
+      contactoEmergenciaTelefono: trabajador.contactoEmergenciaTelefono ?? '',
     };
 
     const historiaClinica = await this.expedientesService.findDocument(
@@ -6344,6 +6460,363 @@ export class InformesService {
     );
 
     return this.printer.createPdfBuffer(docDefinition);
+  }
+
+  async getInformeEventoSeguimientoCardiometabolico(
+    empresaId: string,
+    trabajadorId: string,
+    eventoSeguimientoCardiometabolicoId: string,
+    userId: string,
+  ): Promise<string> {
+    const empresa = await this.empresasService.findOne(empresaId);
+
+    const nombreEmpresa = empresa.nombreComercial;
+
+    const trabajador = await this.trabajadoresService.findOne(trabajadorId);
+
+    const datosTrabajador = {
+      primerApellido: trabajador.primerApellido,
+      segundoApellido: trabajador.segundoApellido,
+      nombre: trabajador.nombre,
+      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
+      escolaridad: trabajador.escolaridad,
+      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
+      puesto: trabajador.puesto,
+      sexo: trabajador.sexo,
+      antiguedad: trabajador.fechaIngreso ? calcularAntiguedad(
+        convertirFechaAAAAAMMDD(trabajador.fechaIngreso),
+      ) : '-',
+      telefono: trabajador.telefono,
+      estadoCivil: trabajador.estadoCivil,
+      numeroEmpleado: trabajador.numeroEmpleado,
+      nss: trabajador.nss,
+      curp: trabajador.curp,
+    };
+
+    const eventoSeguimientoCardiometabolico = await this.expedientesService.findDocument(
+      'eventoSeguimientoCardiometabolico',
+      eventoSeguimientoCardiometabolicoId,
+    );
+
+    const datosEventoSeguimientoCardiometabolico = {
+      fechaEventoSeguimientoCardiometabolico: eventoSeguimientoCardiometabolico.fechaEventoSeguimientoCardiometabolico,
+      motivoSeguimiento: eventoSeguimientoCardiometabolico.motivoSeguimiento,
+      diagnosticosActivos: eventoSeguimientoCardiometabolico.diagnosticosActivos,
+      estadoCondiciones: eventoSeguimientoCardiometabolico.estadoCondiciones,
+      signosVitales: eventoSeguimientoCardiometabolico.signosVitales,
+      somatometria: eventoSeguimientoCardiometabolico.somatometria,
+      laboratorio: eventoSeguimientoCardiometabolico.laboratorio,
+      tratamientoActual: eventoSeguimientoCardiometabolico.tratamientoActual,
+      adherenciaTerapeutica: eventoSeguimientoCardiometabolico.adherenciaTerapeutica,
+      sintomasRelevantes: eventoSeguimientoCardiometabolico.sintomasRelevantes,
+      riesgosActuales: eventoSeguimientoCardiometabolico.riesgosActuales,
+      proximaRevisionSugerida: eventoSeguimientoCardiometabolico.proximaRevisionSugerida,
+    };
+
+    const medicoFirmante = await this.medicosFirmantesService.findOneByUserId(userId);
+    const datosMedicoFirmante = this.mapMedicoFirmante(
+      medicoFirmante
+        ? {
+            nombre: medicoFirmante.nombre,
+            tituloProfesional: medicoFirmante.tituloProfesional,
+            universidad: medicoFirmante.universidad,
+            numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
+            especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo,
+            numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista,
+            nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional,
+            numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional,
+            firma: (medicoFirmante.firma as { data: string; contentType: string }) || null,
+          }
+        : null,
+    );
+    
+    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(userId);
+    const datosEnfermeraFirmante = enfermeraFirmante
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
+
+    const tecnicoFirmante = await this.tecnicosFirmantesService.findOneByUserId(userId);
+    const datosTecnicoFirmante = tecnicoFirmante
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
+
+    const usuario = await this.usersService.findById(userId);
+     const datosUsuario = {
+      idProveedorSalud: usuario.idProveedorSalud,
+    } 
+    const proveedorSalud = await this.proveedoresSaludService.findOne(datosUsuario.idProveedorSalud);
+    const datosProveedorSalud = proveedorSalud
+    ? {
+        nombre: proveedorSalud.nombre || "",
+        pais: proveedorSalud.pais || "",
+        perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || "",
+        logotipoEmpresa: proveedorSalud.logotipoEmpresa as { data: string; contentType: string } || null,
+        estado: proveedorSalud.estado || "",
+        municipio: proveedorSalud.municipio || "",
+        codigoPostal: proveedorSalud.codigoPostal || "",
+        direccion: proveedorSalud.direccion || "",
+        telefono: proveedorSalud.telefono || "",
+        correoElectronico: proveedorSalud.correoElectronico || "",
+        sitioWeb: proveedorSalud.sitioWeb || "",
+        colorInforme: proveedorSalud.colorInforme || "#343A40",
+      }
+    : {
+        nombre: "",
+        pais: "",
+        perfilProveedorSalud: "",
+        logotipoEmpresa: null,
+        estado: "",
+        municipio: "",
+        codigoPostal: "",
+        direccion: "",
+        telefono: "",
+        correoElectronico: "",
+        sitioWeb: "",
+        colorInforme: "#343A40",
+      };
+
+    const fecha = convertirFechaADDMMAAAA(eventoSeguimientoCardiometabolico.fechaEventoSeguimientoCardiometabolico)
+      .replace(/\//g, '-')
+      .replace(/\\/g, '-');
+    const nombreArchivo = `Evento Seguimiento Cardiometabolico ${fecha}.pdf`;
+
+    const rutaDirectorio = path.resolve(eventoSeguimientoCardiometabolico.rutaPDF);
+    if (!fs.existsSync(rutaDirectorio)) {
+      fs.mkdirSync(rutaDirectorio, { recursive: true });
+    }
+
+    const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+
+    const docDefinition = eventoSeguimientoCardiometabolicoInforme(
+      nombreEmpresa,
+      datosTrabajador,
+      datosEventoSeguimientoCardiometabolico,
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      datosProveedorSalud,
+    );
+    await this.printer.createPdf(docDefinition, rutaCompleta);
+
+    return rutaCompleta;
+  }
+
+  async getInformeLongitudinalCardiometabolico(
+    empresaId: string,
+    trabajadorId: string,
+    informeLongitudinalCardiometabolicoId: string,
+    userId: string,
+  ): Promise<string> {
+    const empresa = await this.empresasService.findOne(empresaId);
+
+    const nombreEmpresa = empresa.nombreComercial;
+
+    const trabajador = await this.trabajadoresService.findOne(trabajadorId);
+
+    const datosTrabajador = {
+      primerApellido: trabajador.primerApellido,
+      segundoApellido: trabajador.segundoApellido,
+      nombre: trabajador.nombre,
+      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
+      escolaridad: trabajador.escolaridad,
+      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
+      puesto: trabajador.puesto,
+      sexo: trabajador.sexo,
+      antiguedad: trabajador.fechaIngreso ? calcularAntiguedad(
+        convertirFechaAAAAAMMDD(trabajador.fechaIngreso),
+      ) : '-',
+      telefono: trabajador.telefono,
+      estadoCivil: trabajador.estadoCivil,
+      numeroEmpleado: trabajador.numeroEmpleado,
+      nss: trabajador.nss,
+      curp: trabajador.curp,
+    };
+
+    const informeLongitudinalCardiometabolico = await this.expedientesService.findDocument(
+      'informeLongitudinalCardiometabolico',
+      informeLongitudinalCardiometabolicoId,
+    );
+
+    const datosInformeLongitudinalCardiometabolico = {
+      fechaInformeLongitudinalCardiometabolico: informeLongitudinalCardiometabolico.fechaInformeLongitudinalCardiometabolico,
+      periodoInicio: informeLongitudinalCardiometabolico.periodoInicio,
+      periodoFin: informeLongitudinalCardiometabolico.periodoFin,
+      numeroEventosIncluidos: informeLongitudinalCardiometabolico.numeroEventosIncluidos,
+      numeroEventosValidos: informeLongitudinalCardiometabolico.numeroEventosValidos,
+      numeroSeguimientosProgramados: informeLongitudinalCardiometabolico.numeroSeguimientosProgramados,
+      numeroSeguimientosRealizados: informeLongitudinalCardiometabolico.numeroSeguimientosRealizados,
+      numeroInasistencias: informeLongitudinalCardiometabolico.numeroInasistencias,
+      numeroCancelaciones: informeLongitudinalCardiometabolico.numeroCancelaciones,
+      numeroReprogramaciones: informeLongitudinalCardiometabolico.numeroReprogramaciones,
+      porcentajeAsistencia: informeLongitudinalCardiometabolico.porcentajeAsistencia,
+      consistenciaSeguimiento: informeLongitudinalCardiometabolico.consistenciaSeguimiento,
+      datosFaltantesRelevantes: informeLongitudinalCardiometabolico.datosFaltantesRelevantes,
+      eventosIncluidos: informeLongitudinalCardiometabolico.eventosIncluidos,
+      seguimientosProgramadosIncluidos: informeLongitudinalCardiometabolico.seguimientosProgramadosIncluidos,
+      resumenCondiciones: informeLongitudinalCardiometabolico.resumenCondiciones,
+      eventosConcentrados: informeLongitudinalCardiometabolico.eventosConcentrados,
+      seguimientosProgramadosConcentrados: informeLongitudinalCardiometabolico.seguimientosProgramadosConcentrados,
+      resumenIndicadores: informeLongitudinalCardiometabolico.resumenIndicadores,
+      nivelRiesgoLongitudinal: informeLongitudinalCardiometabolico.nivelRiesgoLongitudinal,
+      tendenciaLongitudinal: informeLongitudinalCardiometabolico.tendenciaLongitudinal,
+      interpretacionRiesgoLongitudinal: informeLongitudinalCardiometabolico.interpretacionRiesgoLongitudinal,
+      contextoTerapeutico: informeLongitudinalCardiometabolico.contextoTerapeutico,
+      graficaEvolucionGlucemica: informeLongitudinalCardiometabolico.graficaEvolucionGlucemica,
+      graficaEvolucionPresionArterial: informeLongitudinalCardiometabolico.graficaEvolucionPresionArterial,
+      graficaEvolucionPesoImc: informeLongitudinalCardiometabolico.graficaEvolucionPesoImc,
+      graficaEvolucionPerfilLipidico: informeLongitudinalCardiometabolico.graficaEvolucionPerfilLipidico,
+    };
+
+    const medicoFirmante = await this.medicosFirmantesService.findOneByUserId(userId);
+    const datosMedicoFirmante = this.mapMedicoFirmante(
+      medicoFirmante
+        ? {
+            nombre: medicoFirmante.nombre,
+            tituloProfesional: medicoFirmante.tituloProfesional,
+            universidad: medicoFirmante.universidad,
+            numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
+            especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo,
+            numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista,
+            nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional,
+            numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional,
+            firma: (medicoFirmante.firma as { data: string; contentType: string }) || null,
+          }
+        : null,
+    );
+    
+    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(userId);
+    const datosEnfermeraFirmante = enfermeraFirmante
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
+
+    const tecnicoFirmante = await this.tecnicosFirmantesService.findOneByUserId(userId);
+    const datosTecnicoFirmante = tecnicoFirmante
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
+
+    const usuario = await this.usersService.findById(userId);
+     const datosUsuario = {
+      idProveedorSalud: usuario.idProveedorSalud,
+    } 
+    const proveedorSalud = await this.proveedoresSaludService.findOne(datosUsuario.idProveedorSalud);
+    const datosProveedorSalud = proveedorSalud
+    ? {
+        nombre: proveedorSalud.nombre || "",
+        pais: proveedorSalud.pais || "",
+        perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || "",
+        logotipoEmpresa: proveedorSalud.logotipoEmpresa as { data: string; contentType: string } || null,
+        estado: proveedorSalud.estado || "",
+        municipio: proveedorSalud.municipio || "",
+        codigoPostal: proveedorSalud.codigoPostal || "",
+        direccion: proveedorSalud.direccion || "",
+        telefono: proveedorSalud.telefono || "",
+        correoElectronico: proveedorSalud.correoElectronico || "",
+        sitioWeb: proveedorSalud.sitioWeb || "",
+        colorInforme: proveedorSalud.colorInforme || "#343A40",
+      }
+    : {
+        nombre: "",
+        pais: "",
+        perfilProveedorSalud: "",
+        logotipoEmpresa: null,
+        estado: "",
+        municipio: "",
+        codigoPostal: "",
+        direccion: "",
+        telefono: "",
+        correoElectronico: "",
+        sitioWeb: "",
+        colorInforme: "#343A40",
+      };
+
+    const fecha = convertirFechaADDMMAAAA(informeLongitudinalCardiometabolico.fechaInformeLongitudinalCardiometabolico)
+      .replace(/\//g, '-')
+      .replace(/\\/g, '-');
+    const nombreArchivo = `Informe Longitudinal Cardiometabolico ${fecha}.pdf`;
+
+    const rutaDirectorio = path.resolve(informeLongitudinalCardiometabolico.rutaPDF);
+    if (!fs.existsSync(rutaDirectorio)) {
+      fs.mkdirSync(rutaDirectorio, { recursive: true });
+    }
+
+    const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+
+    const docDefinition = informeLongitudinalCardiometabolicoInforme(
+      nombreEmpresa,
+      datosTrabajador,
+      datosInformeLongitudinalCardiometabolico,
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      datosProveedorSalud,
+    );
+    await this.printer.createPdf(docDefinition, rutaCompleta);
+
+    return rutaCompleta;
   }
 
   async eliminarInforme(filePath: string): Promise<void> {

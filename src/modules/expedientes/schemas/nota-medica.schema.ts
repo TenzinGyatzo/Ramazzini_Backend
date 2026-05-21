@@ -199,3 +199,4 @@ export const NotaMedicaSchema = SchemaFactory.createForClass(NotaMedica).set(
   'timestamps',
   true,
 );
+NotaMedicaSchema.index({ idTrabajador: 1, fechaNotaMedica: -1 });

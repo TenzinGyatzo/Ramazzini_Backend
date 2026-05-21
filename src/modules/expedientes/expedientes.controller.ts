@@ -64,6 +64,10 @@ import { CreateCuestionarioProdromalBreveDto } from './dto/create-cuestionario-p
 import { UpdateCuestionarioProdromalBreveDto } from './dto/update-cuestionario-prodromal-breve.dto';
 import { CreateTrastornoLimitePersonalidadDto } from './dto/create-trastorno-limite-personalidad.dto';
 import { UpdateTrastornoLimitePersonalidadDto } from './dto/update-trastorno-limite-personalidad.dto';
+import { CreateEventoSeguimientoCardiometabolicoDto } from './dto/create-evento-seguimiento-cardiometabolico.dto';
+import { UpdateEventoSeguimientoCardiometabolicoDto } from './dto/update-evento-seguimiento-cardiometabolico.dto';
+import { CreateInformeLongitudinalCardiometabolicoDto } from './dto/create-informe-longitudinal-cardiometabolico.dto';
+import { UpdateInformeLongitudinalCardiometabolicoDto } from './dto/update-informe-longitudinal-cardiometabolico.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import path from 'path';
@@ -108,6 +112,8 @@ export class ExpedientesController {
     trastornosEstadoAnimo: CreateTrastornosEstadoAnimoDto,
     cuestionarioProdromalBreve: CreateCuestionarioProdromalBreveDto,
     trastornoLimitePersonalidad: CreateTrastornoLimitePersonalidadDto,
+    eventoSeguimientoCardiometabolico: CreateEventoSeguimientoCardiometabolicoDto,
+    informeLongitudinalCardiometabolico: CreateInformeLongitudinalCardiometabolicoDto,
   };
 
   private updateDtos = {
@@ -132,6 +138,8 @@ export class ExpedientesController {
     trastornosEstadoAnimo: UpdateTrastornosEstadoAnimoDto,
     cuestionarioProdromalBreve: UpdateCuestionarioProdromalBreveDto,
     trastornoLimitePersonalidad: UpdateTrastornoLimitePersonalidadDto,
+    eventoSeguimientoCardiometabolico: UpdateEventoSeguimientoCardiometabolicoDto,
+    informeLongitudinalCardiometabolico: UpdateInformeLongitudinalCardiometabolicoDto,
   };
 
   // Método privado para autenticar usuario desde el JWT
@@ -167,10 +175,13 @@ export class ExpedientesController {
     }
 
     const dtoInstance = Object.assign(new DtoClass(), createDto);
-    await new ValidationPipe({ whitelist: true }).transform(dtoInstance, {
-      type: 'body',
-      metatype: DtoClass,
-    });
+    await new ValidationPipe({ whitelist: true, transform: true }).transform(
+      dtoInstance,
+      {
+        type: 'body',
+        metatype: DtoClass,
+      },
+    );
 
     try {
       const document = await this.expedientesService.createDocument(
@@ -351,11 +362,13 @@ export class ExpedientesController {
         Object.entries(updateDto).filter(([, v]) => v !== undefined),
       ),
     );
-
-    await new ValidationPipe({ whitelist: true }).transform(dtoInstance, {
-      type: 'body',
-      metatype: DtoClass,
-    });
+    await new ValidationPipe({ whitelist: true, transform: true }).transform(
+      dtoInstance,
+      {
+        type: 'body',
+        metatype: DtoClass,
+      },
+    );
 
     try {
       let updatedDocument;
