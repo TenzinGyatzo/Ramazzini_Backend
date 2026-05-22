@@ -23,6 +23,10 @@ export class CreateNotaAclaratoriaDto {
   @IsNotEmpty({ message: 'El id del documento origen no puede estar vacío' })
   documentoOrigenId: string;
 
+  @IsString({ message: 'El tipo del documento origen debe ser un string' })
+  @IsNotEmpty({ message: 'El tipo del documento origen no puede estar vacío' })
+  documentoOrigenTipo: string;
+
   @IsString({ message: 'El nombre del documento origen debe ser un string' })
   @IsOptional()
   documentoOrigenNombre?: string;

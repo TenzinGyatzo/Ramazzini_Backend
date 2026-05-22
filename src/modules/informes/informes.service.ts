@@ -423,6 +423,7 @@ export class InformesService {
             trabajador._id,
             documentId,
             finalizadorId,
+            undefined,
           );
         case 'informeLongitudinalCardiometabolico':
           return await this.getInformeLongitudinalCardiometabolico(
@@ -430,6 +431,7 @@ export class InformesService {
             trabajador._id,
             documentId,
             finalizadorId,
+            undefined,
           );
         default:
           console.warn(
@@ -619,6 +621,7 @@ export class InformesService {
           trabajador._id,
           documentId,
           finalizadorId,
+          footerFirmantesData,
         );
       case 'informeLongitudinalCardiometabolico':
         return await this.getInformeLongitudinalCardiometabolico(
@@ -626,6 +629,7 @@ export class InformesService {
           trabajador._id,
           documentId,
           finalizadorId,
+          footerFirmantesData,
         );
       default:
         console.warn(
@@ -6471,6 +6475,7 @@ export class InformesService {
     trabajadorId: string,
     eventoSeguimientoCardiometabolicoId: string,
     userId: string,
+    footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
     const empresa = await this.empresasService.findOne(empresaId);
 
@@ -6502,6 +6507,50 @@ export class InformesService {
       eventoSeguimientoCardiometabolicoId,
     );
 
+    let footerData: FooterFirmantesData | undefined = footerFirmantesData;
+
+    if (
+      !footerData &&
+      (eventoSeguimientoCardiometabolico.estado === DocumentoEstado.FINALIZADO ||
+        eventoSeguimientoCardiometabolico.estado === DocumentoEstado.ANULADO)
+    ) {
+      const creadorId =
+        (
+          eventoSeguimientoCardiometabolico.createdBy?._id ||
+          eventoSeguimientoCardiometabolico.createdBy
+        )?.toString() || userId;
+      const finalizadorId =
+        (
+          eventoSeguimientoCardiometabolico.finalizadoPor?._id ||
+          eventoSeguimientoCardiometabolico.finalizadoPor
+        )?.toString() || userId;
+
+      if (creadorId !== finalizadorId) {
+        const elaborador = await this.obtenerDatosFirmante(creadorId);
+        const finalizador = await this.obtenerDatosFirmante(finalizadorId);
+
+        footerData = {
+          elaborador,
+          finalizador,
+          esDocumentoFinalizado: true,
+        };
+      }
+    }
+
+    const firmanteUserId =
+      eventoSeguimientoCardiometabolico.estado === DocumentoEstado.BORRADOR
+        ? (
+            eventoSeguimientoCardiometabolico.createdBy?._id ||
+            eventoSeguimientoCardiometabolico.createdBy
+          )?.toString() || userId
+        : eventoSeguimientoCardiometabolico.estado === DocumentoEstado.FINALIZADO ||
+            eventoSeguimientoCardiometabolico.estado === DocumentoEstado.ANULADO
+          ? (
+              eventoSeguimientoCardiometabolico.finalizadoPor?._id ||
+              eventoSeguimientoCardiometabolico.finalizadoPor
+            )?.toString() || userId
+          : userId;
+
     const datosEventoSeguimientoCardiometabolico = {
       fechaEventoSeguimientoCardiometabolico: eventoSeguimientoCardiometabolico.fechaEventoSeguimientoCardiometabolico,
       motivoSeguimiento: eventoSeguimientoCardiometabolico.motivoSeguimiento,
@@ -6517,7 +6566,7 @@ export class InformesService {
       proximaRevisionSugerida: eventoSeguimientoCardiometabolico.proximaRevisionSugerida,
     };
 
-    const medicoFirmante = await this.medicosFirmantesService.findOneByUserId(userId);
+    const medicoFirmante = await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosMedicoFirmante = this.mapMedicoFirmante(
       medicoFirmante
         ? {
@@ -6534,7 +6583,7 @@ export class InformesService {
         : null,
     );
     
-    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(userId);
+    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
@@ -6555,7 +6604,7 @@ export class InformesService {
         firma: null,
       };
 
-    const tecnicoFirmante = await this.tecnicosFirmantesService.findOneByUserId(userId);
+    const tecnicoFirmante = await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
@@ -6631,6 +6680,7 @@ export class InformesService {
       datosEnfermeraFirmante,
       datosTecnicoFirmante,
       datosProveedorSalud,
+      footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
 
@@ -6642,6 +6692,7 @@ export class InformesService {
     trabajadorId: string,
     informeLongitudinalCardiometabolicoId: string,
     userId: string,
+    footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
     const empresa = await this.empresasService.findOne(empresaId);
 
@@ -6673,6 +6724,50 @@ export class InformesService {
       informeLongitudinalCardiometabolicoId,
     );
 
+    let footerData: FooterFirmantesData | undefined = footerFirmantesData;
+
+    if (
+      !footerData &&
+      (informeLongitudinalCardiometabolico.estado === DocumentoEstado.FINALIZADO ||
+        informeLongitudinalCardiometabolico.estado === DocumentoEstado.ANULADO)
+    ) {
+      const creadorId =
+        (
+          informeLongitudinalCardiometabolico.createdBy?._id ||
+          informeLongitudinalCardiometabolico.createdBy
+        )?.toString() || userId;
+      const finalizadorId =
+        (
+          informeLongitudinalCardiometabolico.finalizadoPor?._id ||
+          informeLongitudinalCardiometabolico.finalizadoPor
+        )?.toString() || userId;
+
+      if (creadorId !== finalizadorId) {
+        const elaborador = await this.obtenerDatosFirmante(creadorId);
+        const finalizador = await this.obtenerDatosFirmante(finalizadorId);
+
+        footerData = {
+          elaborador,
+          finalizador,
+          esDocumentoFinalizado: true,
+        };
+      }
+    }
+
+    const firmanteUserId =
+      informeLongitudinalCardiometabolico.estado === DocumentoEstado.BORRADOR
+        ? (
+            informeLongitudinalCardiometabolico.createdBy?._id ||
+            informeLongitudinalCardiometabolico.createdBy
+          )?.toString() || userId
+        : informeLongitudinalCardiometabolico.estado === DocumentoEstado.FINALIZADO ||
+            informeLongitudinalCardiometabolico.estado === DocumentoEstado.ANULADO
+          ? (
+              informeLongitudinalCardiometabolico.finalizadoPor?._id ||
+              informeLongitudinalCardiometabolico.finalizadoPor
+            )?.toString() || userId
+          : userId;
+
     const datosInformeLongitudinalCardiometabolico = {
       fechaInformeLongitudinalCardiometabolico: informeLongitudinalCardiometabolico.fechaInformeLongitudinalCardiometabolico,
       periodoInicio: informeLongitudinalCardiometabolico.periodoInicio,
@@ -6703,7 +6798,7 @@ export class InformesService {
       graficaEvolucionPerfilLipidico: informeLongitudinalCardiometabolico.graficaEvolucionPerfilLipidico,
     };
 
-    const medicoFirmante = await this.medicosFirmantesService.findOneByUserId(userId);
+    const medicoFirmante = await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosMedicoFirmante = this.mapMedicoFirmante(
       medicoFirmante
         ? {
@@ -6720,7 +6815,7 @@ export class InformesService {
         : null,
     );
     
-    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(userId);
+    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
@@ -6741,7 +6836,7 @@ export class InformesService {
         firma: null,
       };
 
-    const tecnicoFirmante = await this.tecnicosFirmantesService.findOneByUserId(userId);
+    const tecnicoFirmante = await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
@@ -6817,6 +6912,7 @@ export class InformesService {
       datosEnfermeraFirmante,
       datosTecnicoFirmante,
       datosProveedorSalud,
+      footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
 

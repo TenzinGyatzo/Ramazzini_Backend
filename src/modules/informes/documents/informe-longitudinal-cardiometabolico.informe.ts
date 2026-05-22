@@ -3,6 +3,8 @@ import type {
   StyleDictionary,
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
+import { FooterFirmantesData } from '../interfaces/firmante-data.interface';
+import { generarFooterFirmantes } from '../helpers/footer-firmantes.helper';
 import { Types } from 'mongoose';
 import {
   DiagnosticoCardiometabolico,
@@ -1524,6 +1526,7 @@ export const informeLongitudinalCardiometabolicoInforme = (
   enfermeraFirmante: EnfermeraFirmante | null,
   tecnicoFirmante: TecnicoFirmante | null,
   proveedorSalud: ProveedorSalud,
+  footerFirmantesData?: FooterFirmantesData,
 ): TDocumentDefinitions => {
 
   // Determinar cuál firmante usar (médico tiene prioridad)
@@ -1542,8 +1545,19 @@ export const informeLongitudinalCardiometabolicoInforme = (
     fillColor: proveedorSalud.colorInforme || '#343A40',
   };
 
-  const firma: Content = firmanteActivo?.firma?.data
-    ? { image: `assets/signatories/${firmanteActivo.firma.data}`, width: 65 }
+  const firma: Content = (
+    footerFirmantesData?.esDocumentoFinalizado
+      ? footerFirmantesData?.finalizador?.firma?.data
+      : firmanteActivo?.firma?.data
+  )
+    ? {
+        image: `assets/signatories/${
+          footerFirmantesData?.esDocumentoFinalizado
+            ? footerFirmantesData?.finalizador?.firma?.data
+            : firmanteActivo?.firma?.data
+        }`,
+        width: 65,
+      }
     : { text: '' };
 
   const logo: Content = proveedorSalud.logotipoEmpresa?.data
@@ -1705,7 +1719,9 @@ export const informeLongitudinalCardiometabolicoInforme = (
         {
           columns: [
             {
-              text: [
+              text: footerFirmantesData?.esDocumentoFinalizado
+                ? generarFooterFirmantes(footerFirmantesData, proveedorSalud)
+                : [
                 // Nombre y título profesional
                 (firmanteActivo?.tituloProfesional && firmanteActivo?.nombre)
                   ? {
@@ -1764,14 +1780,17 @@ export const informeLongitudinalCardiometabolicoInforme = (
                     }
                   : null,
 
-              ].filter(item => item !== null),  // Filtrar los nulos para que no aparezcan en el informe
+              ].filter(item => item !== null),
               fontSize: 8,
               margin: [40, 0, 0, 0],
             },
             // Solo incluir la columna de firma si hay firma
-            ...(firmanteActivo?.firma?.data ? [{
+            ...((footerFirmantesData?.esDocumentoFinalizado
+              ? footerFirmantesData?.finalizador?.firma?.data
+              : firmanteActivo?.firma?.data)
+              ? [{
               ...firma,
-              margin: [0, -3, 0, 0] as [number, number, number, number],  // Mueve el elemento más arriba
+              margin: [0, -3, 0, 0] as [number, number, number, number],
             }] : []),
             {
               text: [

@@ -3303,6 +3303,8 @@ export class TrabajadoresService {
       recetas: 'Receta',
       documentosExternos: 'Documento Externo',
       constanciasAptitud: 'Constancia de Aptitud',
+      eventoSeguimientoCardiometabolico: 'Evento de Seguimiento Cardiometabólico',
+      informeLongitudinalCardiometabolico: 'Informe Longitudinal Cardiometabólico',
     };
 
     // Si es un Documento Externo, construir el nombre dinámicamente
