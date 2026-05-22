@@ -83,6 +83,8 @@ export class InformesService {
     constanciaAptitud: 'Constancia de Aptitud',
     receta: 'Receta',
     lesion: 'Lesión',
+    eventoSeguimientoCardiometabolico: 'Evento de Seguimiento Cardiometabólico',
+    informeLongitudinalCardiometabolico: 'Informe Longitudinal Cardiometabólico',
     documentoExterno: 'Documento Externo',
     // Tipos plurales (para compatibilidad con frontend)
     notasMedicas: 'Nota Médica',
@@ -685,6 +687,8 @@ export class InformesService {
       constanciaAptitud: 'fechaConstanciaAptitud',
       notaAclaratoria: 'fechaNotaAclaratoria',
       lesion: 'fechaReporteLesion',
+      eventoSeguimientoCardiometabolico: 'fechaEventoSeguimientoCardiometabolico',
+      informeLongitudinalCardiometabolico: 'fechaInformeLongitudinalCardiometabolico',
     };
     return dateFields[tipoNormalizado] || 'fecha';
   }

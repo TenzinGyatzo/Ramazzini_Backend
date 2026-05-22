@@ -81,7 +81,7 @@ export class CentrosTrabajoController {
     return centrosTrabajo;
   }
 
-  @Get(':id')
+  @Get(':id([0-9a-fA-F]{24})')
   @ApiOperation({ summary: 'Obtiene un centro de trabajo por su ID' })
   @ApiResponse({
     status: 200,

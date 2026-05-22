@@ -104,6 +104,24 @@ export class EmpresasController {
     return empresas || [];
   }
 
+  @Get(':empresaId/riesgos-trabajo')
+  @ApiOperation({ summary: 'Obtiene riesgos de trabajo por empresa' })
+  @ApiResponse({
+    status: 200,
+    description: 'Riesgos de trabajo encontrados exitosamente',
+  })
+  @ApiResponse({ status: 400, description: 'El ID proporcionado no es válido' })
+  async findRiesgosTrabajoPorEmpresa(@Param('empresaId') empresaId: string) {
+    if (!isValidObjectId(empresaId)) {
+      throw new BadRequestException('El ID de empresa no es válido');
+    }
+
+    const trabajadoresConHistoria =
+      await this.trabajadoresService.findRiesgosTrabajoPorEmpresa(empresaId);
+
+    return trabajadoresConHistoria || [];
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtiene una empresa por su ID' })
   @ApiResponse({ status: 200, description: 'Empresa obtenida exitosamente' })
@@ -185,24 +203,6 @@ export class EmpresasController {
       message: 'Empresa actualizada exitosamente',
       data: updatedEmpresa,
     };
-  }
-
-  @Get(':empresaId/riesgos-trabajo')
-  @ApiOperation({ summary: 'Obtiene riesgos de trabajo por empresa' })
-  @ApiResponse({
-    status: 200,
-    description: 'Riesgos de trabajo encontrados exitosamente',
-  })
-  @ApiResponse({ status: 400, description: 'El ID proporcionado no es válido' })
-  async findRiesgosTrabajoPorEmpresa(@Param('empresaId') empresaId: string) {
-    if (!isValidObjectId(empresaId)) {
-      throw new BadRequestException('El ID de empresa no es válido');
-    }
-
-    const trabajadoresConHistoria =
-      await this.trabajadoresService.findRiesgosTrabajoPorEmpresa(empresaId);
-
-    return trabajadoresConHistoria || [];
   }
 
   @Delete('/eliminar-empresa/:id')
