@@ -482,7 +482,7 @@ export const certificadoInforme = (
             ? {
                 text:
                   proveedorSalud.pais === 'GT'
-                    ? ` Registro ${medicoFirmante.nombreCredencialAdicional2} No. `
+                    ? ` ${medicoFirmante.nombreCredencialAdicional2} No. `
                     : ` ${medicoFirmante.nombreCredencialAdicional2} con número `,
               }
             : null,
@@ -697,7 +697,7 @@ export const certificadoInforme = (
             {
               text:
                 proveedorSalud.pais === 'GT'
-                  ? `Registro ${medicoFirmante.nombreCredencialAdicional2} No. ${medicoFirmante.numeroCredencialAdicional2}.`
+                  ? `${medicoFirmante.nombreCredencialAdicional2} No. ${medicoFirmante.numeroCredencialAdicional2}.`
                   : `${medicoFirmante.nombreCredencialAdicional2} No. ${medicoFirmante.numeroCredencialAdicional2}.`,
               fontSize: 10,
               bold: false,
