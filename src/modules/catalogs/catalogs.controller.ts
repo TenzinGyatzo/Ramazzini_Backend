@@ -49,52 +49,6 @@ export class CatalogsController {
     );
   }
 
-  @Get('cie10-giis/search')
-  async searchCIE10GIIS(
-    @Query('q') query: string,
-    @Query('limit') limit?: number,
-    @Query('sexo') sexo?: number,
-    @Query('edad') edad?: number,
-    @Query('solo4Caracteres') solo4Caracteres?: string,
-    @Query('filterVariant') filterVariant?: string,
-  ) {
-    if (!query || query.trim() === '') {
-      throw new BadRequestException('Query parameter "q" is required');
-    }
-    const searchLimit = limit
-      ? Math.min(Math.max(1, parseInt(limit.toString())), 100)
-      : 50;
-    const solo4 =
-      solo4Caracteres === 'true' ||
-      solo4Caracteres === '1' ||
-      solo4Caracteres === 'yes';
-    const sexoNum = sexo !== undefined ? parseInt(sexo.toString()) : undefined;
-    const edadNum = edad !== undefined ? parseInt(edad.toString()) : undefined;
-    const filter =
-      filterVariant === 'afeccion' || filterVariant === 'causaExterna'
-        ? filterVariant
-        : undefined;
-    return this.catalogsService.searchCIE10GIIS(
-      query.trim(),
-      searchLimit,
-      sexoNum,
-      edadNum,
-      solo4,
-      filter,
-    );
-  }
-
-  @Get('cie10-giis/:code')
-  async getCIE10GIISByCode(@Param('code') code: string) {
-    const entry = await this.catalogsService.getCIE10GIISByCode(code);
-    if (!entry) {
-      throw new NotFoundException(
-        `CIE-10 GIIS entry with code ${code} not found`,
-      );
-    }
-    return entry;
-  }
-
   @Get('cie10/:code')
   async getCIE10ByCode(@Param('code') code: string) {
     const entry = await this.catalogsService.getCatalogEntry(
@@ -284,13 +238,7 @@ export class CatalogsController {
     @Query('limit') limit?: number,
   ) {
     const allowed = [
-      CatalogType.SITIO_OCURRENCIA,
-      CatalogType.AGENTE_LESION,
-      CatalogType.AREA_ANATOMICA,
-      CatalogType.CONSECUENCIA,
       CatalogType.TIPO_PERSONAL,
-      CatalogType.TIPO_VIALIDAD,
-      CatalogType.TIPO_ASENTAMIENTO,
       CatalogType.PAIS,
     ];
     const catalog = catalogType as CatalogType;

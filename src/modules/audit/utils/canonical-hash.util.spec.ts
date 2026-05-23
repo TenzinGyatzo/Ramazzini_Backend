@@ -7,7 +7,7 @@ describe('canonical-hash.util', () => {
     actorId: 'user1',
     timestamp: '2026-02-06T12:00:00.000Z',
     actionType: 'DOC_FINALIZE',
-    resourceType: 'lesion',
+    resourceType: 'notaMedica',
     resourceId: 'doc123',
     payload: null,
   };

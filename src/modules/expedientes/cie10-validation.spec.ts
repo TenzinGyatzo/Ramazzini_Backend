@@ -104,7 +104,6 @@ describe('CIE-10 Validation - MX vs Non-MX Providers', () => {
           provide: getModelToken('ConstanciaAptitud'),
           useValue: createMockModel(),
         },
-        { provide: getModelToken('Lesion'), useValue: createMockModel() },
         { provide: getModelToken('Deteccion'), useValue: createMockModel() },
         {
           provide: getModelToken(Trabajador.name),

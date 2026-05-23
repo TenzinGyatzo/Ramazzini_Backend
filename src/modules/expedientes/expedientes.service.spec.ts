@@ -110,7 +110,6 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
           provide: getModelToken('ConstanciaAptitud'),
           useValue: createMockModel(),
         },
-        { provide: getModelToken('Lesion'), useValue: createMockModel() },
         { provide: getModelToken('Deteccion'), useValue: createMockModel() },
         {
           provide: getModelToken(Trabajador.name),

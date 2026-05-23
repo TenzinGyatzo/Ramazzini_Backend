@@ -36,12 +36,6 @@ export interface CIE10Entry extends CatalogEntry {
   letra?: string;
 }
 
-/** Extended CIE10 for GIIS lesion catalog (diagnosticos.csv) with AF_PRIN, RUBRICA_TYPE */
-export interface CIE10GIISLesionEntry extends CIE10Entry {
-  rubricaType?: string; // "B" = encabezado rúbrica (no seleccionable), otros = sí
-  afPrin?: string; // "SI" = apto como afección principal, "NO" = no
-}
-
 /**
  * Interface for CLUES establishment entries
  */
@@ -73,7 +67,7 @@ export interface CPEntry extends CatalogEntry {
  * Catalog type identifiers
  */
 export enum CatalogType {
-  // Base catalogs (10) - Required
+  // Base catalogs (9) - Required
   CIE10 = 'diagnosticos',
   CLUES = 'establecimientos_salud',
   ENTIDADES_FEDERATIVAS = 'enitades_federativas',
@@ -81,27 +75,11 @@ export enum CatalogType {
   LOCALIDADES = 'localidades',
   CODIGOS_POSTALES = 'codigos_postales',
   NACIONALIDADES = 'cat_nacionalidades',
-  RELIGIONES = 'cat_religiones',
-  LENGUAS_INDIGENAS = 'lenguas_indigenas',
   FORMACION_ACADEMICA = 'formacion_academica',
   ESCOLARIDAD = 'escolaridad',
 
-  // GIIS-B013 Catalogs (4) - Optional
-  SITIO_OCURRENCIA = 'cat_sitio_ocurrencia',
-  AGENTE_LESION = 'cat_agente_lesion',
-  AREA_ANATOMICA = 'cat_area_anatomica',
-  CONSECUENCIA = 'cat_consecuencia',
-
-  // GIIS-B019 Catalogs (4) - Optional
+  // GIIS-B019 Catalogs (3) - Optional
   TIPO_PERSONAL = 'cat_tipo_personal',
-  SERVICIOS_DET = 'cat_servicios_det',
   AFILIACION = 'cat_afiliacion',
   PAIS = 'cat_pais',
-
-  // GIIS Lesión catalogs (2) - Optional
-  TIPO_VIALIDAD = 'cat_tipo_vialidad',
-  TIPO_ASENTAMIENTO = 'cat_tipo_asentamiento',
-
-  // CIE-10 GIIS para reportes de lesión/violencia (incluye V01-Y98)
-  CIE10_GIIS_LESION = 'diagnosticos_giis',
 }

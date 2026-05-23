@@ -19,7 +19,6 @@
 export * from '../fixtures/trabajador.fixtures';
 export * from '../fixtures/proveedor-salud.fixtures';
 export * from '../fixtures/professional.fixtures';
-export * from '../fixtures/lesion.fixtures';
 export * from '../fixtures/deteccion.fixtures';
 export * from '../fixtures/vital-signs.fixtures';
 

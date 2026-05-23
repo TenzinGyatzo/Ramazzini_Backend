@@ -27,8 +27,8 @@ export interface GIISValidationResult {
  * Provides validation and search methods for catalog entries.
  *
  * Supports two categories of catalogs:
- * - BASE (11): Required catalogs that MUST be present for full functionality
- * - GIIS (8): Optional catalogs (GIIS-B013 + GIIS-B019) that are not publicly available from DGIS
+ * - BASE (9): Required catalogs that MUST be present for full functionality
+ * - GIIS (3): Optional catalogs (GIIS-B019) that are not publicly available from DGIS
  *
  * GIIS catalogs are loaded opportunistically. If missing, validation methods return
  * non-blocking results (true) and emit warnings instead of errors.
@@ -50,7 +50,7 @@ export class CatalogsService implements OnModuleInit {
 
   // Catalog file mappings
   private readonly catalogFiles: Partial<Record<CatalogType, string>> = {
-    // Base catalogs (11)
+    // Base catalogs (9)
     [CatalogType.CIE10]: 'diagnosticos_sis.csv',
     [CatalogType.CLUES]: 'establecimiento_de_salud_sis.csv',
     [CatalogType.ENTIDADES_FEDERATIVAS]: 'enitades_federativas.csv',
@@ -58,43 +58,20 @@ export class CatalogsService implements OnModuleInit {
     [CatalogType.LOCALIDADES]: 'localidades.csv',
     [CatalogType.CODIGOS_POSTALES]: 'codigos_postales.csv',
     [CatalogType.NACIONALIDADES]: 'cat_nacionalidades.csv',
-    [CatalogType.RELIGIONES]: 'cat_religiones.csv',
-    [CatalogType.LENGUAS_INDIGENAS]: 'lenguas_indigenas.csv',
     [CatalogType.FORMACION_ACADEMICA]: 'formacion_academica.csv',
     [CatalogType.ESCOLARIDAD]: 'escolaridad.csv',
-    // GIIS-B013 Catalogs (4) - Optional
-    [CatalogType.SITIO_OCURRENCIA]: 'cat_sitio_ocurrencia.csv',
-    [CatalogType.AGENTE_LESION]: 'cat_agente_lesion.csv',
-    [CatalogType.AREA_ANATOMICA]: 'cat_area_anatomica.csv',
-    [CatalogType.CONSECUENCIA]: 'cat_consecuencia.csv',
-    // GIIS-B019 Catalogs (4) - Optional
+    // GIIS-B019 Catalogs (3) - Optional
     [CatalogType.TIPO_PERSONAL]: 'cat_tipo_personal.csv',
-    [CatalogType.SERVICIOS_DET]: 'cat_servicios_det.csv',
     [CatalogType.AFILIACION]: 'cat_afiliacion.csv',
     [CatalogType.PAIS]: 'cat_pais.csv',
-    // GIIS Lesión catalogs (2) - Optional
-    [CatalogType.TIPO_VIALIDAD]: 'cat_tipo_vialidad.csv',
-    [CatalogType.TIPO_ASENTAMIENTO]: 'cat_tipo_asentamiento.csv',
-    // CIE-10 GIIS para lesión/violencia (incluye V01-Y98)
-    [CatalogType.CIE10_GIIS_LESION]: 'diagnosticos.csv',
   };
 
   // Define which catalogs are optional (GIIS)
   private readonly optionalCatalogs: CatalogType[] = [
-    // GIIS-B013
-    CatalogType.SITIO_OCURRENCIA,
-    CatalogType.AGENTE_LESION,
-    CatalogType.AREA_ANATOMICA,
-    CatalogType.CONSECUENCIA,
     // GIIS-B019
     CatalogType.TIPO_PERSONAL,
-    CatalogType.SERVICIOS_DET,
     CatalogType.AFILIACION,
     CatalogType.PAIS,
-    // GIIS Lesión catalogs
-    CatalogType.TIPO_VIALIDAD,
-    CatalogType.TIPO_ASENTAMIENTO,
-    CatalogType.CIE10_GIIS_LESION,
   ];
 
   // Base catalogs (required)
@@ -106,8 +83,6 @@ export class CatalogsService implements OnModuleInit {
     CatalogType.LOCALIDADES,
     CatalogType.CODIGOS_POSTALES,
     CatalogType.NACIONALIDADES,
-    CatalogType.RELIGIONES,
-    CatalogType.LENGUAS_INDIGENAS,
     CatalogType.FORMACION_ACADEMICA,
     CatalogType.ESCOLARIDAD,
   ];
@@ -314,61 +289,6 @@ export class CatalogsService implements OnModuleInit {
             letra,
           } as CIE10Entry;
 
-        case CatalogType.CIE10_GIIS_LESION: {
-          const code = record.CATALOG_KEY || record.codigo || record.code;
-          const numCaracteres = record['NO. CARACTERES']
-            ? parseInt(String(record['NO. CARACTERES']), 10)
-            : code?.length;
-
-          const linfRaw = record.LINF
-            ? String(record.LINF).trim().toUpperCase()
-            : undefined;
-          const lsupRaw = record.LSUP
-            ? String(record.LSUP).trim().toUpperCase()
-            : undefined;
-          let linf: number | undefined;
-          let lsup: number | undefined;
-          if (linfRaw && linfRaw !== 'NO') {
-            const linfNum = parseInt(linfRaw, 10);
-            if (!isNaN(linfNum) && linfRaw.match(/^\d+$/)) linf = linfNum;
-          }
-          if (lsupRaw && lsupRaw !== 'NO') {
-            const lsupNum = parseInt(lsupRaw, 10);
-            if (!isNaN(lsupNum) && lsupRaw.match(/^\d+$/)) lsup = lsupNum;
-          }
-
-          const rubricaType = record.RUBRICA_TYPE
-            ? String(record.RUBRICA_TYPE).trim().toUpperCase()
-            : undefined;
-          const afPrin = record.AF_PRIN
-            ? String(record.AF_PRIN).trim().toUpperCase()
-            : undefined;
-
-          return {
-            code,
-            description:
-              record.NOMBRE || record.descripcion || record.description,
-            source: 'CIE-10-GIIS',
-            version: record.version,
-            catalogKey: record.CATALOG_KEY,
-            nombre: record.NOMBRE,
-            lsex: record.LSEX,
-            linf,
-            lsup,
-            linfRaw,
-            lsupRaw,
-            numCaracteres: !Number.isNaN(numCaracteres)
-              ? numCaracteres
-              : undefined,
-            rubricaType,
-            afPrin,
-          } as CIE10Entry & {
-            numCaracteres?: number;
-            rubricaType?: string;
-            afPrin?: string;
-          };
-        }
-
         case CatalogType.CLUES: {
           const rawClues =
             record.clues || record.CLUES || record.codigo || record.code;
@@ -542,18 +462,6 @@ export class CatalogsService implements OnModuleInit {
           } as CPEntry;
         }
 
-        case CatalogType.SITIO_OCURRENCIA:
-          return {
-            code: String(record.CATALOG_KEY ?? record.codigo ?? record.code),
-            description:
-              record['DESCRIPCIÓN CORTA'] ||
-              record.descripcion ||
-              record.description ||
-              '',
-            source: 'GIIS',
-            version: record.version,
-          };
-
         case CatalogType.ESCOLARIDAD:
           return {
             code: String(
@@ -562,26 +470,6 @@ export class CatalogsService implements OnModuleInit {
             description:
               record.ESCOLARIDAD || record.descripcion || record.description,
             source: 'ESCOLARIDAD',
-            version: record.version,
-          };
-
-        case CatalogType.TIPO_VIALIDAD:
-          return {
-            code: String(record.CATALOG_KEY ?? record.codigo ?? record.code),
-            description:
-              record.TIPO_VIALIDAD || record.descripcion || record.description,
-            source: 'GIIS',
-            version: record.version,
-          };
-
-        case CatalogType.TIPO_ASENTAMIENTO:
-          return {
-            code: String(record.CATALOG_KEY ?? record.codigo ?? record.code),
-            description:
-              record.TIPO_ASENTAMIENTO ||
-              record.descripcion ||
-              record.description,
-            source: 'GIIS',
             version: record.version,
           };
 
@@ -714,8 +602,10 @@ export class CatalogsService implements OnModuleInit {
     }
 
     this.logger.log('=== Catalog Cache Statistics ===');
-    this.logger.log(`Base catalogs loaded: ${baseLoaded}/11`);
-    this.logger.log(`GIIS optional catalogs loaded: ${giisLoaded}/8`);
+    this.logger.log(`Base catalogs loaded: ${baseLoaded}/${this.baseCatalogs.length}`);
+    this.logger.log(
+      `GIIS optional catalogs loaded: ${giisLoaded}/${this.optionalCatalogs.length}`,
+    );
     this.logger.log('--- Detailed counts ---');
 
     for (const [type, cache] of this.catalogCaches) {
@@ -928,62 +818,6 @@ export class CatalogsService implements OnModuleInit {
   }
 
   // ===========================================================================
-  // GIIS-B013 CATALOG VALIDATION METHODS (Optional)
-  // ===========================================================================
-
-  /**
-   * Validate GIIS Sitio de Ocurrencia code (GIIS-B013)
-   *
-   * If catalog is not loaded, returns a non-blocking result (valid=true).
-   */
-  validateGIISSitioOcurrencia(code: number | string): GIISValidationResult {
-    return this.validateGIISCatalog(
-      CatalogType.SITIO_OCURRENCIA,
-      code,
-      'Sitio Ocurrencia',
-    );
-  }
-
-  /**
-   * Validate GIIS Agente de Lesión code (GIIS-B013)
-   *
-   * If catalog is not loaded, returns a non-blocking result (valid=true).
-   */
-  validateGIISAgenteLesion(code: number | string): GIISValidationResult {
-    return this.validateGIISCatalog(
-      CatalogType.AGENTE_LESION,
-      code,
-      'Agente Lesión',
-    );
-  }
-
-  /**
-   * Validate GIIS Area Anatómica code (GIIS-B013)
-   *
-   * If catalog is not loaded, returns a non-blocking result (valid=true).
-   */
-  validateGIISAreaAnatomica(code: number | string): GIISValidationResult {
-    return this.validateGIISCatalog(
-      CatalogType.AREA_ANATOMICA,
-      code,
-      'Area Anatómica',
-    );
-  }
-
-  /**
-   * Validate GIIS Consecuencia code (GIIS-B013)
-   *
-   * If catalog is not loaded, returns a non-blocking result (valid=true).
-   */
-  validateGIISConsecuencia(code: number | string): GIISValidationResult {
-    return this.validateGIISCatalog(
-      CatalogType.CONSECUENCIA,
-      code,
-      'Consecuencia',
-    );
-  }
-
-  // ===========================================================================
   // GIIS-B019 CATALOG VALIDATION METHODS (Optional)
   // ===========================================================================
 
@@ -997,19 +831,6 @@ export class CatalogsService implements OnModuleInit {
       CatalogType.TIPO_PERSONAL,
       code,
       'Tipo Personal',
-    );
-  }
-
-  /**
-   * Validate GIIS Servicios de Detección code (GIIS-B019)
-   *
-   * If catalog is not loaded, returns a non-blocking result (valid=true).
-   */
-  validateGIISServiciosDet(code: number | string): GIISValidationResult {
-    return this.validateGIISCatalog(
-      CatalogType.SERVICIOS_DET,
-      code,
-      'Servicios Det',
     );
   }
 
@@ -1148,9 +969,9 @@ export class CatalogsService implements OnModuleInit {
 
     return {
       baseLoaded,
-      baseTotal: 11,
+      baseTotal: 9,
       giisLoaded,
-      giisTotal: 8,
+      giisTotal: 3,
       loadedCatalogs,
     };
   }
@@ -1286,175 +1107,6 @@ export class CatalogsService implements OnModuleInit {
     }
 
     return results;
-  }
-
-  /**
-   * Check if CIE-10 code is valid for LES afección principal.
-   * Cap V: F00-F99, Cap XIX: S00-T98, O04-O07, O20, O267, O429, O468-O469, O68, O710-O719.
-   */
-  private isCIE10AfeccionPrincipalValid(code: string): boolean {
-    if (!code || code.length < 3) return false;
-    const c = code.replace(/\./g, '').toUpperCase();
-    const letter = c[0];
-    const num = c.slice(1);
-    const numVal = parseInt(num, 10);
-    if (isNaN(numVal)) return false;
-    if (letter === 'F') return numVal >= 0 && numVal <= 999;
-    if (letter === 'S') return numVal >= 0 && numVal <= 999;
-    if (letter === 'T') {
-      const base = numVal < 100 ? numVal : Math.floor(numVal / 10);
-      return base >= 0 && base <= 98;
-    }
-    if (letter === 'O') {
-      if (
-        num.startsWith('04') ||
-        num.startsWith('05') ||
-        num.startsWith('06') ||
-        num.startsWith('07')
-      )
-        return true;
-      if (num.startsWith('20')) return true;
-      if (num === '267' || num === '429' || num === '468' || num === '469')
-        return true;
-      if (num.startsWith('68')) return true;
-      if (numVal >= 710 && numVal <= 719) return true;
-      return false;
-    }
-    return false;
-  }
-
-  /**
-   * Check if CIE-10 code is valid for LES causa externa (Cap XX: V01-Y98).
-   */
-  private isCIE10CausaExternaValid(code: string): boolean {
-    if (!code || code.length < 3) return false;
-    const c = code.replace(/\./g, '').toUpperCase();
-    const letter = c[0];
-    if (letter !== 'V' && letter !== 'W' && letter !== 'X' && letter !== 'Y')
-      return false;
-    const numVal = parseInt(c.slice(1), 10);
-    if (isNaN(numVal)) return false;
-    const base = numVal < 100 ? numVal : Math.floor(numVal / 10);
-    return base >= 1 && base <= 98;
-  }
-
-  /**
-   * Search CIE-10 GIIS catalog (diagnosticos.csv) for lesion/violence reports.
-   * Includes V01-Y98 (external causes). Optionally filter to 4-character codes only.
-   * filterVariant: 'afeccion' = Cap V, XIX, O específicos; 'causaExterna' = V01-Y98.
-   */
-  async searchCIE10GIIS(
-    query: string,
-    limit: number = 50,
-    sexo?: number,
-    edad?: number,
-    solo4Caracteres: boolean = false,
-    filterVariant?: 'afeccion' | 'causaExterna',
-  ): Promise<CIE10Entry[]> {
-    const cache = this.catalogCaches.get(CatalogType.CIE10_GIIS_LESION);
-    if (!cache) {
-      return [];
-    }
-
-    const lowerQuery = query.toLowerCase();
-    const results: CIE10Entry[] = [];
-
-    for (const entry of cache.values()) {
-      const cieEntry = entry as CIE10Entry & { numCaracteres?: number };
-
-      if (
-        !cieEntry.code.toLowerCase().includes(lowerQuery) &&
-        !(cieEntry.description || '').toLowerCase().includes(lowerQuery)
-      ) {
-        continue;
-      }
-
-      if (filterVariant === 'afeccion') {
-        if (!this.isCIE10AfeccionPrincipalValid(cieEntry.code)) continue;
-        const entryExt = cieEntry as CIE10Entry & {
-          rubricaType?: string;
-          afPrin?: string;
-        };
-        if (entryExt.rubricaType === 'B') continue;
-        if (entryExt.afPrin !== undefined && entryExt.afPrin !== 'SI') continue;
-      }
-      if (
-        filterVariant === 'causaExterna' &&
-        !this.isCIE10CausaExternaValid(cieEntry.code)
-      ) {
-        continue;
-      }
-
-      if (solo4Caracteres) {
-        const numChars =
-          cieEntry.numCaracteres ?? cieEntry.code.replace('.', '').length;
-        if (numChars !== 4) continue;
-      }
-
-      if (
-        sexo !== undefined &&
-        sexo !== null &&
-        cieEntry.lsex &&
-        cieEntry.lsex !== 'NO'
-      ) {
-        if (cieEntry.lsex === 'SI' && sexo === 2) continue;
-      }
-
-      if (edad !== undefined && edad !== null) {
-        if (cieEntry.linf !== undefined && edad < cieEntry.linf) continue;
-        if (cieEntry.lsup !== undefined && edad > cieEntry.lsup) continue;
-      }
-
-      results.push(cieEntry);
-      if (results.length >= limit) break;
-    }
-
-    return results;
-  }
-
-  /**
-   * Get CIE-10 GIIS entry by code (from diagnosticos.csv).
-   * Tries exact match and normalized (no-dot) match.
-   */
-  async getCIE10GIISByCode(code: string): Promise<CIE10Entry | null> {
-    const cache = this.catalogCaches.get(CatalogType.CIE10_GIIS_LESION);
-    if (!cache || !code) return null;
-    const trimmed = code.trim();
-    const upper = trimmed.toUpperCase();
-    const withoutDot = upper.replace(/\./g, '');
-    let entry = cache.get(upper) ?? cache.get(trimmed) ?? cache.get(withoutDot);
-    if (!entry) {
-      for (const [k, v] of cache) {
-        if (
-          k.toUpperCase() === upper ||
-          k.replace(/\./g, '').toUpperCase() === withoutDot
-        ) {
-          entry = v;
-          break;
-        }
-      }
-    }
-    return (entry as CIE10Entry) || null;
-  }
-
-  /**
-   * Validate CIE-10 code against GIIS lesion catalog.
-   * Handles format variations: S00.0 vs S000.
-   */
-  async validateCIE10GIIS(code: string): Promise<boolean> {
-    const cache = this.catalogCaches.get(CatalogType.CIE10_GIIS_LESION);
-    if (!cache || !code) return false;
-    const trimmed = code.trim().toUpperCase();
-    if (!trimmed) return false;
-    const withoutDot = trimmed.replace(/\./g, '');
-    if (cache.has(trimmed)) return true;
-    if (cache.has(withoutDot)) return true;
-    for (const k of cache.keys()) {
-      const kNorm = k.replace(/\./g, '');
-      if (k.toUpperCase() === trimmed || kNorm.toUpperCase() === withoutDot)
-        return true;
-    }
-    return false;
   }
 
   /**

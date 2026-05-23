@@ -39,19 +39,6 @@ export function extractCIE10Code(input: string | null | undefined): string {
 }
 
 /**
- * Check if CIE-10 code has at least 4 characters (letter + 3 digits minimum).
- * Used for lesion report afección principal which requires 4-char codes.
- * Examples: S000, F419, V010 = valid; A00, V01 = invalid
- */
-export function hasCIE10Min4Chars(code: string | null | undefined): boolean {
-  if (!code || typeof code !== 'string') return false;
-  const extracted = extractCIE10Code(code);
-  if (!extracted) return false;
-  const withoutDot = extracted.replace(/\./g, '');
-  return withoutDot.length >= 4;
-}
-
-/**
  * Gets the 3-character prefix from a CIE-10 code
  *
  * Examples:

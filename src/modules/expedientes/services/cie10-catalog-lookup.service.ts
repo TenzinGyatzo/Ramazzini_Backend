@@ -95,29 +95,6 @@ export class Cie10CatalogLookupService {
   }
 
   /**
-   * Finds a diagnosis rule from the GIIS lesion catalog (diagnosticos.csv).
-   * Used for validating codigoCIEAfeccionPrincipal, afeccionPrincipalReseleccionada,
-   * and afeccionesTratadas against LSEX/LINF/LSUP.
-   */
-  async findDiagnosisRuleGIIS(
-    code: string | null | undefined,
-  ): Promise<DiagnosisRule | null> {
-    if (!code) return null;
-    const normalizedCode = extractCIE10Code(code);
-    if (!normalizedCode) return null;
-
-    const entry = await this.catalogsService.getCIE10GIISByCode(normalizedCode);
-    if (!entry) return null;
-
-    return {
-      key: entry.catalogKey || entry.code,
-      lsex: entry.lsex || 'NO',
-      linf: this.getRawAgeLimit(entry.linfRaw, entry.linf),
-      lsup: this.getRawAgeLimit(entry.lsupRaw, entry.lsup),
-    };
-  }
-
-  /**
    * Gets raw age limit value from catalog entry
    * Prefers raw values (linfRaw/lsupRaw) if available, otherwise uses parsed values
    */

@@ -201,7 +201,6 @@ function getDocumentTypeDisplayName(documentType?: string): string {
   const documentNames: Record<string, string> = {
     notaMedica: 'nota médica',
     historiaClinica: 'historia clínica',
-    lesion: 'lesión',
     deteccion: 'detección',
     aptitud: 'aptitud para el puesto',
     certificado: 'certificado médico',

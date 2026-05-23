@@ -70,7 +70,6 @@ import {
   InformeLongitudinalCardiometabolicoSchema,
 } from '../expedientes/schemas/informe-longitudinal-cardiometabolico.schema';
 import { RiesgoTrabajo, RiesgoTrabajoSchema } from '../riesgos-trabajo/schemas/riesgo-trabajo.schema';
-import { Lesion, LesionSchema } from '../expedientes/schemas/lesion.schema';
 import { ResultadoClinico, ResultadoClinicoSchema } from '../resultados-clinicos/schemas/resultado-clinico.schema';
 import { FilesModule } from '../files/files.module';
 import {
@@ -117,7 +116,6 @@ import { Empresa, EmpresaSchema } from '../empresas/schemas/empresa.schema';
         schema: InformeLongitudinalCardiometabolicoSchema,
       },
       { name: RiesgoTrabajo.name, schema: RiesgoTrabajoSchema },
-      { name: Lesion.name, schema: LesionSchema },
       { name: ResultadoClinico.name, schema: ResultadoClinicoSchema },
       { name: CentroTrabajo.name, schema: CentroTrabajoSchema },
       { name: User.name, schema: UserSchema },

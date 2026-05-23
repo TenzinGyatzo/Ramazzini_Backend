@@ -144,7 +144,6 @@ describe('GIIS-B019 Detección Validation', () => {
           provide: getModelToken('ConstanciaAptitud'),
           useValue: createMockModel(),
         },
-        { provide: getModelToken('Lesion'), useValue: createMockModel() },
         {
           provide: getModelToken(Trabajador.name),
           useValue: mockTrabajadorModel,

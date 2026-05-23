@@ -43,7 +43,6 @@ import { NotaAclaratoria } from '../expedientes/schemas/nota-aclaratoria.schema'
 import { ControlPrenatal } from '../expedientes/schemas/control-prenatal.schema';
 import { FilesService } from '../files/files.service';
 import { RiesgoTrabajo } from '../riesgos-trabajo/schemas/riesgo-trabajo.schema';
-import { Lesion } from '../expedientes/schemas/lesion.schema';
 import { CentroTrabajo } from '../centros-trabajo/schemas/centro-trabajo.schema';
 import { User } from '../users/schemas/user.schema';
 import { Empresa } from '../empresas/schemas/empresa.schema';
@@ -102,8 +101,6 @@ export class TrabajadoresService {
     private informeLongitudinalCardiometabolicoModel: Model<InformeLongitudinalCardiometabolico>,
     @InjectModel(RiesgoTrabajo.name)
     private riesgoTrabajoModel: Model<RiesgoTrabajo>,
-    @InjectModel(Lesion.name)
-    private lesionModel: Model<Lesion>,
     @InjectModel(ResultadoClinico.name)
     private resultadoClinicoModel: Model<ResultadoClinico>,
     @InjectModel(CentroTrabajo.name)
@@ -3513,7 +3510,6 @@ export class TrabajadoresService {
               .find({ idTrabajador: id })
               .session(session)
               .exec(),
-            this.lesionModel.find({ idTrabajador: id }).session(session).exec(),
           ])
         ).flat();
 
@@ -3579,7 +3575,6 @@ export class TrabajadoresService {
             this.riesgoTrabajoModel
               .deleteMany({ idTrabajador: id })
               .session(session),
-            this.lesionModel.deleteMany({ idTrabajador: id }).session(session),
           ]);
 
           // 3️⃣ Si la eliminación en la base de datos fue exitosa, proceder a eliminar los archivos

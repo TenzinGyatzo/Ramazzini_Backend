@@ -119,7 +119,6 @@ describe('NOM-024 Document State Management (Task 6, 7)', () => {
       'Antidoping',
       'CartaConsentimiento',
       'AptitudMedica',
-      'Lesion', // GIIS-B013
       'Deteccion', // GIIS-B019
     ];
 

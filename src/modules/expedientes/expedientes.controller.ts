@@ -50,8 +50,6 @@ import { CreatePrevioEspirometriaDto } from './dto/create-previo-espirometria.dt
 import { UpdatePrevioEspirometriaDto } from './dto/update-previo-espirometria.dto';
 import { CreateConstanciaAptitudDto } from './dto/create-constancia-aptitud.dto';
 import { UpdateConstanciaAptitudDto } from './dto/update-constancia-aptitud.dto';
-import { CreateLesionDto } from './dto/create-lesion.dto';
-import { UpdateLesionDto } from './dto/update-lesion.dto';
 import { CreateDeteccionDto } from './dto/create-deteccion.dto';
 import { UpdateDeteccionDto } from './dto/update-deteccion.dto';
 import { CreateRecetaDto } from './dto/create-receta.dto';
@@ -107,7 +105,6 @@ export class ExpedientesController {
     previoEspirometria: CreatePrevioEspirometriaDto,
     receta: CreateRecetaDto,
     constanciaAptitud: CreateConstanciaAptitudDto,
-    lesion: CreateLesionDto,
     entrevistaPsicologica: CreateEntrevistaPsicologicaDto,
     trastornosEstadoAnimo: CreateTrastornosEstadoAnimoDto,
     cuestionarioProdromalBreve: CreateCuestionarioProdromalBreveDto,
@@ -133,7 +130,6 @@ export class ExpedientesController {
     previoEspirometria: UpdatePrevioEspirometriaDto,
     receta: UpdateRecetaDto,
     constanciaAptitud: UpdateConstanciaAptitudDto,
-    lesion: UpdateLesionDto,
     entrevistaPsicologica: UpdateEntrevistaPsicologicaDto,
     trastornosEstadoAnimo: UpdateTrastornosEstadoAnimoDto,
     cuestionarioProdromalBreve: UpdateCuestionarioProdromalBreveDto,
@@ -474,143 +470,6 @@ export class ExpedientesController {
       })),
       count: results.length,
     };
-  }
-
-  // GIIS-B013: Lesion CRUD Endpoints
-  @Post('lesion')
-  @UseGuards(DailyConsentGuard)
-  @RequireDailyConsent({
-    action: 'CREATE_DOCUMENT',
-    skipIfNoTrabajadorId: true,
-  })
-  async createLesion(@Body() createLesionDto: CreateLesionDto) {
-    try {
-      const lesion =
-        await this.expedientesService.createLesion(createLesionDto);
-      return { message: 'Lesión creada exitosamente', data: lesion };
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  @Get('lesion/:id')
-  async findLesion(@Param('id') id: string) {
-    if (!isValidObjectId(id)) {
-      throw new BadRequestException('El ID proporcionado no es válido');
-    }
-    const lesion = await this.expedientesService.findLesion(id);
-    if (!lesion) {
-      return {
-        message: `No se encontró la lesión con id ${id}`,
-      };
-    }
-    return lesion;
-  }
-
-  @Get('lesiones/:trabajadorId')
-  async findLesionesByTrabajador(@Param('trabajadorId') trabajadorId: string) {
-    if (!isValidObjectId(trabajadorId)) {
-      throw new BadRequestException('El ID del trabajador no es válido');
-    }
-    const lesiones =
-      await this.expedientesService.findLesionesByTrabajador(trabajadorId);
-    return lesiones;
-  }
-
-  @Patch('lesion/:id')
-  async updateLesion(
-    @Param('id') id: string,
-    @Body() updateLesionDto: UpdateLesionDto,
-  ) {
-    if (!isValidObjectId(id)) {
-      throw new BadRequestException('El ID proporcionado no es válido');
-    }
-
-    const dtoInstance = Object.assign(
-      new UpdateLesionDto(),
-      Object.fromEntries(
-        Object.entries(updateLesionDto).filter(([, v]) => v !== undefined),
-      ),
-    );
-
-    await new ValidationPipe({ whitelist: true }).transform(dtoInstance, {
-      type: 'body',
-      metatype: UpdateLesionDto,
-    });
-
-    try {
-      const updatedLesion = await this.expedientesService.updateLesion(
-        id,
-        dtoInstance,
-      );
-      return {
-        message: 'Lesión actualizada exitosamente',
-        data: updatedLesion,
-      };
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  @Delete('lesion/:id')
-  async deleteLesion(
-    @Param('id') id: string,
-    @Body() body?: { razonAnulacion?: string },
-    @Request() req?: any,
-  ) {
-    if (!isValidObjectId(id)) {
-      throw new BadRequestException('El ID proporcionado no es válido');
-    }
-
-    // Decodificar el JWT del header para obtener el userId
-    let userId: string | undefined;
-    try {
-      userId = await this.authenticateUser(req);
-    } catch {}
-
-    const result = await this.expedientesService.deleteLesion(
-      id,
-      userId,
-      body?.razonAnulacion,
-    );
-
-    if (result.anulado) {
-      return {
-        message: `La lesión con id ${id} ha sido anulada exitosamente`,
-        anulado: true,
-      };
-    }
-
-    return {
-      message: `La lesión con id ${id} ha sido eliminada exitosamente`,
-      deleted: true,
-    };
-  }
-
-  @Post('lesion/:id/finalizar')
-  async finalizarLesion(@Param('id') id: string, @Request() req: any) {
-    if (!isValidObjectId(id)) {
-      throw new BadRequestException('El ID proporcionado no es válido');
-    }
-
-    // Decodificar el JWT del header para obtener el userId
-    const userId = await this.authenticateUser(req);
-    if (!userId) {
-      throw new BadRequestException('Usuario no autenticado');
-    }
-
-    try {
-      const finalizedLesion = await this.expedientesService.finalizarLesion(
-        id,
-        userId,
-      );
-      return {
-        message: 'Lesión finalizada exitosamente',
-        data: finalizedLesion,
-      };
-    } catch (error) {
-      throw error;
-    }
   }
 
   @Delete(':documentType/eliminar/:id')

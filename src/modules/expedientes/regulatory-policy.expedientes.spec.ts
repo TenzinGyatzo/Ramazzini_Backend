@@ -174,7 +174,6 @@ describe('ExpedientesService - Regulatory Policy Enforcement', () => {
           provide: getModelToken('ConstanciaAptitud'),
           useValue: createMockModel(),
         },
-        { provide: getModelToken('Lesion'), useValue: createMockModel() },
         { provide: getModelToken('Deteccion'), useValue: createMockModel() },
         {
           provide: getModelToken(Trabajador.name),

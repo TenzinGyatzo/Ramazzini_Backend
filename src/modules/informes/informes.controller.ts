@@ -447,33 +447,6 @@ export class InformesController {
     }
   }
 
-  @Get('lesion/:empresaId/:trabajadorId/:lesionId/:userId')
-  async getInformeLesion(
-    @Param('empresaId') empresaId: string,
-    @Param('trabajadorId') trabajadorId: string,
-    @Param('lesionId') lesionId: string,
-    @Param('userId') userId: string,
-    @Res() res: Response,
-  ) {
-    try {
-      const rutaPDF = await this.informesService.getInformeLesion(
-        empresaId,
-        trabajadorId,
-        lesionId,
-        userId,
-      );
-      return res
-        .status(200)
-        .json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
-    } catch (error) {
-      console.error(
-        '[getInformeLesion] Error al generar el informe de lesión:',
-        error,
-      );
-      throw error;
-    }
-  }
-
   // Cuestionarios psicologicos
   @Get(
     'entrevistaPsicologica/:empresaId/:trabajadorId/:entrevistaPsicologicaId/:userId',

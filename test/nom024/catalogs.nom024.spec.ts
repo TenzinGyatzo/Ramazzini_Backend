@@ -41,39 +41,12 @@ describe('NOM-024 Catalog Service (Task 1, 12, 14, 19)', () => {
     },
   ];
 
-  const optionalGIISB013Catalogs = [
-    {
-      type: CatalogType.SITIO_OCURRENCIA,
-      file: 'cat_sitio_ocurrencia.csv',
-      name: 'Sitio Ocurrencia (GIIS-B013)',
-    },
-    {
-      type: CatalogType.AGENTE_LESION,
-      file: 'cat_agente_lesion.csv',
-      name: 'Agente Lesión (GIIS-B013)',
-    },
-    {
-      type: CatalogType.AREA_ANATOMICA,
-      file: 'cat_area_anatomica.csv',
-      name: 'Area Anatómica (GIIS-B013)',
-    },
-    {
-      type: CatalogType.CONSECUENCIA,
-      file: 'cat_consecuencia.csv',
-      name: 'Consecuencia (GIIS-B013)',
-    },
-  ];
 
   const optionalGIISB019Catalogs = [
     {
       type: CatalogType.TIPO_PERSONAL,
       file: 'cat_tipo_personal.csv',
       name: 'Tipo Personal (GIIS-B019)',
-    },
-    {
-      type: CatalogType.SERVICIOS_DET,
-      file: 'cat_servicios_det.csv',
-      name: 'Servicios Det (GIIS-B019)',
     },
     {
       type: CatalogType.AFILIACION,
@@ -87,10 +60,7 @@ describe('NOM-024 Catalog Service (Task 1, 12, 14, 19)', () => {
     },
   ];
 
-  const allOptionalGIISCatalogs = [
-    ...optionalGIISB013Catalogs,
-    ...optionalGIISB019Catalogs,
-  ];
+  const allOptionalGIISCatalogs = [...optionalGIISB019Catalogs];
 
   beforeAll(async () => {
     // Create a real service instance to test catalog loading
@@ -166,14 +136,14 @@ describe('NOM-024 Catalog Service (Task 1, 12, 14, 19)', () => {
     it('should return accurate catalog statistics', () => {
       const stats = service.getCatalogStats();
 
-      expect(stats.baseTotal).toBe(11);
-      expect(stats.giisTotal).toBe(8);
+      expect(stats.baseTotal).toBe(9);
+      expect(stats.giisTotal).toBe(3);
       expect(typeof stats.baseLoaded).toBe('number');
       expect(typeof stats.giisLoaded).toBe('number');
       expect(stats.baseLoaded).toBeGreaterThanOrEqual(0);
-      expect(stats.baseLoaded).toBeLessThanOrEqual(11);
+      expect(stats.baseLoaded).toBeLessThanOrEqual(9);
       expect(stats.giisLoaded).toBeGreaterThanOrEqual(0);
-      expect(stats.giisLoaded).toBeLessThanOrEqual(8);
+      expect(stats.giisLoaded).toBeLessThanOrEqual(3);
       expect(Array.isArray(stats.loadedCatalogs)).toBe(true);
     });
 
@@ -182,130 +152,6 @@ describe('NOM-024 Catalog Service (Task 1, 12, 14, 19)', () => {
         const isLoaded = service.isGIISCatalogLoaded(catalogInfo.type);
         expect(typeof isLoaded).toBe('boolean');
       }
-    });
-  });
-
-  describe('GIIS-B013 Validators (Task 19)', () => {
-    describe('validateGIISSitioOcurrencia', () => {
-      it('should return non-blocking result if catalog missing', () => {
-        service.clearCatalog(CatalogType.SITIO_OCURRENCIA);
-        service.resetWarningFlags();
-
-        const result = service.validateGIISSitioOcurrencia(1);
-
-        expect(result.valid).toBe(true); // Non-blocking
-        expect(result.catalogLoaded).toBe(false);
-        expect(result.message).toContain('not available');
-      });
-
-      it('should validate code when catalog is present (mock)', () => {
-        // Inject mock catalog
-        service.injectMockCatalog(CatalogType.SITIO_OCURRENCIA, [
-          { code: '1', description: 'Hogar' },
-          { code: '2', description: 'Vía pública' },
-          { code: '3', description: 'Trabajo' },
-        ]);
-
-        // Valid code
-        const validResult = service.validateGIISSitioOcurrencia(1);
-        expect(validResult.valid).toBe(true);
-        expect(validResult.catalogLoaded).toBe(true);
-
-        // Invalid code
-        const invalidResult = service.validateGIISSitioOcurrencia(99);
-        expect(invalidResult.valid).toBe(false);
-        expect(invalidResult.catalogLoaded).toBe(true);
-
-        // Cleanup
-        service.clearCatalog(CatalogType.SITIO_OCURRENCIA);
-      });
-
-      it('should accept string or number codes', () => {
-        service.injectMockCatalog(CatalogType.SITIO_OCURRENCIA, [
-          { code: '5', description: 'Test' },
-        ]);
-
-        expect(service.validateGIISSitioOcurrencia(5).valid).toBe(true);
-        expect(service.validateGIISSitioOcurrencia('5').valid).toBe(true);
-
-        service.clearCatalog(CatalogType.SITIO_OCURRENCIA);
-      });
-    });
-
-    describe('validateGIISAgenteLesion', () => {
-      it('should return non-blocking result if catalog missing', () => {
-        service.clearCatalog(CatalogType.AGENTE_LESION);
-        service.resetWarningFlags();
-
-        const result = service.validateGIISAgenteLesion(1);
-
-        expect(result.valid).toBe(true);
-        expect(result.catalogLoaded).toBe(false);
-      });
-
-      it('should validate code when catalog is present (mock)', () => {
-        service.injectMockCatalog(CatalogType.AGENTE_LESION, [
-          { code: '10', description: 'Arma de fuego' },
-          { code: '20', description: 'Arma punzocortante' },
-        ]);
-
-        expect(service.validateGIISAgenteLesion(10).valid).toBe(true);
-        expect(service.validateGIISAgenteLesion(999).valid).toBe(false);
-
-        service.clearCatalog(CatalogType.AGENTE_LESION);
-      });
-    });
-
-    describe('validateGIISAreaAnatomica', () => {
-      it('should return non-blocking result if catalog missing', () => {
-        service.clearCatalog(CatalogType.AREA_ANATOMICA);
-        service.resetWarningFlags();
-
-        const result = service.validateGIISAreaAnatomica(1);
-
-        expect(result.valid).toBe(true);
-        expect(result.catalogLoaded).toBe(false);
-      });
-
-      it('should validate code when catalog is present (mock)', () => {
-        service.injectMockCatalog(CatalogType.AREA_ANATOMICA, [
-          { code: '1', description: 'Cabeza' },
-          { code: '2', description: 'Cuello' },
-          { code: '3', description: 'Tórax' },
-        ]);
-
-        expect(service.validateGIISAreaAnatomica(1).valid).toBe(true);
-        expect(service.validateGIISAreaAnatomica(2).valid).toBe(true);
-        expect(service.validateGIISAreaAnatomica(100).valid).toBe(false);
-
-        service.clearCatalog(CatalogType.AREA_ANATOMICA);
-      });
-    });
-
-    describe('validateGIISConsecuencia', () => {
-      it('should return non-blocking result if catalog missing', () => {
-        service.clearCatalog(CatalogType.CONSECUENCIA);
-        service.resetWarningFlags();
-
-        const result = service.validateGIISConsecuencia(1);
-
-        expect(result.valid).toBe(true);
-        expect(result.catalogLoaded).toBe(false);
-      });
-
-      it('should validate code when catalog is present (mock)', () => {
-        service.injectMockCatalog(CatalogType.CONSECUENCIA, [
-          { code: '1', description: 'Sin lesión' },
-          { code: '2', description: 'Lesión leve' },
-          { code: '3', description: 'Lesión moderada' },
-        ]);
-
-        expect(service.validateGIISConsecuencia(1).valid).toBe(true);
-        expect(service.validateGIISConsecuencia('3').valid).toBe(true);
-        expect(service.validateGIISConsecuencia(50).valid).toBe(false);
-
-        service.clearCatalog(CatalogType.CONSECUENCIA);
-      });
     });
   });
 
@@ -333,31 +179,6 @@ describe('NOM-024 Catalog Service (Task 1, 12, 14, 19)', () => {
         expect(service.validateGIISTipoPersonal(99).valid).toBe(false);
 
         service.clearCatalog(CatalogType.TIPO_PERSONAL);
-      });
-    });
-
-    describe('validateGIISServiciosDet', () => {
-      it('should return non-blocking result if catalog missing', () => {
-        service.clearCatalog(CatalogType.SERVICIOS_DET);
-        service.resetWarningFlags();
-
-        const result = service.validateGIISServiciosDet(1);
-
-        expect(result.valid).toBe(true);
-        expect(result.catalogLoaded).toBe(false);
-      });
-
-      it('should validate code when catalog is present (mock)', () => {
-        service.injectMockCatalog(CatalogType.SERVICIOS_DET, [
-          { code: '01', description: 'Consulta externa' },
-          { code: '02', description: 'Urgencias' },
-        ]);
-
-        expect(service.validateGIISServiciosDet('01').valid).toBe(true);
-        expect(service.validateGIISServiciosDet('02').valid).toBe(true);
-        expect(service.validateGIISServiciosDet('99').valid).toBe(false);
-
-        service.clearCatalog(CatalogType.SERVICIOS_DET);
       });
     });
 
@@ -417,17 +238,17 @@ describe('NOM-024 Catalog Service (Task 1, 12, 14, 19)', () => {
   describe('Warning Deduplication (Task 19)', () => {
     it('should only emit one warning per catalog type per process lifetime', () => {
       // Clear and reset
-      service.clearCatalog(CatalogType.SITIO_OCURRENCIA);
+      service.clearCatalog(CatalogType.TIPO_PERSONAL);
       service.resetWarningFlags();
 
       // First call - should emit warning
-      const result1 = service.validateGIISSitioOcurrencia(1);
+      const result1 = service.validateGIISTipoPersonal(1);
       expect(result1.valid).toBe(true);
       expect(result1.catalogLoaded).toBe(false);
 
       // Subsequent calls - should NOT emit warning (but same result)
-      const result2 = service.validateGIISSitioOcurrencia(2);
-      const result3 = service.validateGIISSitioOcurrencia(3);
+      const result2 = service.validateGIISTipoPersonal(2);
+      const result3 = service.validateGIISTipoPersonal(3);
 
       expect(result2.valid).toBe(true);
       expect(result3.valid).toBe(true);

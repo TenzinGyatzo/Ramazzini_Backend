@@ -21,7 +21,6 @@ import { historiaOtologicaInforme } from './documents/historia-otologica.informe
 import { previoEspirometriaInforme } from './documents/previo-espirometria.informe';
 import { constanciaAptitudInforme } from './documents/constancia-aptitud.informe';
 import { recetaInforme } from './documents/receta.informe';
-import { lesionInforme } from './documents/lesion.informe';
 import { entrevistaPsicologicaInforme } from './documents/entrevista-psicologica.informe';
 import { trastornoLimitePersonalidadInforme } from './documents/tratorno-limite-personalidad.informe';
 import { cuestionarioProdromalBreveInforme } from './documents/cuestionario-prodromal-breve.informe';
@@ -82,7 +81,6 @@ export class InformesService {
     previoEspirometria: 'Previo Espirometría',
     constanciaAptitud: 'Constancia de Aptitud',
     receta: 'Receta',
-    lesion: 'Lesión',
     eventoSeguimientoCardiometabolico: 'Evento de Seguimiento Cardiometabólico',
     informeLongitudinalCardiometabolico: 'Informe Longitudinal Cardiometabólico',
     documentoExterno: 'Documento Externo',
@@ -97,7 +95,6 @@ export class InformesService {
     certificadosExpedito: 'Certificado Expedito',
     examenesVista: 'Examen de Vista',
     recetas: 'Receta',
-    lesiones: 'Lesión',
     documentosExternos: 'Documento Externo',
     constanciasAptitud: 'Constancia de Aptitud',
   };
@@ -369,14 +366,6 @@ export class InformesService {
             finalizadorId,
             undefined,
           );
-        case 'lesion':
-          return await this.getInformeLesion(
-            empresaId,
-            trabajador._id,
-            documentId,
-            finalizadorId,
-            undefined,
-          );
         case 'audiometria':
           return await this.getInformeAudiometria(
             empresaId,
@@ -566,14 +555,6 @@ export class InformesService {
           finalizadorId,
           footerFirmantesData,
         );
-      case 'lesion':
-        return await this.getInformeLesion(
-          empresaId,
-          trabajador._id,
-          documentId,
-          finalizadorId,
-          footerFirmantesData,
-        );
       case 'audiometria':
         return await this.getInformeAudiometria(
           empresaId,
@@ -658,7 +639,6 @@ export class InformesService {
     previoEspirometria: 'previoEspirometria',
     recetas: 'receta',
     constanciasAptitud: 'constanciaAptitud',
-    lesiones: 'lesion',
   };
 
   /**
@@ -690,7 +670,6 @@ export class InformesService {
       receta: 'fechaReceta',
       constanciaAptitud: 'fechaConstanciaAptitud',
       notaAclaratoria: 'fechaNotaAclaratoria',
-      lesion: 'fechaReporteLesion',
       eventoSeguimientoCardiometabolico: 'fechaEventoSeguimientoCardiometabolico',
       informeLongitudinalCardiometabolico: 'fechaInformeLongitudinalCardiometabolico',
     };
@@ -4889,355 +4868,6 @@ export class InformesService {
       datosEnfermeraFirmante,
       datosProveedorSalud,
       footerFirmantesData,
-    );
-
-    await this.printer.createPdf(docDefinition, rutaCompleta);
-    return rutaCompleta;
-  }
-
-  async getInformeLesion(
-    empresaId: string,
-    trabajadorId: string,
-    lesionId: string,
-    userId: string,
-    footerFirmantesData?: FooterFirmantesData,
-  ): Promise<string> {
-    const empresa = await this.empresasService.findOne(empresaId);
-    const nombreEmpresa = empresa.nombreComercial;
-    const trabajador = await this.trabajadoresService.findOne(trabajadorId);
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
-    const lesion = await this.expedientesService.findDocument(
-      'lesion',
-      lesionId,
-    );
-
-    // Resolver etiquetas de catálogos para el PDF
-    let sitioOcurrenciaLabel: string | undefined;
-    let tipoVialidadLabel: string | undefined;
-    let tipoAsentamientoLabel: string | undefined;
-    let agenteLesionLabel: string | undefined;
-    let areaAnatomicaLabel: string | undefined;
-    let consecuenciaGravedadLabel: string | undefined;
-    let entidadLabel: string | undefined;
-    let municipioLabel: string | undefined;
-    let localidadLabel: string | undefined;
-
-    try {
-      if (lesion.sitioOcurrencia != null) {
-        const e = await this.catalogsService.getCatalogEntry(
-          CatalogType.SITIO_OCURRENCIA,
-          String(lesion.sitioOcurrencia),
-        );
-        sitioOcurrenciaLabel = e?.description;
-      }
-      if (lesion.tipoVialidad != null) {
-        const e = await this.catalogsService.getCatalogEntry(
-          CatalogType.TIPO_VIALIDAD,
-          String(lesion.tipoVialidad),
-        );
-        tipoVialidadLabel = e?.description;
-      }
-      if (lesion.tipoAsentamiento != null) {
-        const e = await this.catalogsService.getCatalogEntry(
-          CatalogType.TIPO_ASENTAMIENTO,
-          String(lesion.tipoAsentamiento),
-        );
-        tipoAsentamientoLabel = e?.description;
-      }
-      if (lesion.agenteLesion != null && lesion.agenteLesion !== -1) {
-        const e = await this.catalogsService.getCatalogEntry(
-          CatalogType.AGENTE_LESION,
-          String(lesion.agenteLesion),
-        );
-        agenteLesionLabel = e?.description;
-      }
-      if (lesion.areaAnatomica != null) {
-        const e = await this.catalogsService.getCatalogEntry(
-          CatalogType.AREA_ANATOMICA,
-          String(lesion.areaAnatomica),
-        );
-        areaAnatomicaLabel = e?.description;
-      }
-      if (lesion.consecuenciaGravedad != null) {
-        const e = await this.catalogsService.getCatalogEntry(
-          CatalogType.CONSECUENCIA,
-          String(lesion.consecuenciaGravedad),
-        );
-        consecuenciaGravedadLabel = e?.description;
-      }
-      if (lesion.entidadOcurrencia) {
-        const e = this.catalogsService.getEstadoByCode(
-          String(lesion.entidadOcurrencia).padStart(2, '0'),
-        );
-        entidadLabel = e?.description;
-      }
-      if (lesion.entidadOcurrencia && lesion.municipioOcurrencia) {
-        const munCode = String(lesion.municipioOcurrencia).includes('-')
-          ? String(lesion.municipioOcurrencia).split('-')[1]
-          : lesion.municipioOcurrencia;
-        const munList = this.catalogsService.getMunicipiosByEstado(
-          String(lesion.entidadOcurrencia).padStart(2, '0'),
-        );
-        const m = munList.find(
-          (x) => x.code === munCode || x.code === String(munCode),
-        );
-        municipioLabel = m?.description;
-      }
-      if (
-        lesion.entidadOcurrencia &&
-        lesion.municipioOcurrencia &&
-        lesion.localidadOcurrencia
-      ) {
-        const munCode = String(lesion.municipioOcurrencia).includes('-')
-          ? String(lesion.municipioOcurrencia).split('-')[1]
-          : lesion.municipioOcurrencia;
-        const locList = this.catalogsService.getLocalidadesByMunicipio(
-          String(lesion.entidadOcurrencia).padStart(2, '0'),
-          String(munCode),
-        );
-        const l = locList.find(
-          (x) =>
-            x.code === lesion.localidadOcurrencia ||
-            x.code === String(lesion.localidadOcurrencia),
-        );
-        localidadLabel = l?.description;
-      }
-    } catch {
-      // Si falla la resolución de catálogos, se usan los códigos
-    }
-
-    const datosLesion = {
-      folio: lesion.folio,
-      fechaReporteLesion: lesion.fechaReporteLesion,
-      fechaEvento: lesion.fechaEvento,
-      horaEvento: lesion.horaEvento,
-      diaFestivo: lesion.diaFestivo,
-      eventoRepetido: lesion.eventoRepetido,
-      sitioOcurrencia: lesion.sitioOcurrencia,
-      sitioOcurrenciaLabel,
-      entidadOcurrencia: lesion.entidadOcurrencia,
-      entidadLabel,
-      municipioOcurrencia: lesion.municipioOcurrencia,
-      municipioLabel,
-      localidadOcurrencia: lesion.localidadOcurrencia,
-      localidadLabel,
-      otraLocalidad: lesion.otraLocalidad,
-      codigoPostal: lesion.codigoPostal,
-      tipoVialidad: lesion.tipoVialidad,
-      tipoVialidadLabel,
-      nombreVialidad: lesion.nombreVialidad,
-      numeroExterior: lesion.numeroExterior,
-      tipoAsentamiento: lesion.tipoAsentamiento,
-      tipoAsentamientoLabel,
-      nombreAsentamiento: lesion.nombreAsentamiento,
-      intencionalidad: lesion.intencionalidad,
-      agenteLesion: lesion.agenteLesion,
-      agenteLesionLabel,
-      especifique: lesion.especifique,
-      tipoViolencia: lesion.tipoViolencia,
-      numeroAgresores: lesion.numeroAgresores,
-      parentescoAfectado: lesion.parentescoAfectado,
-      sexoAgresor: lesion.sexoAgresor,
-      edadAgresor: lesion.edadAgresor,
-      agresorBajoEfectos: lesion.agresorBajoEfectos,
-      lesionadoVehiculoMotor: lesion.lesionadoVehiculoMotor,
-      usoEquipoSeguridad: lesion.usoEquipoSeguridad,
-      equipoUtilizado: lesion.equipoUtilizado,
-      especifiqueEquipo: lesion.especifiqueEquipo,
-      sospechaBajoEfectosDe: lesion.sospechaBajoEfectosDe,
-      atencionPreHospitalaria: lesion.atencionPreHospitalaria,
-      tiempoTrasladoUH: lesion.tiempoTrasladoUH,
-      fechaAtencion: lesion.fechaAtencion,
-      horaAtencion: lesion.horaAtencion,
-      servicioAtencion: lesion.servicioAtencion,
-      especifiqueServicio: lesion.especifiqueServicio,
-      tipoAtencion: lesion.tipoAtencion,
-      areaAnatomica: lesion.areaAnatomica,
-      areaAnatomicaLabel,
-      especifiqueArea: lesion.especifiqueArea,
-      consecuenciaGravedad: lesion.consecuenciaGravedad,
-      consecuenciaGravedadLabel,
-      especifiqueConsecuencia: lesion.especifiqueConsecuencia,
-      codigoCIEAfeccionPrincipal: lesion.codigoCIEAfeccionPrincipal,
-      descripcionAfeccionPrincipal: lesion.descripcionAfeccionPrincipal,
-      codigoCIECausaExterna: lesion.codigoCIECausaExterna,
-      causaExterna: lesion.causaExterna,
-      afeccionPrincipalReseleccionada: lesion.afeccionPrincipalReseleccionada,
-      afeccionesTratadas: lesion.afeccionesTratadas,
-      responsableAtencion: (lesion as any).responsableAtencion,
-      estado: lesion.estado,
-    };
-
-    let footerData: FooterFirmantesData | undefined = footerFirmantesData;
-    if (
-      !footerData &&
-      (lesion.estado === DocumentoEstado.FINALIZADO ||
-        lesion.estado === DocumentoEstado.ANULADO)
-    ) {
-      const creadorId =
-        (lesion.createdBy?._id || lesion.createdBy)?.toString() || userId;
-      const finalizadorId =
-        (lesion.finalizadoPor?._id || lesion.finalizadoPor)?.toString() ||
-        userId;
-
-      if (creadorId !== finalizadorId) {
-        const elaborador = await this.obtenerDatosFirmante(creadorId);
-        const finalizador = await this.obtenerDatosFirmante(finalizadorId);
-        footerData = {
-          elaborador,
-          finalizador,
-          esDocumentoFinalizado: true,
-        };
-      }
-    }
-
-    const firmanteUserId =
-      lesion.estado === DocumentoEstado.BORRADOR
-        ? (lesion.createdBy?._id || lesion.createdBy)?.toString() || userId
-        : lesion.estado === DocumentoEstado.FINALIZADO ||
-            lesion.estado === DocumentoEstado.ANULADO
-          ? (lesion.finalizadoPor?._id || lesion.finalizadoPor)?.toString() ||
-            userId
-          : userId;
-
-    const medicoFirmante =
-      await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
-    const datosMedicoFirmante = medicoFirmante
-      ? {
-          nombre: medicoFirmante.nombre || '',
-          tituloProfesional: medicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
-          especialistaSaludTrabajo:
-            medicoFirmante.especialistaSaludTrabajo || '',
-          numeroCedulaEspecialista:
-            medicoFirmante.numeroCedulaEspecialista || '',
-          nombreCredencialAdicional:
-            medicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            medicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (medicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          especialistaSaludTrabajo: '',
-          numeroCedulaEspecialista: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
-
-    const enfermeraFirmante =
-      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
-    const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
-
-    const usuario = await this.usersService.findById(userId);
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      usuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          direccion: proveedorSalud.direccion || '',
-          municipio: proveedorSalud.municipio || '',
-          estado: proveedorSalud.estado || '',
-          telefono: proveedorSalud.telefono || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          pais: '',
-          direccion: '',
-          municipio: '',
-          estado: '',
-          telefono: '',
-          sitioWeb: '',
-          logotipoEmpresa: null,
-        };
-
-    const centroId = (
-      trabajador.idCentroTrabajo?._id || trabajador.idCentroTrabajo
-    )?.toString();
-    const centro = centroId
-      ? await this.centrosTrabajoService.findOne(centroId)
-      : null;
-    const trabajadorNombre = [
-      trabajador.primerApellido ?? '',
-      trabajador.segundoApellido ?? '',
-      trabajador.nombre ?? '',
-    ]
-      .join(' ')
-      .trim();
-    const rutaBase = `expedientes-medicos/${nombreEmpresa}/${centro?.nombreCentro ?? 'SinCentro'}/${trabajadorNombre}_${trabajadorId}`;
-    const fecha = convertirFechaADDMMAAAA(lesion.fechaAtencion)
-      .replace(/\//g, '-')
-      .replace(/\\/g, '-');
-    const nombreArchivo = `Reporte Lesion ${fecha} ${lesion.folio}.pdf`;
-    const rutaDirectorio = path.resolve(rutaBase);
-    if (!fs.existsSync(rutaDirectorio)) {
-      fs.mkdirSync(rutaDirectorio, { recursive: true });
-    }
-
-    const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
-    const docDefinition = lesionInforme(
-      nombreEmpresa,
-      datosTrabajador,
-      datosLesion,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosProveedorSalud,
-      footerData,
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
