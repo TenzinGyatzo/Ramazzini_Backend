@@ -231,6 +231,14 @@ export function normalizeMedicoFirmanteData(
       typeof dto.numeroCredencialAdicional === 'string'
         ? dto.numeroCredencialAdicional.trim()
         : '',
+    nombreCredencialAdicional2:
+      typeof dto.nombreCredencialAdicional2 === 'string'
+        ? dto.nombreCredencialAdicional2.trim()
+        : '',
+    numeroCredencialAdicional2:
+      typeof dto.numeroCredencialAdicional2 === 'string'
+        ? dto.numeroCredencialAdicional2.trim()
+        : '',
     firma:
       dto.firma &&
       typeof dto.firma.data === 'string' &&
