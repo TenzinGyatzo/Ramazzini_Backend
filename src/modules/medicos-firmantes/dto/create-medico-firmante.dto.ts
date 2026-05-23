@@ -49,13 +49,23 @@ export class CreateMedicoFirmanteDto {
 
   @IsOptional()
   @IsString({
-    message: 'El nombre de la cédencial adicional debe ser un string',
+    message: 'El nombre de la credencial adicional debe ser un string',
   })
   nombreCredencialAdicional?: string;
 
   @IsOptional()
   @IsString({ message: 'El numero de cédula adicional debe ser un string' })
   numeroCredencialAdicional?: string;
+
+  @IsOptional()
+  @IsString({
+    message: 'El nombre de la credencial adicional 2 debe ser un string',
+  })
+  nombreCredencialAdicional2?: string;
+
+  @IsOptional()
+  @IsString({ message: 'El numero de cédula adicional 2 debe ser un string' })
+  numeroCredencialAdicional2?: string;
 
   @IsOptional()
   // @ValidateNested()

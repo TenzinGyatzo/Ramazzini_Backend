@@ -75,6 +75,8 @@ export class InformesService {
       numeroCedulaEspecialista?: string;
       nombreCredencialAdicional?: string;
       numeroCredencialAdicional?: string;
+      nombreCredencialAdicional2?: string;
+      numeroCredencialAdicional2?: string;
       firma?: { data: string; contentType: string } | null;
       [key: string]: any; // Permitir campos adicionales
     } | null,
@@ -89,6 +91,8 @@ export class InformesService {
         numeroCedulaEspecialista: '',
         nombreCredencialAdicional: '',
         numeroCredencialAdicional: '',
+        nombreCredencialAdicional2: '',
+        numeroCredencialAdicional2: '',
         firma: null,
       };
     }
@@ -102,6 +106,8 @@ export class InformesService {
       numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista || '',
       nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional || '',
       numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional || '',
+      nombreCredencialAdicional2: medicoFirmante.nombreCredencialAdicional2 || '',
+      numeroCredencialAdicional2: medicoFirmante.numeroCredencialAdicional2 || '',
       firma: medicoFirmante.firma || null,
     };
   }
@@ -1194,6 +1200,8 @@ export class InformesService {
             numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista,
             nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional,
             numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional,
+            nombreCredencialAdicional2: medicoFirmante.nombreCredencialAdicional2,
+            numeroCredencialAdicional2: medicoFirmante.numeroCredencialAdicional2,
             firma: (medicoFirmante.firma as { data: string; contentType: string }) || null,
           }
         : null,

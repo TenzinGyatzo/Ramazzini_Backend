@@ -25,6 +25,10 @@ export class MedicoFirmante extends Document {
     nombreCredencialAdicional?: string;
     @Prop()
     numeroCredencialAdicional?: string;
+    @Prop()
+    nombreCredencialAdicional2?: string;
+    @Prop()
+    numeroCredencialAdicional2?: string;
     @Prop({
         type: {
           data: { type: String },

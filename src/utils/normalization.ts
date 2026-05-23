@@ -164,6 +164,8 @@ export function normalizeMedicoFirmanteData(
     numeroCedulaEspecialista: typeof dto.numeroCedulaEspecialista === 'string' ? dto.numeroCedulaEspecialista.trim() : "",
     nombreCredencialAdicional: typeof dto.nombreCredencialAdicional === 'string' ? dto.nombreCredencialAdicional.trim() : "",
     numeroCredencialAdicional: typeof dto.numeroCredencialAdicional === 'string' ? dto.numeroCredencialAdicional.trim() : "",
+    nombreCredencialAdicional2: typeof dto.nombreCredencialAdicional2 === 'string' ? dto.nombreCredencialAdicional2.trim() : "",
+    numeroCredencialAdicional2: typeof dto.numeroCredencialAdicional2 === 'string' ? dto.numeroCredencialAdicional2.trim() : "",
     firma: dto.firma && typeof dto.firma.data === 'string' && typeof dto.firma.contentType === 'string'
       ? {
           data: dto.firma.data.trim(),

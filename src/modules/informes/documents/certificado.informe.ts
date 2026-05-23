@@ -297,6 +297,8 @@ interface MedicoFirmante {
   numeroCedulaEspecialista: string;
   nombreCredencialAdicional: string;
   numeroCredencialAdicional: string;
+  nombreCredencialAdicional2: string;
+  numeroCredencialAdicional2: string;
   firma: {
     data: string;
     contentType: string;
@@ -462,6 +464,21 @@ export const certificadoInforme = (
                 bold: true,
               }
             : null,
+
+          medicoFirmante.nombreCredencialAdicional2
+            ? {
+                text: proveedorSalud.pais === 'GT'
+                  ? ` ${medicoFirmante.nombreCredencialAdicional2} No. `
+                  : ` ${medicoFirmante.nombreCredencialAdicional2} con número `,
+              }
+            : null,
+
+          medicoFirmante.nombreCredencialAdicional2
+            ? {
+                text: `${medicoFirmante.numeroCredencialAdicional2}. `,
+                bold: true,
+              }
+            : null,
         ].filter(item => item !== null),  // Filtra elementos nulos        
         style: 'paragraph',
         margin: [0, 20, 0, 0],
@@ -600,6 +617,17 @@ export const certificadoInforme = (
         alignment: 'center' as const,
         margin: [0, 0, 0, 0] as [number, number, number, number],
       },
+      ...(medicoFirmante.nombreCredencialAdicional2 && medicoFirmante.numeroCredencialAdicional2
+        ? [{
+            text: proveedorSalud.pais === 'GT'
+              ? `${medicoFirmante.nombreCredencialAdicional2} No. ${medicoFirmante.numeroCredencialAdicional2}.`
+              : `${medicoFirmante.nombreCredencialAdicional2} No. ${medicoFirmante.numeroCredencialAdicional2}.`,
+            fontSize: 10,
+            bold: false,
+            alignment: 'center' as const,
+            margin: [0, 0, 0, 0] as [number, number, number, number],
+          }]
+        : []),
       firma,
     ],
     // Pie de pagina

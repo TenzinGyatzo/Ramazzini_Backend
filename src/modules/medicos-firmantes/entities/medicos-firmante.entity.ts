@@ -11,6 +11,8 @@ export class MedicoFirmante extends Document {
     numeroCedulaEspecialista?: string;
     nombreCredencialAdicional?: string;
     numeroCredencialAdicional?: string;
+    nombreCredencialAdicional2?: string;
+    numeroCredencialAdicional2?: string;
     firma?: {
         data: string;
         contentType: string
