@@ -170,6 +170,21 @@ export class CreateNotaMedicaDto {
   })
   resultadoObtenidoaTravesde?: number;
 
+  // CEX: Embarazo
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @IsIn([-1, 0, 1], {
+    message: 'relacionTemporalEmbarazo: -1 (No aplica), 0 (Primera vez) o 1 (Subsecuente)',
+  })
+  relacionTemporalEmbarazo?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @IsIn([-1, 1, 2, 3], {
+    message: 'trimestreGestacional: -1 (No aplica), 1, 2 o 3',
+  })
+  trimestreGestacional?: number;
+
   @IsOptional()
   @IsString({ message: 'El diagnóstico debe ser un string' })
   diagnostico: string; // Free-text diagnosis (backward compatibility)

@@ -17,6 +17,7 @@ export interface CatalogLookup {
   validateEntidadFederativa?(code: string): Promise<boolean>;
   validateClues?(clues: string): Promise<boolean>;
   validateTipoPersonal?(code: string): Promise<boolean>;
+  validateServicioAtencion?(code: string): Promise<boolean>;
   validateAfiliacion?(code: string): Promise<boolean>;
 }
 
@@ -344,6 +345,24 @@ async function validateFieldByRule(
           rowIndex,
           field: name,
           cause: 'Valor no encontrado en catálogo TIPO PERSONAL',
+          severity: 'blocker',
+        });
+      }
+    }
+    return errors;
+  }
+
+  // SERVICIO ATENCION
+  if (name === 'servicioAtencion') {
+    if (catalogLookup?.validateServicioAtencion) {
+      const code = String(getNum(row, name) ?? raw).trim();
+      const valid = await catalogLookup.validateServicioAtencion(code);
+      if (!valid) {
+        errors.push({
+          guide,
+          rowIndex,
+          field: name,
+          cause: 'Valor no encontrado en catálogo SERVICIOS DE ATENCIÓN CE',
           severity: 'blocker',
         });
       }

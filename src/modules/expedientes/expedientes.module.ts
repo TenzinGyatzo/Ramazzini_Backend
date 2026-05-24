@@ -104,6 +104,7 @@ import { DailyConsentGuard } from '../../utils/guards/daily-consent.guard';
 import { AuditModule } from '../audit/audit.module';
 import { UsersModule } from '../users/users.module';
 import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
+import { FirmanteHelperModule } from './firmante-helper.module';
 
 @Module({
   controllers: [
@@ -172,6 +173,7 @@ import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
     AuditModule,
     UsersModule,
     TrabajadoresModule,
+    FirmanteHelperModule,
   ],
   exports: [ExpedientesService],
 })

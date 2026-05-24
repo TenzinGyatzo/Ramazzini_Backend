@@ -49,6 +49,8 @@ import { DgisCifradoService } from '../../src/modules/giis-export/crypto/dgis-ci
 import { GiisExportAuditService } from '../../src/modules/giis-export/giis-export-audit.service';
 import { FirmanteHelper } from '../../src/modules/expedientes/helpers/firmante-helper';
 import { CatalogsService } from '../../src/modules/catalogs/catalogs.service';
+import { CexCatalogResolver } from '../../src/modules/catalogs/cex-catalog.resolver';
+import { mockCexCatalogResolver } from '../fixtures/cex-catalog-resolver.mock';
 import { validNotaMedicaCex } from '../fixtures/nota-medica.fixtures';
 
 const mockGiisValidationService = {
@@ -79,6 +81,7 @@ describe('NOM-024 GIIS Export CEX (Phase 1C)', () => {
 
   beforeAll(async () => {
     mongoUri = await startMongoMemoryServer();
+    process.env.GIIS_CEX_LOAD_QUALITY_RULES = 'false';
     process.env.GIIS_3DES_KEY_BASE64 =
       process.env.GIIS_3DES_KEY_BASE64 ||
       Buffer.alloc(24, 0x01).toString('base64');
@@ -129,6 +132,10 @@ describe('NOM-024 GIIS Export CEX (Phase 1C)', () => {
             getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
           },
         },
+        {
+          provide: CexCatalogResolver,
+          useValue: mockCexCatalogResolver,
+        },
       ],
     }).compile();
     service = testingModule.get<GiisBatchService>(GiisBatchService);
@@ -137,6 +144,7 @@ describe('NOM-024 GIIS Export CEX (Phase 1C)', () => {
   }, 30000);
 
   afterAll(async () => {
+    delete process.env.GIIS_CEX_LOAD_QUALITY_RULES;
     delete process.env.GIIS_3DES_KEY_BASE64;
     await stopMongoMemoryServer();
   }, 10000);
@@ -150,7 +158,7 @@ describe('NOM-024 GIIS Export CEX (Phase 1C)', () => {
       nombreComercial: 'Test SA',
       razonSocial: 'Test SA',
       RFC: 'TST123456ABC',
-      idProveedorSalud: proveedorId,
+      idProveedorSalud: new Types.ObjectId(proveedorId),
       createdBy,
       updatedBy: createdBy,
     });
@@ -209,6 +217,11 @@ describe('NOM-024 GIIS Export CEX (Phase 1C)', () => {
 });
 
 describe('CEX mapper unit', () => {
+  const cexContextBase = {
+    clues: 'DFSSA001234',
+    cexDefaults: { tipoPersonal: 2, servicioAtencion: 4 },
+  };
+
   it('should output 106 keys from schema and include clues and required fields', () => {
     const schema = getCexSchema();
     expect(schema.fields.length).toBe(106);
@@ -229,7 +242,7 @@ describe('CEX mapper unit', () => {
     };
     const row = mapNotaMedicaToCexRow(
       consulta,
-      { clues: 'DFSSA001234' },
+      cexContextBase,
       trabajador,
     );
 
@@ -238,6 +251,39 @@ describe('CEX mapper unit', () => {
     expect(row.curpPaciente).toBe('PEGJ850102HDFRNN08');
     expect(row.fechaConsulta).toBe('15/01/2025');
     expect(row.codigoCIEDiagnostico1).toBe('Z00');
+    expect(row.servicioAtencion).toBe(4);
+    expect(row.tipoPersonal).toBe(2);
+  });
+
+  it('should use servicioAtencion from prestador when provided', () => {
+    const consulta = {
+      fechaNotaMedica: new Date('2025-01-15'),
+      codigoCIE10Principal: 'Z00',
+      relacionTemporal: 0,
+    };
+    const trabajador = {
+      curp: 'PEGJ850102HDFRNN08',
+      nombre: 'JUAN',
+      primerApellido: 'PEREZ',
+      segundoApellido: 'GONZALEZ',
+      fechaNacimiento: new Date('1985-01-02'),
+      sexo: 'Masculino',
+      entidadNacimiento: '09',
+    };
+    const prestador = {
+      curp: 'X',
+      nombre: 'Dr X',
+      tipoPersonal: 4,
+      servicioAtencion: 7,
+    };
+    const row = mapNotaMedicaToCexRow(
+      consulta,
+      cexContextBase,
+      trabajador,
+      prestador,
+    );
+    expect(row.tipoPersonal).toBe(4);
+    expect(row.servicioAtencion).toBe(7);
   });
 
   it('should extract CIE code from "CODE - DESCRIPTION" format', () => {
@@ -265,7 +311,7 @@ describe('CEX mapper unit', () => {
   });
 
   describe('sintomaticoRespiratorioTb', () => {
-    const context = { clues: 'DFSSA001234' };
+    const context = cexContextBase;
     const trabajador = {
       curp: 'PEGJ850102HDFRNN08',
       nombre: 'JUAN',
@@ -384,6 +430,73 @@ describe('CEX mapper unit', () => {
         prestadorTipo16,
       );
       expect(row.sintomaticoRespiratorioTb).toBe(-1);
+    });
+  });
+
+  describe('relacionTemporalEmbarazo and trimestreGestacional', () => {
+    const mujerElegible = {
+      curp: 'ROMA900315MDFRRN01',
+      nombre: 'MARIA',
+      primerApellido: 'RODRIGUEZ',
+      segundoApellido: 'MARTINEZ',
+      fechaNacimiento: new Date('1990-03-15'),
+      sexo: 'Femenino',
+      entidadNacimiento: '09',
+    };
+
+    it('should export -1 for male patient even if embarazo values are present', () => {
+      const consulta = {
+        fechaNotaMedica: new Date('2025-01-15'),
+        codigoCIE10Principal: 'Z00',
+        relacionTemporal: 0,
+        relacionTemporalEmbarazo: 0,
+        trimestreGestacional: 2,
+      };
+      const row = mapNotaMedicaToCexRow(
+        consulta,
+        cexContextBase,
+        {
+          ...mujerElegible,
+          sexo: 'Masculino',
+          curp: 'PEGJ850102HDFRNN08',
+        },
+      );
+      expect(row.relacionTemporalEmbarazo).toBe(-1);
+      expect(row.trimestreGestacional).toBe(-1);
+    });
+
+    it('should export embarazo values for eligible female patient', () => {
+      const consulta = {
+        fechaNotaMedica: new Date('2025-01-15'),
+        codigoCIE10Principal: 'Z34',
+        relacionTemporal: 0,
+        relacionTemporalEmbarazo: 1,
+        trimestreGestacional: 3,
+      };
+      const row = mapNotaMedicaToCexRow(
+        consulta,
+        cexContextBase,
+        mujerElegible,
+      );
+      expect(row.relacionTemporalEmbarazo).toBe(1);
+      expect(row.trimestreGestacional).toBe(3);
+    });
+
+    it('should export -1 when eligible female selects no aplica', () => {
+      const consulta = {
+        fechaNotaMedica: new Date('2025-01-15'),
+        codigoCIE10Principal: 'Z00',
+        relacionTemporal: 0,
+        relacionTemporalEmbarazo: -1,
+        trimestreGestacional: -1,
+      };
+      const row = mapNotaMedicaToCexRow(
+        consulta,
+        cexContextBase,
+        mujerElegible,
+      );
+      expect(row.relacionTemporalEmbarazo).toBe(-1);
+      expect(row.trimestreGestacional).toBe(-1);
     });
   });
 });

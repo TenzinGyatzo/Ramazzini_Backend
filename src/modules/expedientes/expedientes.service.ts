@@ -42,7 +42,7 @@ import {
 } from '../../utils/vital-signs-validator.util';
 import { InformesService } from '../informes/informes.service';
 import { forwardRef, Inject } from '@nestjs/common';
-import { mapSexoToNumeric } from '../../utils/sexo-mapper.util';
+import { mapSexoToGiisBiologico } from '../../utils/sexo-mapper.util';
 import { calculateAge } from '../../utils/age-calculator.util';
 import {
   CIE10Entry,
@@ -50,7 +50,17 @@ import {
 } from '../catalogs/interfaces/catalog-entry.interface';
 import { validateFechaDocumento } from './validators/date-validators';
 import { validateNoDuplicateCIE10PrincipalAndComplementary } from './validators/diagnosis-duplicate.validator';
+import { validateCodigoCIEDiagnostico1 } from './validators/cie10-diagnostico1.validator';
+import { validateCodigoCIEDiagnostico23 } from './validators/cie10-diagnostico23.validator';
+import { validateConfirmacionDiagnosticaFields } from './validators/confirmacion-diagnostica.validator';
 import { validateCie10SexAgeAgainstCatalog } from './validators/cie10-catalog-sex-age.validator';
+import { isCIE10Exact4Chars } from '../../utils/cie10-diagnostico-sis.util';
+import { FirmanteHelper } from './helpers/firmante-helper';
+import { CexCatalogResolver } from '../catalogs/cex-catalog.resolver';
+import {
+  normalizarCamposEmbarazo,
+  validarCamposEmbarazo,
+} from './validators/nota-medica-embarazo.validator';
 import { Cie10CatalogLookupService } from './services/cie10-catalog-lookup.service';
 import { ProveedoresSaludService } from '../proveedores-salud/proveedores-salud.service';
 import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
@@ -127,6 +137,8 @@ export class ExpedientesService {
     private readonly auditService: AuditService,
     private readonly usersService: UsersService,
     private readonly workerFusionService: WorkerFusionService,
+    private readonly firmanteHelper: FirmanteHelper,
+    private readonly cexCatalogResolver: CexCatalogResolver,
   ) {
     this.models = {
       antidoping: this.antidopingModel,
@@ -242,8 +254,8 @@ export class ExpedientesService {
       }
     }
 
-    // 3. Mapear sexo a numérico (1/2)
-    const sexoBiologico = mapSexoToNumeric(trabajador.sexo);
+    // 3. Mapear sexo a numérico GIIS (1/2/3)
+    const sexoBiologico = mapSexoToGiisBiologico(trabajador.sexo);
 
     // Helper function to extract code from "CODE - DESCRIPTION" format
     const extractCodeFromFullText = (value: string): string => {
@@ -266,6 +278,13 @@ export class ExpedientesService {
       // Extraer solo el código del formato "CODE - DESCRIPTION"
       const codigoNormalizado = extractCodeFromFullText(codigo).toUpperCase();
 
+      if (documentType === 'notaMedica' && !isCIE10Exact4Chars(codigoNormalizado)) {
+        errors.push(
+          `Código CIE-10 ${tipo} inválido: debe tener exactamente 4 caracteres (CATALOG_KEY DIAGNOSTICO_SIS).`,
+        );
+        return;
+      }
+
       // Validar existencia en catálogo
       const isValid =
         await this.catalogsService.validateCIE10(codigoNormalizado);
@@ -285,41 +304,6 @@ export class ExpedientesService {
       if (!entry) {
         return;
       }
-
-      // Validar LSEX vs sexoBiologico (con excepción para intersexual=3)
-      // LSEX en el catálogo: "NO" = ambos sexos, "SI" = restricción (típicamente masculino)
-      // Nota: El formato exacto puede variar, pero "NO" siempre significa sin restricción
-      if (sexoBiologico !== null && entry.lsex && entry.lsex !== 'NO') {
-        // Si LSEX tiene un valor diferente de "NO", hay restricción de sexo
-        // Por ahora, asumimos que "SI" indica restricción masculina
-        // Si el paciente es mujer (2) y hay restricción, error
-        if (entry.lsex === 'SI' && sexoBiologico === 2) {
-          errors.push(
-            `El código CIE-10 ${tipo} ${codigoNormalizado} no es aplicable para pacientes de sexo femenino (restricción LSEX)`,
-          );
-        }
-        // Si el paciente es hombre (1) y LSEX = "SI", podría ser válido
-        // Nota: La especificación menciona valores 0,1,2 pero el CSV usa "NO"/"SI"
-        // Esta validación es una aproximación - puede necesitar ajuste según documentación oficial
-      }
-
-      // Validar LINF/LSUP vs edad
-      if (edad !== null) {
-        if (entry.linf !== undefined && edad < entry.linf) {
-          errors.push(
-            `El código CIE-10 ${tipo} ${codigoNormalizado} no es aplicable para pacientes menores de ${entry.linf} años. Edad del paciente: ${edad} años`,
-          );
-        }
-        if (entry.lsup !== undefined && edad > entry.lsup) {
-          errors.push(
-            `El código CIE-10 ${tipo} ${codigoNormalizado} no es aplicable para pacientes mayores de ${entry.lsup} años. Edad del paciente: ${edad} años`,
-          );
-        }
-      }
-
-      // Validar RUBRICA_TYPE (excluir encabezados si aplica)
-      // RUBRICA_TYPE puede indicar si es un encabezado no seleccionable
-      // Por ahora, solo validamos si es necesario según la especificación
 
       // Validar diagnósticos exclusivos
       // Si código inicia con S/T (Cap. XIX) o V-Y (Cap. XX) → requerir causaExterna
@@ -351,8 +335,53 @@ export class ExpedientesService {
     // La validación de obligatoriedad ya se hizo arriba basándose en la política regulatoria
     const codigoPrincipalFull = dto.codigoCIE10Principal?.trim() || '';
     if (codigoPrincipalFull) {
-      // Si el código está presente, validarlo (aplica a ambos tipos de documentos)
-      await validateCIE10Code(codigoPrincipalFull, 'principal');
+      if (documentType === 'notaMedica') {
+        let tipoPersonal: number | null = null;
+        const userId = dto.createdBy || dto.updatedBy;
+        if (userId) {
+          const prestador = await this.firmanteHelper.getPrestadorDataFromUser(
+            String(userId),
+          );
+          tipoPersonal = prestador?.tipoPersonal ?? null;
+        }
+
+        const diag1Issues = await validateCodigoCIEDiagnostico1({
+          codigoCIE10Principal: codigoPrincipalFull,
+          relacionTemporal: dto.relacionTemporal,
+          sexoBiologico,
+          edad,
+          tipoPersonal,
+          lookup: this.cie10CatalogLookupService.findDiagnosisRule.bind(
+            this.cie10CatalogLookupService,
+          ),
+          catalogExists: (key) => this.catalogsService.validateCIE10(key),
+        });
+        for (const issue of diag1Issues) {
+          errors.push(issue.message);
+        }
+
+        const codigoNorm = extractCodeFromFullText(codigoPrincipalFull).toUpperCase();
+        const primeraLetra = codigoNorm.charAt(0);
+        if (
+          primeraLetra === 'S' ||
+          primeraLetra === 'T' ||
+          (primeraLetra >= 'V' && primeraLetra <= 'Y')
+        ) {
+          const codigoCausaFull = dto.codigoCIECausaExterna?.trim() || '';
+          if (!codigoCausaFull) {
+            errors.push(
+              `El código CIE-10 ${codigoNorm} (Capítulo ${primeraLetra === 'S' || primeraLetra === 'T' ? 'XIX' : 'XX'}) requiere especificar una causa externa (codigoCIECausaExterna)`,
+            );
+          }
+        }
+        if (codigoNorm.startsWith('R69')) {
+          warnings.push(
+            `Advertencia: El código ${codigoNorm} (Morbilidad desconocida) se tolera máximo un 5% por carga. Se recomienda especificar más el diagnóstico si es posible.`,
+          );
+        }
+      } else {
+        await validateCIE10Code(codigoPrincipalFull, 'principal');
+      }
     }
     // Si no hay código, la validación de obligatoriedad ya se hizo arriba (líneas 167-182)
 
@@ -391,71 +420,99 @@ export class ExpedientesService {
       }
     }
 
-    // Validate segundo diagnóstico (codigoCIEDiagnostico2)
-    // IMPORTANTE: Esta validación solo aplica a notas médicas
-    if (documentType === 'notaMedica' && dto.primeraVezDiagnostico2 === 1) {
-      const codigoDiagnostico2Full = dto.codigoCIEDiagnostico2?.trim() || '';
-      if (!codigoDiagnostico2Full) {
-        errors.push(
-          'El código CIE-10 diagnóstico 2 es obligatorio cuando primeraVezDiagnostico2 es Sí (1)',
+    // Validate diag 2/3 (codigoCIEDiagnostico2/3) — DIAGNOSTICO_SIS completo
+    if (documentType === 'notaMedica') {
+      let tipoPersonal: number | null = null;
+      const userId = dto.createdBy || dto.updatedBy;
+      if (userId) {
+        const prestador = await this.firmanteHelper.getPrestadorDataFromUser(
+          String(userId),
         );
-      } else {
-        // Validar que sea diferente al principal (comparar códigos extraídos)
-        const codigoPrincipal = extractCodeFromFullText(codigoPrincipalFull);
-        const codigoDiagnostico2 = extractCodeFromFullText(
-          codigoDiagnostico2Full,
-        );
-        if (
-          codigoPrincipal &&
-          codigoPrincipal.toUpperCase() === codigoDiagnostico2.toUpperCase()
-        ) {
-          errors.push(
-            'El código CIE-10 diagnóstico 2 debe ser diferente al código CIE-10 principal',
-          );
-        } else {
-          await validateCIE10Code(codigoDiagnostico2Full, 'diagnostico2');
-        }
+        tipoPersonal = prestador?.tipoPersonal ?? null;
       }
-    }
+      const cexTp = this.cexCatalogResolver.getCodes().tipoPersonal;
+      const lookup = this.cie10CatalogLookupService.findDiagnosisRule.bind(
+        this.cie10CatalogLookupService,
+      );
+      const catalogExists = (key: string) =>
+        this.catalogsService.validateCIE10(key);
 
-    // Validate tercer diagnóstico (codigoCIEDiagnostico3)
-    // IMPORTANTE: Esta validación solo aplica a notas médicas
-    if (documentType === 'notaMedica' && dto.primeraVezDiagnostico3 === 1) {
-      const codigoDiagnostico3Full = dto.codigoCIEDiagnostico3?.trim() || '';
-      if (!codigoDiagnostico3Full) {
-        errors.push(
-          'El código CIE-10 diagnóstico 3 es obligatorio cuando primeraVezDiagnostico3 es Sí (1)',
-        );
-      } else {
-        const codigoPrincipal = extractCodeFromFullText(codigoPrincipalFull);
-        const codigoDiagnostico3 = extractCodeFromFullText(
-          codigoDiagnostico3Full,
-        );
-        const codigoDiagnostico2 = extractCodeFromFullText(
-          dto.codigoCIEDiagnostico2?.trim() || '',
-        );
-        const comp = dto.codigosCIE10Complementarios || [];
-        const codigosComplementarios = comp
-          .filter((c) => c && c.trim() !== '')
-          .map((c) => extractCodeFromFullText(c.trim()).toUpperCase());
-        const codigo3Upper = codigoDiagnostico3.toUpperCase();
-        if (codigoPrincipal && codigoPrincipal.toUpperCase() === codigo3Upper) {
-          errors.push(
-            'El código CIE-10 diagnóstico 3 debe ser diferente al código CIE-10 principal',
-          );
-        } else if (
-          codigoDiagnostico2 &&
-          codigoDiagnostico2.toUpperCase() === codigo3Upper
-        ) {
-          errors.push(
-            'El código CIE-10 diagnóstico 3 debe ser diferente al código CIE-10 diagnóstico 2',
-          );
-        } else if (codigosComplementarios.some((c) => c === codigo3Upper)) {
-          errors.push(
-            'El código CIE-10 diagnóstico 3 debe ser diferente a los diagnósticos complementarios',
-          );
-        } else {
-          await validateCIE10Code(codigoDiagnostico3Full, 'diagnostico3');
+      const diag2Issues = await validateCodigoCIEDiagnostico23({
+        field: 'codigoCIEDiagnostico2',
+        codigo: dto.codigoCIEDiagnostico2,
+        primeraVez: dto.primeraVezDiagnostico2,
+        codigoCIEDiagnostico1: codigoPrincipalFull,
+        sexoBiologico,
+        edad,
+        tipoPersonal,
+        tipoPersonalMedicoGeneral: cexTp.medicoGeneral,
+        tipoPersonalMedicoEspecialista: cexTp.medicoEspecialista,
+        lookup,
+        catalogExists,
+      });
+      for (const issue of diag2Issues) {
+        errors.push(issue.message);
+      }
+
+      const diag3Issues = await validateCodigoCIEDiagnostico23({
+        field: 'codigoCIEDiagnostico3',
+        codigo: dto.codigoCIEDiagnostico3,
+        primeraVez: dto.primeraVezDiagnostico3,
+        primeraVezDiagnostico2: dto.primeraVezDiagnostico2,
+        codigoCIEDiagnostico1: codigoPrincipalFull,
+        codigoCIEDiagnostico2: dto.codigoCIEDiagnostico2,
+        sexoBiologico,
+        edad,
+        tipoPersonal,
+        tipoPersonalMedicoGeneral: cexTp.medicoGeneral,
+        tipoPersonalMedicoEspecialista: cexTp.medicoEspecialista,
+        lookup,
+        catalogExists,
+      });
+      for (const issue of diag3Issues) {
+        errors.push(issue.message);
+      }
+
+      const confirmacionIssues = await validateConfirmacionDiagnosticaFields({
+        confirmacionDiagnostica: dto.confirmacionDiagnostica,
+        confirmacionDiagnostica2: dto.confirmacionDiagnostica2,
+        confirmacionDiagnostica3: dto.confirmacionDiagnostica3,
+        codigoCIE10Principal: codigoPrincipalFull,
+        codigoCIEDiagnostico2: dto.codigoCIEDiagnostico2,
+        codigoCIEDiagnostico3: dto.codigoCIEDiagnostico3,
+        relacionTemporal: dto.relacionTemporal,
+        primeraVezDiagnostico2: dto.primeraVezDiagnostico2,
+        primeraVezDiagnostico3: dto.primeraVezDiagnostico3,
+        tipoPersonal,
+        fechaNacimiento: trabajador.fechaNacimiento,
+        fechaNotaMedica: dto.fechaNotaMedica,
+        lookup,
+      });
+      for (const issue of confirmacionIssues) {
+        errors.push(issue.message);
+      }
+
+      // Sexo/edad solo complementarios (principal y diag2/3 ya validados arriba)
+      if (trabajador.sexo && trabajador.fechaNacimiento) {
+        const compOnly = [
+          {
+            field: 'codigosCIE10Complementarios',
+            value: dto.codigosCIE10Complementarios || [],
+          },
+        ];
+        const compSexAge = await validateCie10SexAgeAgainstCatalog({
+          trabajadorSexo: trabajador.sexo,
+          trabajadorFechaNacimiento: trabajador.fechaNacimiento,
+          fechaNotaMedica: dto.fechaNotaMedica,
+          cie10Fields: compOnly,
+          lookup,
+        });
+        if (!compSexAge.ok && compSexAge.issues.length > 0) {
+          for (const issue of compSexAge.issues) {
+            errors.push(
+              `Diagnóstico complementario ${issue.cie10}: ${issue.reason} (sexo/edad).`,
+            );
+          }
         }
       }
     }
@@ -541,65 +598,12 @@ export class ExpedientesService {
       }
     }
 
-    // Validación C3/C4: CIE-10 por sexo y edad para notaMedica
+    // Validación embarazo CEX para notaMedica
     if (documentType === 'notaMedica' && createDto.idTrabajador) {
-      const trabajador = await this.trabajadorModel
-        .findById(createDto.idTrabajador)
-        .lean();
-
-      if (trabajador && trabajador.sexo && trabajador.fechaNacimiento) {
-        // Recolectar todos los códigos CIE-10 del DTO
-        const cie10Fields = [
-          {
-            field: 'codigoCIE10Principal',
-            value: createDto.codigoCIE10Principal,
-          },
-          {
-            field: 'codigosCIE10Complementarios',
-            value: createDto.codigosCIE10Complementarios || [],
-          },
-          {
-            field: 'codigoCIEDiagnostico2',
-            value: createDto.codigoCIEDiagnostico2,
-          },
-          {
-            field: 'codigoCIEDiagnostico3',
-            value: createDto.codigoCIEDiagnostico3,
-          },
-        ];
-
-        // Validar restricciones de sexo y edad usando catálogo
-        const validationResult = await validateCie10SexAgeAgainstCatalog({
-          trabajadorSexo: trabajador.sexo,
-          trabajadorFechaNacimiento: trabajador.fechaNacimiento,
-          fechaNotaMedica: createDto.fechaNotaMedica,
-          cie10Fields,
-          lookup: this.cie10CatalogLookupService.findDiagnosisRule.bind(
-            this.cie10CatalogLookupService,
-          ),
-        });
-
-        // Si hay violaciones, lanzar error con formato especificado
-        if (!validationResult.ok && validationResult.issues.length > 0) {
-          throw new BadRequestException({
-            code: 'VALIDATION_ERROR',
-            ruleId: 'CIE10_SEX_AGE',
-            message:
-              'Uno o más diagnósticos CIE-10 no son válidos para el sexo o la edad del trabajador',
-            details: validationResult.issues.map((issue) => ({
-              field: issue.field,
-              cie10: issue.cie10,
-              catalogKeyUsed: issue.catalogKeyUsed,
-              lsex: issue.lsex,
-              linf: issue.linf,
-              lsup: issue.lsup,
-              sexoTrabajador: issue.sexoTrabajador,
-              edadTrabajador: issue.edadTrabajador,
-              reason: issue.reason,
-            })),
-          });
-        }
-      }
+      await this.validateAndNormalizeEmbarazoForNotaMedica(
+        createDto,
+        createDto.idTrabajador,
+      );
     }
 
     // Validación específica para notas aclaratorias: solo permitir para SIRES_NOM024
@@ -980,6 +984,33 @@ export class ExpedientesService {
   }
 
   /**
+   * Normaliza y valida relacionTemporalEmbarazo / trimestreGestacional (CEX).
+   */
+  private async validateAndNormalizeEmbarazoForNotaMedica(
+    dto: {
+      relacionTemporalEmbarazo?: number;
+      trimestreGestacional?: number;
+      fechaNotaMedica?: Date | string;
+    },
+    trabajadorId: string,
+  ): Promise<void> {
+    const trabajador = await this.trabajadorModel.findById(trabajadorId).lean();
+    if (!trabajador) {
+      throw new BadRequestException('Trabajador no encontrado');
+    }
+
+    normalizarCamposEmbarazo(dto, trabajador);
+    const validation = validarCamposEmbarazo(dto, trabajador);
+    if (!validation.ok) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        ruleId: 'CEX_EMBARAZO',
+        message: validation.message,
+      });
+    }
+  }
+
+  /**
    * Validate vital signs for NOM-024 compliance
    * - MX providers: Strict enforcement (throw errors)
    * - Non-MX providers: Warnings only (log but allow)
@@ -1181,87 +1212,21 @@ export class ExpedientesService {
           ],
         });
       }
+    }
 
-      // Validación C3/C4: CIE-10 por sexo y edad para notaMedica
-      const trabajador = await this.trabajadorModel
-        .findById(trabajadorId)
-        .lean();
-
-      if (trabajador && trabajador.sexo && trabajador.fechaNacimiento) {
-        // Usar valores del updateDto si existen, sino del documento existente
-        const finalCodigoPrincipal =
-          updateDto.codigoCIE10Principal !== undefined
-            ? updateDto.codigoCIE10Principal
-            : existingDocument.codigoCIE10Principal;
-        const finalCodigosComplementarios =
-          updateDto.codigosCIE10Complementarios !== undefined
-            ? updateDto.codigosCIE10Complementarios
-            : existingDocument.codigosCIE10Complementarios;
-        const finalCodigoDiagnostico2 =
-          updateDto.codigoCIEDiagnostico2 !== undefined
-            ? updateDto.codigoCIEDiagnostico2
-            : existingDocument.codigoCIEDiagnostico2;
-        const finalCodigoDiagnostico3 =
-          updateDto.codigoCIEDiagnostico3 !== undefined
-            ? updateDto.codigoCIEDiagnostico3
-            : existingDocument.codigoCIEDiagnostico3;
-        const finalFechaNotaMedica =
-          updateDto.fechaNotaMedica !== undefined
-            ? updateDto.fechaNotaMedica
-            : existingDocument.fechaNotaMedica;
-
-        // Recolectar todos los códigos CIE-10
-        const cie10Fields = [
-          {
-            field: 'codigoCIE10Principal',
-            value: finalCodigoPrincipal,
-          },
-          {
-            field: 'codigosCIE10Complementarios',
-            value: finalCodigosComplementarios || [],
-          },
-          {
-            field: 'codigoCIEDiagnostico2',
-            value: finalCodigoDiagnostico2,
-          },
-          {
-            field: 'codigoCIEDiagnostico3',
-            value: finalCodigoDiagnostico3,
-          },
-        ];
-
-        // Validar restricciones de sexo y edad usando catálogo
-        const validationResult = await validateCie10SexAgeAgainstCatalog({
-          trabajadorSexo: trabajador.sexo,
-          trabajadorFechaNacimiento: trabajador.fechaNacimiento,
-          fechaNotaMedica: finalFechaNotaMedica,
-          cie10Fields,
-          lookup: this.cie10CatalogLookupService.findDiagnosisRule.bind(
-            this.cie10CatalogLookupService,
-          ),
-        });
-
-        // Si hay violaciones, lanzar error con formato especificado
-        if (!validationResult.ok && validationResult.issues.length > 0) {
-          throw new BadRequestException({
-            code: 'VALIDATION_ERROR',
-            ruleId: 'CIE10_SEX_AGE',
-            message:
-              'Uno o más diagnósticos CIE-10 no son válidos para el sexo o la edad del trabajador',
-            details: validationResult.issues.map((issue) => ({
-              field: issue.field,
-              cie10: issue.cie10,
-              catalogKeyUsed: issue.catalogKeyUsed,
-              lsex: issue.lsex,
-              linf: issue.linf,
-              lsup: issue.lsup,
-              sexoTrabajador: issue.sexoTrabajador,
-              edadTrabajador: issue.edadTrabajador,
-              reason: issue.reason,
-            })),
-          });
-        }
-      }
+    // Validación embarazo CEX para notaMedica (update)
+    if (documentType === 'notaMedica' && trabajadorId) {
+      const mergedEmbarazoDto = {
+        ...existingDocument.toObject?.(),
+        ...updateDto,
+      };
+      await this.validateAndNormalizeEmbarazoForNotaMedica(
+        mergedEmbarazoDto,
+        trabajadorId,
+      );
+      updateDto.relacionTemporalEmbarazo =
+        mergedEmbarazoDto.relacionTemporalEmbarazo;
+      updateDto.trimestreGestacional = mergedEmbarazoDto.trimestreGestacional;
     }
 
     let result;

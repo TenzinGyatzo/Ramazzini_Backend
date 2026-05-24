@@ -4,6 +4,10 @@ import type {
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
 import { formatearNombreTrabajador } from '../../../utils/names';
+import {
+  isPrimeraVezComorbilidadActiva,
+  tieneComorbilidadDiagRegistrada,
+} from '../../../utils/cie10-diagnostico-sis.util';
 import { FooterFirmantesData } from '../interfaces/firmante-data.interface';
 import { generarFooterFirmantes } from '../helpers/footer-firmantes.helper';
 
@@ -210,45 +214,23 @@ function extractCIE10Description(value: string | null | undefined): string {
 }
 
 /**
- * Determina si requiere confirmación diagnóstica basado en el código CIE-10 principal
- * Requiere confirmación si es crónico (E11*, I1*) o cáncer (C*)
+ * Determina si debe mostrarse confirmación diagnóstica en PDF/visualizador.
+ * Usa flags precomputados cuando están disponibles (normativa CEX completa).
  */
-function requiereConfirmacionDiagnostica(
-  codigoCIE10Principal?: string,
+function muestraConfirmacionDiagnosticaEnInforme(
+  notaMedica: NotaMedica,
+  slot: 1 | 2 | 3,
 ): boolean {
-  if (!codigoCIE10Principal) return false;
-  const codigo = extractCIE10Code(codigoCIE10Principal).toUpperCase();
-  const esCronico = codigo.startsWith('E11') || codigo.startsWith('I1');
-  const esCancer = codigo.startsWith('C');
-  return esCronico || esCancer;
-}
-
-/**
- * Determina si requiere confirmación diagnóstica 2 basado en el código CIE-10 diagnóstico 2
- * Misma lógica que requiereConfirmacionDiagnostica (E11*, I1*, C*)
- */
-function requiereConfirmacionDiagnostica2(
-  codigoCIEDiagnostico2?: string,
-): boolean {
-  if (!codigoCIEDiagnostico2) return false;
-  const codigo = extractCIE10Code(codigoCIEDiagnostico2).toUpperCase();
-  const esCronico = codigo.startsWith('E11') || codigo.startsWith('I1');
-  const esCancer = codigo.startsWith('C');
-  return esCronico || esCancer;
-}
-
-/**
- * Determina si requiere confirmación diagnóstica 3 basado en el código CIE-10 diagnóstico 3
- * Misma lógica que requiereConfirmacionDiagnostica (E11*, I1*, C*)
- */
-function requiereConfirmacionDiagnostica3(
-  codigoCIEDiagnostico3?: string,
-): boolean {
-  if (!codigoCIEDiagnostico3) return false;
-  const codigo = extractCIE10Code(codigoCIEDiagnostico3).toUpperCase();
-  const esCronico = codigo.startsWith('E11') || codigo.startsWith('I1');
-  const esCancer = codigo.startsWith('C');
-  return esCronico || esCancer;
+  if (slot === 1 && notaMedica.muestraConfirmacionDiagnostica1 != null) {
+    return notaMedica.muestraConfirmacionDiagnostica1;
+  }
+  if (slot === 2 && notaMedica.muestraConfirmacionDiagnostica2 != null) {
+    return notaMedica.muestraConfirmacionDiagnostica2;
+  }
+  if (slot === 3 && notaMedica.muestraConfirmacionDiagnostica3 != null) {
+    return notaMedica.muestraConfirmacionDiagnostica3;
+  }
+  return false;
 }
 
 // ==================== INTERFACES ====================
@@ -271,7 +253,7 @@ interface NotaMedica {
   fechaNotaMedica: Date;
   motivoConsulta: string;
   antecedentes: string;
-  exploracionFisica: string;
+  exploracionFisica?: string;
   tensionArterialSistolica: number;
   tensionArterialDiastolica: number;
   frecuenciaCardiaca: number;
@@ -291,6 +273,9 @@ interface NotaMedica {
   confirmacionDiagnostica3?: boolean;
   diagnosticoTexto?: string;
   confirmacionDiagnostica?: boolean;
+  muestraConfirmacionDiagnostica1?: boolean;
+  muestraConfirmacionDiagnostica2?: boolean;
+  muestraConfirmacionDiagnostica3?: boolean;
   codigoCIECausaExterna?: string;
   causaExterna?: string;
   tratamiento: string[];
@@ -307,6 +292,8 @@ interface NotaMedica {
   glucemia?: number;
   tipoMedicion?: number;
   resultadoObtenidoaTravesde?: number;
+  relacionTemporalEmbarazo?: number;
+  trimestreGestacional?: number;
 }
 
 interface MedicoFirmante {
@@ -484,6 +471,38 @@ function construirGlucemia(notaMedica: NotaMedica): Content | null {
           ? 'Laboratorio'
           : 'Tira de glucosa capilar',
     });
+  }
+
+  return {
+    text: datos,
+    margin: [0, 0, 0, 10],
+    style: 'paragraph',
+  };
+}
+
+function construirEmbarazo(notaMedica: NotaMedica): Content | null {
+  const rt = notaMedica.relacionTemporalEmbarazo;
+  if (rt === undefined || rt === null || rt === -1) return null;
+
+  const etiquetasRelacion: Record<number, string> = {
+    0: 'Primera Vez',
+    1: 'Subsecuente',
+  };
+  const etiquetasTrimestre: Record<number, string> = {
+    1: 'Primero',
+    2: 'Segundo',
+    3: 'Tercero',
+  };
+
+  const datos: Array<{ text: string; bold?: boolean }> = [];
+  datos.push({ text: 'Relación Temporal Embarazo: ', bold: true });
+  datos.push({ text: etiquetasRelacion[rt] || String(rt) });
+
+  const tg = notaMedica.trimestreGestacional;
+  if (tg != null && tg !== -1) {
+    datos.push({ text: '  |  ' });
+    datos.push({ text: 'Trimestre Gestacional: ', bold: true });
+    datos.push({ text: etiquetasTrimestre[tg] || String(tg) });
   }
 
   return {
@@ -694,14 +713,16 @@ export const notaMedicaInforme = (
         : null,
 
       // Exploracion Física
-      {
-        text: [
-          { text: `Exploración Física:`, bold: true },
-          { text: ` ${notaMedica.exploracionFisica} ` },
-        ],
-        margin: [0, 0, 0, 10],
-        style: 'paragraph',
-      },
+      notaMedica.exploracionFisica?.trim()
+        ? {
+            text: [
+              { text: `Exploración Física:`, bold: true },
+              { text: ` ${notaMedica.exploracionFisica.trim()} ` },
+            ],
+            margin: [0, 0, 0, 10],
+            style: 'paragraph',
+          }
+        : null,
 
       // Datos demográficos SIRES
       construirDatosDemograficos(notaMedica),
@@ -715,12 +736,15 @@ export const notaMedicaInforme = (
       // Glucemia SIRES
       construirGlucemia(notaMedica),
 
+      // Embarazo SIRES
+      construirEmbarazo(notaMedica),
+
       // Diagnóstico Principal y Complementarios (NOM-024) — grupo visual
       ...(notaMedica.codigoCIE10Principal ||
       (notaMedica.codigosCIE10Complementarios &&
         notaMedica.codigosCIE10Complementarios.length > 0) ||
       notaMedica.relacionTemporal !== undefined ||
-      (requiereConfirmacionDiagnostica(notaMedica.codigoCIE10Principal) &&
+      (muestraConfirmacionDiagnosticaEnInforme(notaMedica, 1) &&
         notaMedica.confirmacionDiagnostica !== undefined) ||
       notaMedica.codigoCIECausaExterna ||
       notaMedica.causaExterna
@@ -784,9 +808,7 @@ export const notaMedicaInforme = (
                       style: 'paragraph',
                     }
                   : null,
-                requiereConfirmacionDiagnostica(
-                  notaMedica.codigoCIE10Principal,
-                ) && notaMedica.confirmacionDiagnostica !== undefined
+                muestraConfirmacionDiagnosticaEnInforme(notaMedica, 1) && notaMedica.confirmacionDiagnostica !== undefined
                   ? {
                       text: [
                         {
@@ -840,22 +862,14 @@ export const notaMedicaInforme = (
         : []),
 
       // Diagnóstico Secundario (Diagnóstico 2) — grupo visual
-      ...((notaMedica.primeraVezDiagnostico2 !== undefined &&
-        notaMedica.primeraVezDiagnostico2 !== null) ||
-      notaMedica.codigoCIEDiagnostico2 ||
-      (requiereConfirmacionDiagnostica2(notaMedica.codigoCIEDiagnostico2) &&
-        notaMedica.confirmacionDiagnostica2 !== undefined) ||
-      (notaMedica.diagnosticoTexto &&
-        notaMedica.diagnosticoTexto.trim() !== '') ||
-      (notaMedica.diagnostico &&
-        notaMedica.diagnostico.trim() !== '' &&
-        notaMedica.primeraVezDiagnostico2 !== 1 &&
-        !notaMedica.codigoCIEDiagnostico2)
+      ...(tieneComorbilidadDiagRegistrada(
+        notaMedica.primeraVezDiagnostico2,
+        notaMedica.codigoCIEDiagnostico2,
+      )
         ? [
             {
               stack: [
-                notaMedica.primeraVezDiagnostico2 !== undefined &&
-                notaMedica.primeraVezDiagnostico2 !== null
+                isPrimeraVezComorbilidadActiva(notaMedica.primeraVezDiagnostico2)
                   ? {
                       text: [
                         {
@@ -894,9 +908,7 @@ export const notaMedicaInforme = (
                       style: 'paragraph',
                     }
                   : null,
-                requiereConfirmacionDiagnostica2(
-                  notaMedica.codigoCIEDiagnostico2,
-                ) && notaMedica.confirmacionDiagnostica2 !== undefined
+                muestraConfirmacionDiagnosticaEnInforme(notaMedica, 2) && notaMedica.confirmacionDiagnostica2 !== undefined
                   ? {
                       text: [
                         {
@@ -950,16 +962,14 @@ export const notaMedicaInforme = (
         : []),
 
       // Diagnóstico 3 — grupo visual
-      ...((notaMedica.primeraVezDiagnostico3 !== undefined &&
-        notaMedica.primeraVezDiagnostico3 !== null) ||
-      notaMedica.codigoCIEDiagnostico3 ||
-      (requiereConfirmacionDiagnostica3(notaMedica.codigoCIEDiagnostico3) &&
-        notaMedica.confirmacionDiagnostica3 !== undefined)
+      ...(tieneComorbilidadDiagRegistrada(
+        notaMedica.primeraVezDiagnostico3,
+        notaMedica.codigoCIEDiagnostico3,
+      )
         ? [
             {
               stack: [
-                notaMedica.primeraVezDiagnostico3 !== undefined &&
-                notaMedica.primeraVezDiagnostico3 !== null
+                isPrimeraVezComorbilidadActiva(notaMedica.primeraVezDiagnostico3)
                   ? {
                       text: [
                         {
@@ -998,9 +1008,7 @@ export const notaMedicaInforme = (
                       style: 'paragraph',
                     }
                   : null,
-                requiereConfirmacionDiagnostica3(
-                  notaMedica.codigoCIEDiagnostico3,
-                ) && notaMedica.confirmacionDiagnostica3 !== undefined
+                muestraConfirmacionDiagnosticaEnInforme(notaMedica, 3) && notaMedica.confirmacionDiagnostica3 !== undefined
                   ? {
                       text: [
                         {

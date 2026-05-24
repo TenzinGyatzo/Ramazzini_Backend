@@ -14,6 +14,7 @@ import {
   TecnicoFirmante,
   TecnicoFirmanteSchema,
 } from '../tecnicos-firmantes/schemas/tecnico-firmante.schema';
+import { CatalogsModule } from '../catalogs/catalogs.module';
 
 /**
  * Provides FirmanteHelper for resolving user -> firmante (medico/enfermera) data.
@@ -21,6 +22,7 @@ import {
  */
 @Module({
   imports: [
+    CatalogsModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: MedicoFirmante.name, schema: MedicoFirmanteSchema },

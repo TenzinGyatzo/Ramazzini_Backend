@@ -34,6 +34,14 @@ export interface CIE10Entry extends CatalogEntry {
   lsupRaw?: string; // Raw upper age limit from catalog (e.g., "120A", "NO")
   /** DIAGNOSTICO_SIS: MT / CP — restricción de tipo de personal (cat_tipo_personal DGIS) */
   letra?: string;
+  /** Prestadores permitidos cuando relacionTemporal/primeraVez = 0 (primera vez) */
+  tipoPersonal1VezCe?: number[];
+  /** Prestadores permitidos cuando relacionTemporal/primeraVez = 1 (subsecuente) */
+  tipoPersonalSubsecCe?: number[];
+  /** DIAGNOSTICO_SIS: DIA_CRONICOS = SI */
+  diaCronicos?: boolean;
+  /** DIAGNOSTICO_SIS: DIA_CAINFANTIL = SI */
+  diaCaInfantil?: boolean;
 }
 
 /**
@@ -78,8 +86,9 @@ export enum CatalogType {
   FORMACION_ACADEMICA = 'formacion_academica',
   ESCOLARIDAD = 'escolaridad',
 
-  // GIIS-B019 Catalogs (3) - Optional
+  // GIIS catalogs - Optional
   TIPO_PERSONAL = 'cat_tipo_personal',
   AFILIACION = 'cat_afiliacion',
   PAIS = 'cat_pais',
+  SERVICIOS_ATENCION_CE = 'servicios_atencion_por_tipo_personal_sis_ce',
 }

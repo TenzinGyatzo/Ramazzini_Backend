@@ -12,6 +12,11 @@ export interface DiagnosisRule {
   lsex: string; // Sex restriction: "NO", "MUJER", "HOMBRE", "SI"
   linf: string | null; // Lower age limit (raw format: "010A", "028D", etc.)
   lsup: string | null; // Upper age limit (raw format: "120A", etc.)
+  letra?: string | null;
+  tipoPersonal1VezCe?: number[];
+  tipoPersonalSubsecCe?: number[];
+  diaCronicos?: boolean;
+  diaCaInfantil?: boolean;
 }
 
 /**
@@ -62,6 +67,11 @@ export class Cie10CatalogLookupService {
         lsex: exactEntry.lsex || 'NO',
         linf: this.getRawAgeLimit(exactEntry.linfRaw, exactEntry.linf),
         lsup: this.getRawAgeLimit(exactEntry.lsupRaw, exactEntry.lsup),
+        letra: exactEntry.letra ?? null,
+        tipoPersonal1VezCe: exactEntry.tipoPersonal1VezCe,
+        tipoPersonalSubsecCe: exactEntry.tipoPersonalSubsecCe,
+        diaCronicos: exactEntry.diaCronicos ?? false,
+        diaCaInfantil: exactEntry.diaCaInfantil ?? false,
       };
     }
 
@@ -82,6 +92,11 @@ export class Cie10CatalogLookupService {
           lsex: prefixEntry.lsex || 'NO',
           linf: this.getRawAgeLimit(prefixEntry.linfRaw, prefixEntry.linf),
           lsup: this.getRawAgeLimit(prefixEntry.lsupRaw, prefixEntry.lsup),
+          letra: prefixEntry.letra ?? null,
+          tipoPersonal1VezCe: prefixEntry.tipoPersonal1VezCe,
+          tipoPersonalSubsecCe: prefixEntry.tipoPersonalSubsecCe,
+          diaCronicos: prefixEntry.diaCronicos ?? false,
+          diaCaInfantil: prefixEntry.diaCaInfantil ?? false,
         };
       }
     }

@@ -47,6 +47,8 @@ import { DgisCifradoService } from '../../src/modules/giis-export/crypto/dgis-ci
 import { GiisExportAuditService } from '../../src/modules/giis-export/giis-export-audit.service';
 import { FirmanteHelper } from '../../src/modules/expedientes/helpers/firmante-helper';
 import { CatalogsService } from '../../src/modules/catalogs/catalogs.service';
+import { CexCatalogResolver } from '../../src/modules/catalogs/cex-catalog.resolver';
+import { mockCexCatalogResolver } from '../fixtures/cex-catalog-resolver.mock';
 
 const mockGiisValidationService = {
   validateAndFilterRows: jest
@@ -136,6 +138,10 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
           useValue: {
             getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
           },
+        },
+        {
+          provide: CexCatalogResolver,
+          useValue: mockCexCatalogResolver,
         },
         {
           provide: UsersService,
@@ -291,6 +297,10 @@ describe('GIIS Export gate SIRES', () => {
           useValue: {
             getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
           },
+        },
+        {
+          provide: CexCatalogResolver,
+          useValue: mockCexCatalogResolver,
         },
       ],
     }).compile();

@@ -16,7 +16,8 @@ import { CentroTrabajo } from '../centros-trabajo/schemas/centro-trabajo.schema'
 import { Empresa } from '../empresas/schemas/empresa.schema';
 import { loadGiisSchema } from './schema-loader';
 import { GiisSerializerService } from './giis-serializer.service';
-import { mapNotaMedicaToCexRow } from './transformers/cex.mapper';
+import { mapNotaMedicaToCexRow, extractCieCode } from './transformers/cex.mapper';
+import { resolveCexDiagCatalogFlags } from './utils/cex-diag-catalog-flags.util';
 import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
 import { ProveedoresSaludService } from '../proveedores-salud/proveedores-salud.service';
 import { formatCLUES } from './formatters/field.formatter';
@@ -38,6 +39,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
 import { CatalogsService } from '../catalogs/catalogs.service';
+import { CexCatalogResolver } from '../catalogs/cex-catalog.resolver';
 import { giisExportConfig } from './config/giis-export.config';
 import { evaluateCexLoadQuality } from './validation/cex-load-quality.util';
 import { getTrabajadorIdsForProveedor } from './utils/giis-proveedor-scope.util';
@@ -92,6 +94,7 @@ export class GiisBatchService {
     private readonly auditService: AuditService,
     private readonly firmanteHelper: FirmanteHelper,
     private readonly catalogsService: CatalogsService,
+    private readonly cexCatalogResolver: CexCatalogResolver,
   ) {}
 
   async createBatch(
@@ -301,17 +304,45 @@ export class GiisBatchService {
       const prestadorData = userId
         ? await this.firmanteHelper.getPrestadorDataFromUser(userId)
         : null;
-      const cexContext = {
+      const cexCodes = this.cexCatalogResolver.getCodes();
+      const cexContextBase = {
         clues,
         getPaisCatalogKeyFromNacionalidad: (clave: string) =>
           this.catalogsService.getPaisCatalogKeyFromNacionalidad(clave),
+        cexDefaults: {
+          tipoPersonal: cexCodes.tipoPersonal.medicoGeneral,
+          servicioAtencion: cexCodes.servicioAtencion,
+        },
       };
-      const row = mapNotaMedicaToCexRow(
-        consultaWithPrimera,
-        cexContext,
-        trabajador,
-        prestadorData ?? undefined,
-      );
+      const row = await (async () => {
+        const codigo1 = extractCieCode(consultaWithPrimera.codigoCIE10Principal);
+        const diag2NoAplica =
+          consultaWithPrimera.primeraVezDiagnostico2 !== 0 &&
+          consultaWithPrimera.primeraVezDiagnostico2 !== 1;
+        const codigo2 = diag2NoAplica
+          ? ''
+          : extractCieCode(consultaWithPrimera.codigoCIEDiagnostico2 as string);
+        const diag3NoAplica =
+          consultaWithPrimera.primeraVezDiagnostico3 !== 0 &&
+          consultaWithPrimera.primeraVezDiagnostico3 !== 1;
+        const codigo3 = diag3NoAplica
+          ? ''
+          : extractCieCode(consultaWithPrimera.codigoCIEDiagnostico3 as string);
+        const diagCatalogFlags = await resolveCexDiagCatalogFlags(
+          this.catalogsService,
+          {
+            confirmacion1: codigo1,
+            confirmacion2: codigo2,
+            confirmacion3: codigo3,
+          },
+        );
+        return mapNotaMedicaToCexRow(
+          consultaWithPrimera,
+          { ...cexContextBase, diagCatalogFlags },
+          trabajador,
+          prestadorData ?? undefined,
+        );
+      })();
       rows.push(row);
     }
 

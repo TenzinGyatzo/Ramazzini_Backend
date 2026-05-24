@@ -8,10 +8,14 @@ import {
 } from '@nestjs/common';
 import { CatalogsService } from './catalogs.service';
 import { CatalogType } from './interfaces/catalog-entry.interface';
+import { CexCatalogResolver } from './cex-catalog.resolver';
 
 @Controller('api/catalogs')
 export class CatalogsController {
-  constructor(private readonly catalogsService: CatalogsService) {}
+  constructor(
+    private readonly catalogsService: CatalogsService,
+    private readonly cexCatalogResolver: CexCatalogResolver,
+  ) {}
 
   @Get('cie10/search')
   async searchCIE10(
@@ -232,6 +236,11 @@ export class CatalogsController {
     return entry;
   }
 
+  @Get('cex/codes')
+  getCexCatalogCodes() {
+    return this.cexCatalogResolver.getCodes();
+  }
+
   @Get('giis/:catalogType/list')
   async listGIISCatalog(
     @Param('catalogType') catalogType: string,
@@ -240,6 +249,7 @@ export class CatalogsController {
     const allowed = [
       CatalogType.TIPO_PERSONAL,
       CatalogType.PAIS,
+      CatalogType.SERVICIOS_ATENCION_CE,
     ];
     const catalog = catalogType as CatalogType;
     if (!allowed.includes(catalog)) {

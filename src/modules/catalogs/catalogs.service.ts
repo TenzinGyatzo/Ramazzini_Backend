@@ -10,6 +10,8 @@ import {
   CLUESEntry,
   CPEntry,
 } from './interfaces/catalog-entry.interface';
+import { normalizeCatalogDescription } from './utils/catalog-description.util';
+import { parseTipoPersonalCeList } from '../../utils/cie10-diagnostico-sis.util';
 
 /**
  * Validation result for GIIS catalog validation
@@ -64,14 +66,16 @@ export class CatalogsService implements OnModuleInit {
     [CatalogType.TIPO_PERSONAL]: 'cat_tipo_personal.csv',
     [CatalogType.AFILIACION]: 'cat_afiliacion.csv',
     [CatalogType.PAIS]: 'cat_pais.csv',
+    [CatalogType.SERVICIOS_ATENCION_CE]:
+      'servicios_atencion_por_tipo_personal_sis_ce.csv',
   };
 
   // Define which catalogs are optional (GIIS)
   private readonly optionalCatalogs: CatalogType[] = [
-    // GIIS-B019
     CatalogType.TIPO_PERSONAL,
     CatalogType.AFILIACION,
     CatalogType.PAIS,
+    CatalogType.SERVICIOS_ATENCION_CE,
   ];
 
   // Base catalogs (required)
@@ -273,6 +277,21 @@ export class CatalogsService implements OnModuleInit {
               ? String(letraRaw).trim().toUpperCase()
               : undefined;
 
+          const tipoPersonal1VezCe = parseTipoPersonalCeList(
+            record.TIPO_PERSONAL_1VEZ_CE,
+          );
+          const tipoPersonalSubsecCe = parseTipoPersonalCeList(
+            record.TIPO_PERSONAL_SUBSEC_CE,
+          );
+          const diaCronicos =
+            String(record.DIA_CRONICOS ?? '')
+              .trim()
+              .toUpperCase() === 'SI';
+          const diaCaInfantil =
+            String(record.DIA_CAINFANTIL ?? '')
+              .trim()
+              .toUpperCase() === 'SI';
+
           return {
             code: record.CATALOG_KEY || record.codigo || record.code,
             description:
@@ -287,6 +306,10 @@ export class CatalogsService implements OnModuleInit {
             linfRaw,
             lsupRaw,
             letra,
+            tipoPersonal1VezCe,
+            tipoPersonalSubsecCe,
+            diaCronicos,
+            diaCaInfantil,
           } as CIE10Entry;
 
         case CatalogType.CLUES: {
@@ -835,6 +858,38 @@ export class CatalogsService implements OnModuleInit {
   }
 
   /**
+   * Validate GIIS Servicio de Atención code (CEX)
+   */
+  validateGIISServicioAtencion(code: number | string): GIISValidationResult {
+    return this.validateGIISCatalog(
+      CatalogType.SERVICIOS_ATENCION_CE,
+      code,
+      'Servicios de Atención CE',
+    );
+  }
+
+  /**
+   * Find CATALOG_KEY by normalized description match in a loaded catalog.
+   */
+  findCatalogKeyByNormalizedDescription(
+    catalogType: CatalogType,
+    targetDescription: string,
+  ): number | null {
+    const cache = this.catalogCaches.get(catalogType);
+    if (!cache) {
+      return null;
+    }
+    const target = normalizeCatalogDescription(targetDescription);
+    for (const entry of cache.values()) {
+      if (normalizeCatalogDescription(entry.description) === target) {
+        const n = Number(entry.code);
+        return Number.isFinite(n) ? n : null;
+      }
+    }
+    return null;
+  }
+
+  /**
    * Validate GIIS Afiliación code (GIIS-B019)
    *
    * If catalog is not loaded, returns a non-blocking result (valid=true).
@@ -971,7 +1026,7 @@ export class CatalogsService implements OnModuleInit {
       baseLoaded,
       baseTotal: 9,
       giisLoaded,
-      giisTotal: 3,
+      giisTotal: this.optionalCatalogs.length,
       loadedCatalogs,
     };
   }

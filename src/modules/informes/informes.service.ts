@@ -61,6 +61,8 @@ import { CentrosTrabajoService } from '../centros-trabajo/centros-trabajo.servic
 import { CatalogsService } from '../catalogs/catalogs.service';
 import { DocumentoEstado } from '../expedientes/enums/documento-estado.enum';
 import { ResultadosClinicosService } from '../resultados-clinicos/resultados-clinicos.service';
+import { FirmanteHelper } from '../expedientes/helpers/firmante-helper';
+import { computeMuestraConfirmacionFlagsForNotaMedica } from './helpers/nota-medica-confirmacion.helper';
 
 @Injectable()
 export class InformesService {
@@ -114,6 +116,7 @@ export class InformesService {
     private readonly centrosTrabajoService: CentrosTrabajoService,
     private readonly catalogsService: CatalogsService,
     private readonly resultadosClinicosService: ResultadosClinicosService,
+    private readonly firmanteHelper: FirmanteHelper,
   ) {}
 
   private mapMedicoFirmante(
@@ -3365,6 +3368,9 @@ export class InformesService {
       glucemia: notaMedica.glucemia,
       tipoMedicion: notaMedica.tipoMedicion,
       resultadoObtenidoaTravesde: notaMedica.resultadoObtenidoaTravesde,
+      // CEX: Embarazo
+      relacionTemporalEmbarazo: notaMedica.relacionTemporalEmbarazo,
+      trimestreGestacional: notaMedica.trimestreGestacional,
       diagnostico: notaMedica.diagnostico, // Legacy field, opcional
       // NOM-024: CIE-10 Diagnosis Codes
       codigoCIE10Principal: notaMedica.codigoCIE10Principal,
@@ -3378,6 +3384,9 @@ export class InformesService {
       confirmacionDiagnostica3: notaMedica.confirmacionDiagnostica3,
       diagnosticoTexto: notaMedica.diagnosticoTexto,
       confirmacionDiagnostica: notaMedica.confirmacionDiagnostica,
+      muestraConfirmacionDiagnostica1: false,
+      muestraConfirmacionDiagnostica2: false,
+      muestraConfirmacionDiagnostica3: false,
       codigoCIECausaExterna: notaMedica.codigoCIECausaExterna,
       causaExterna: notaMedica.causaExterna,
       tratamiento: notaMedica.tratamiento,
@@ -3427,6 +3436,30 @@ export class InformesService {
               notaMedica.finalizadoPor?._id || notaMedica.finalizadoPor
             )?.toString() || userId
           : userId;
+
+    const prestadorData = firmanteUserId
+      ? await this.firmanteHelper.getPrestadorDataFromUser(firmanteUserId)
+      : null;
+    const confirmacionFlags = await computeMuestraConfirmacionFlagsForNotaMedica(
+      this.catalogsService,
+      {
+        codigoCIE10Principal: notaMedica.codigoCIE10Principal,
+        codigoCIEDiagnostico2: notaMedica.codigoCIEDiagnostico2,
+        codigoCIEDiagnostico3: notaMedica.codigoCIEDiagnostico3,
+        relacionTemporal: notaMedica.relacionTemporal,
+        primeraVezDiagnostico2: notaMedica.primeraVezDiagnostico2,
+        primeraVezDiagnostico3: notaMedica.primeraVezDiagnostico3,
+        tipoPersonal: prestadorData?.tipoPersonal ?? null,
+        fechaNacimiento: trabajador.fechaNacimiento,
+        fechaNotaMedica: notaMedica.fechaNotaMedica,
+      },
+    );
+    datosNotaMedica.muestraConfirmacionDiagnostica1 =
+      confirmacionFlags.confirmacion1;
+    datosNotaMedica.muestraConfirmacionDiagnostica2 =
+      confirmacionFlags.confirmacion2;
+    datosNotaMedica.muestraConfirmacionDiagnostica3 =
+      confirmacionFlags.confirmacion3;
 
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(firmanteUserId);

@@ -3,15 +3,15 @@
  * NOM-024 GIIS-B015: Sexo biológico mapping
  * - "Masculino" → 1 (Hombre)
  * - "Femenino" → 2 (Mujer)
- * - Others → null (including intersexual which should be 3, but not in current schema)
+ * - "Intersexual" → 3
  */
 
 /**
  * Maps sexo string to numeric code according to NOM-024 GIIS-B015
- * @param sexo - Sexo string value ("Masculino" or "Femenino")
- * @returns 1 for Masculino, 2 for Femenino, null for others
+ * @param sexo - Sexo string value
+ * @returns 1 Masculino, 2 Femenino, 3 Intersexual, null si desconocido
  */
-export function mapSexoToNumeric(sexo: string): 1 | 2 | null {
+export function mapSexoToGiisBiologico(sexo: string): 1 | 2 | 3 | null {
   if (!sexo) {
     return null;
   }
@@ -30,14 +30,30 @@ export function mapSexoToNumeric(sexo: string): 1 | 2 | null {
   if (
     normalizedSexo === 'femenino' ||
     normalizedSexo === 'mujer' ||
+    normalizedSexo === 'f' ||
     normalizedSexo === 'f'
   ) {
     return 2;
   }
 
-  // Intersexual would be 3, but current schema doesn't support it
-  // Return null for unknown values
+  if (
+    normalizedSexo === 'intersexual' ||
+    normalizedSexo === 'otro' ||
+    normalizedSexo === 'other' ||
+    normalizedSexo === '3'
+  ) {
+    return 3;
+  }
+
   return null;
+}
+
+/**
+ * @deprecated Prefer mapSexoToGiisBiologico para validaciones CEX completas.
+ */
+export function mapSexoToNumeric(sexo: string): 1 | 2 | null {
+  const giis = mapSexoToGiisBiologico(sexo);
+  return giis === 1 || giis === 2 ? giis : null;
 }
 
 /**

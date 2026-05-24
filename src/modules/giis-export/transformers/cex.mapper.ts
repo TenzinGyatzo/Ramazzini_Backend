@@ -11,12 +11,35 @@ import {
   normalizeNameForGiis,
 } from '../formatters/field.formatter';
 import { parseNombreCompleto } from '../../../utils/parseNombreCompleto';
-import { TIPO_PERSONAL_MEDICO_GENERAL } from '../constants/tipo-personal';
+import {
+  calcularEdadEmbarazo,
+  resolverCamposEmbarazoCex,
+} from '../../expedientes/validators/nota-medica-embarazo.validator';
+import { toGIISNumeric } from '../formatters/sexo.formatter';
+import { normalizeCie10CatalogKey } from '../../../utils/cie10-diagnostico-sis.util';
+import {
+  aplicaConfirmacionDiagnostico1,
+  aplicaConfirmacionDiagnostico23,
+  calcularEdadAnios,
+  DiagCatalogFlags,
+  toCexConfirmacionDiagnosticaValue,
+} from '../../../utils/confirmacion-diagnostica.util';
 
 export interface CexMapperContext {
   clues: string;
   /** Resolve cat_pais CATALOG_KEY from nacionalidad clave (3-letter). If not provided (e.g. tests), 142 is used for paisNacPaciente. */
   getPaisCatalogKeyFromNacionalidad?: (clave: string) => number | null;
+  /** Defaults from CexCatalogResolver when prestador is absent */
+  cexDefaults?: {
+    tipoPersonal: number;
+    servicioAtencion: number;
+  };
+  /** Banderas DIA_CRONICOS / DIA_CAINFANTIL por diagnóstico (desde catálogo) */
+  diagCatalogFlags?: {
+    confirmacion1?: DiagCatalogFlags | null;
+    confirmacion2?: DiagCatalogFlags | null;
+    confirmacion3?: DiagCatalogFlags | null;
+  };
 }
 
 /** NotaMedica-like: consulta externa document */
@@ -48,6 +71,8 @@ export interface ConsultaExternaLike {
   glucemia?: number;
   tipoMedicion?: number;
   resultadoObtenidoaTravesde?: number;
+  relacionTemporalEmbarazo?: number;
+  trimestreGestacional?: number;
   [key: string]: unknown;
 }
 
@@ -68,6 +93,7 @@ export interface PrestadorLike {
   curp?: string;
   nombre?: string;
   tipoPersonal?: number;
+  servicioAtencion?: number;
   /** CATALOG_KEY de cat_pais (ej. 142=México) */
   paisNacimiento?: number;
 }
@@ -131,98 +157,58 @@ export function extractCieCode(value: string | null | undefined): string {
 }
 
 /**
- * Heurística: código crónico (DIA_CRONICOS) - Diabetes E11*, HTA I1*, Dislipidemia.
- */
-function esCodigoCronico(codigo: string): boolean {
-  const c = codigo.toUpperCase().replace(/\./g, '');
-  return c.startsWith('E11') || c.startsWith('I1') || c.startsWith('E78');
-}
-
-/**
- * Heurística: código cáncer infantil (DIA_CAINFANTIL) - C*.
- */
-function esCodigoCancerInfantil(codigo: string): boolean {
-  return codigo.toUpperCase().replace(/\./g, '').startsWith('C');
-}
-
-/**
  * Calcula edad en años entre fechaNacimiento y fechaConsulta.
  */
 function calcularEdad(
   fechaNacimiento?: Date | null,
   fechaConsulta?: Date | null,
 ): number | null {
-  if (!fechaNacimiento || !fechaConsulta) return null;
-  const fn = new Date(fechaNacimiento);
-  const fc = new Date(fechaConsulta);
-  if (isNaN(fn.getTime()) || isNaN(fc.getTime())) return null;
-  let edad = fc.getFullYear() - fn.getFullYear();
-  const m = fc.getMonth() - fn.getMonth();
-  if (m < 0 || (m === 0 && fc.getDate() < fn.getDate())) edad--;
-  return edad;
+  return calcularEdadAnios(fechaNacimiento, fechaConsulta);
 }
 
-/**
- * Fe de Erratas: confirmacionDiagnostica1 aplica solo cuando:
- * - edad < 18 y DIA_CAINFANTIL=1, o
- * - relacionTemporal=0, edad >= 20 y DIA_CRONICOS=1.
- */
 function debeReportarConfirmacionDiagnostica1(
   consulta: ConsultaExternaLike,
   trabajador: TrabajadorLike | null | undefined,
   codigo1: string,
+  tipoPersonal: number,
+  flags: DiagCatalogFlags | null | undefined,
 ): boolean {
-  const edad = calcularEdad(
-    trabajador?.fechaNacimiento,
-    consulta.fechaNotaMedica,
-  );
-  if (edad === null) return false;
-  if (edad < 18) return esCodigoCancerInfantil(codigo1);
-  if (edad >= 20)
-    return consulta.relacionTemporal === 0 && esCodigoCronico(codigo1);
-  return false; // 18-19 años: no aplica según reglas
+  return aplicaConfirmacionDiagnostico1({
+    tipoPersonal,
+    edad: calcularEdad(trabajador?.fechaNacimiento, consulta.fechaNotaMedica),
+    flags,
+    relacionTemporal: consulta.relacionTemporal,
+  });
 }
 
-/**
- * Fe de Erratas: confirmacionDiagnostica2 aplica solo cuando:
- * - edad < 18 y DIA_CAINFANTIL=1, o
- * - primeraVezDiagnostico2=1, edad >= 20 y DIA_CRONICOS=1.
- */
 function debeReportarConfirmacionDiagnostica2(
   consulta: ConsultaExternaLike,
   trabajador: TrabajadorLike | null | undefined,
   codigo2: string,
+  tipoPersonal: number,
+  flags: DiagCatalogFlags | null | undefined,
 ): boolean {
-  const edad = calcularEdad(
-    trabajador?.fechaNacimiento,
-    consulta.fechaNotaMedica,
-  );
-  if (edad === null) return false;
-  if (edad < 18) return esCodigoCancerInfantil(codigo2);
-  if (edad >= 20)
-    return consulta.primeraVezDiagnostico2 === 1 && esCodigoCronico(codigo2);
-  return false;
+  return aplicaConfirmacionDiagnostico23({
+    tipoPersonal,
+    edad: calcularEdad(trabajador?.fechaNacimiento, consulta.fechaNotaMedica),
+    flags,
+    primeraVezDiagnostico: consulta.primeraVezDiagnostico2,
+  });
 }
 
-/**
- * Fe de Erratas: confirmacionDiagnostica3 aplica solo cuando:
- * - edad < 18 y DIA_CAINFANTIL=1, o
- * - primeraVezDiagnostico3=1, edad >= 20 y DIA_CRONICOS=1.
- */
 function debeReportarConfirmacionDiagnostica3(
   consulta: ConsultaExternaLike,
   trabajador: TrabajadorLike | null | undefined,
   codigo3: string,
+  tipoPersonal: number,
+  flags: DiagCatalogFlags | null | undefined,
 ): boolean {
-  const edad = calcularEdad(
-    trabajador?.fechaNacimiento,
-    consulta.fechaNotaMedica,
-  );
-  if (edad === null) return false;
-  if (edad < 18) return esCodigoCancerInfantil(codigo3);
-  if (edad >= 20)
-    return consulta.primeraVezDiagnostico3 === 1 && esCodigoCronico(codigo3);
-  return false;
+  return aplicaConfirmacionDiagnostico23({
+    tipoPersonal,
+    edad: calcularEdad(trabajador?.fechaNacimiento, consulta.fechaNotaMedica),
+    flags,
+    primeraVezDiagnostico: consulta.primeraVezDiagnostico3,
+  });
 }
 
 /**
@@ -262,16 +248,15 @@ export function mapNotaMedicaToCexRow(
   const curpPaciente = trabajador?.curp
     ? formatCURP(trabajador.curp) || CURP_GENERICA
     : CURP_GENERICA;
-  const sexo = (trabajador?.sexo as string) || '';
-  const sexoCURP = sexo.toLowerCase().startsWith('f')
-    ? 2
-    : sexo.toLowerCase().startsWith('m')
-      ? 1
-      : 1;
+  const sexoRaw = (trabajador?.sexo as string) || '';
+  const sexoGiis = toGIISNumeric(sexoRaw);
+  const sexoCURP =
+    sexoGiis === '2' ? 2 : sexoGiis === '1' ? 1 : sexoGiis === '3' ? 3 : 1;
   const sexoBiologico = sexoCURP;
   const genero = sexoCURP;
 
-  const codigo1 = extractCieCode(consulta.codigoCIE10Principal);
+  const codigo1Raw = extractCieCode(consulta.codigoCIE10Principal);
+  const codigo1 = normalizeCie10CatalogKey(codigo1Raw) || codigo1Raw;
   const comp = consulta.codigosCIE10Complementarios || [];
   const diag2NoAplica =
     consulta.primeraVezDiagnostico2 !== 0 &&
@@ -298,7 +283,10 @@ export function mapNotaMedicaToCexRow(
     normalizeNameForGiis(parsed?.primerApellidoPrestador) || DEFAULT_NA;
   const segundoApellidoPrestador =
     normalizeNameForGiis(parsed?.segundoApellidoPrestador) || DEFAULT_XX;
-  const tipoPersonal = prestador?.tipoPersonal ?? TIPO_PERSONAL_MEDICO_GENERAL;
+  const tipoPersonal =
+    prestador?.tipoPersonal ?? context.cexDefaults?.tipoPersonal ?? 0;
+  const servicioAtencion =
+    prestador?.servicioAtencion ?? context.cexDefaults?.servicioAtencion ?? 0;
 
   const allCieCodes = getAllCieCodesFromConsulta(consulta);
   const hasTuberculosisPulmonar = allCieCodes.some(
@@ -325,6 +313,16 @@ export function mapNotaMedicaToCexRow(
     Number.isFinite(prestador.paisNacimiento)
       ? prestador.paisNacimiento
       : DEFAULT_PAIS_MEXICO;
+
+  const edadPaciente = calcularEdadEmbarazo(
+    trabajador?.fechaNacimiento as Date | undefined,
+    consulta.fechaNotaMedica,
+  );
+  const camposEmbarazoCex = resolverCamposEmbarazoCex(
+    consulta,
+    sexoBiologico,
+    edadPaciente,
+  );
 
   const valueByField: Record<string, string | number> = {
     clues,
@@ -369,7 +367,7 @@ export function mapNotaMedicaToCexRow(
       const useDate = dNorm > today ? today : d;
       return toDDMMAAAA(useDate) || '';
     })(),
-    servicioAtencion: 4, // 4 = Consulta Externa General
+    servicioAtencion,
     peso: consulta.peso ?? 999,
     talla: consulta.talla ?? 999,
     circunferenciaCintura: consulta.circunferenciaCintura ?? 0,
@@ -414,9 +412,13 @@ export function mapNotaMedicaToCexRow(
         consulta,
         trabajador,
         codigo1 || '',
+        tipoPersonal,
+        context.diagCatalogFlags?.confirmacion1,
       );
-      if (!aplica) return -1;
-      return consulta.confirmacionDiagnostica ? 1 : 0;
+      return toCexConfirmacionDiagnosticaValue(
+        aplica,
+        consulta.confirmacionDiagnostica,
+      );
     })(),
     primeraVezDiagnostico2:
       consulta.primeraVezDiagnostico2 === 1
@@ -430,9 +432,13 @@ export function mapNotaMedicaToCexRow(
         consulta,
         trabajador,
         codigo2 || '',
+        tipoPersonal,
+        context.diagCatalogFlags?.confirmacion2,
       );
-      if (!aplica) return -1;
-      return consulta.confirmacionDiagnostica2 === true ? 1 : 0;
+      return toCexConfirmacionDiagnosticaValue(
+        aplica,
+        consulta.confirmacionDiagnostica2,
+      );
     })(),
     primeraVezDiagnostico3:
       consulta.primeraVezDiagnostico3 === 1
@@ -460,16 +466,20 @@ export function mapNotaMedicaToCexRow(
         consulta,
         trabajador,
         codigo3 || '',
+        tipoPersonal,
+        context.diagCatalogFlags?.confirmacion3,
       );
-      if (!aplica) return -1;
-      return consulta.confirmacionDiagnostica3 === true ? 1 : 0;
+      return toCexConfirmacionDiagnosticaValue(
+        aplica,
+        consulta.confirmacionDiagnostica3,
+      );
     })(),
     intervencionesSMyA: -1,
     atencionPregestacionalRT: -1,
     riesgo: '-1',
-    relacionTemporalEmbarazo: -1,
+    relacionTemporalEmbarazo: camposEmbarazoCex.relacionTemporalEmbarazo,
     planSeguridad: -1,
-    trimestreGestacional: -1,
+    trimestreGestacional: camposEmbarazoCex.trimestreGestacional,
     primeraVezAltoRiesgo: -1,
     complicacionPorDiabetes: -1,
     complicacionPorInfeccionUrinaria: -1,

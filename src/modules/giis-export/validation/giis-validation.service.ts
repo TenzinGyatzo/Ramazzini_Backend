@@ -10,8 +10,10 @@ import { NotaMedica } from '../../expedientes/schemas/nota-medica.schema';
 import { DocumentoEstado } from '../../expedientes/enums/documento-estado.enum';
 import { FirmanteHelper } from '../../expedientes/helpers/firmante-helper';
 import { loadGiisSchema } from '../schema-loader';
-import { mapNotaMedicaToCexRow } from '../transformers/cex.mapper';
+import { mapNotaMedicaToCexRow, extractCieCode } from '../transformers/cex.mapper';
+import { resolveCexDiagCatalogFlags } from '../utils/cex-diag-catalog-flags.util';
 import { CatalogsService } from '../../catalogs/catalogs.service';
+import { CexCatalogResolver } from '../../catalogs/cex-catalog.resolver';
 import {
   ValidationError,
   PreValidationResult,
@@ -31,6 +33,11 @@ import { CentroTrabajo } from '../../centros-trabajo/schemas/centro-trabajo.sche
 import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { giisExportConfig } from '../config/giis-export.config';
 import { evaluateCexLoadQuality } from './cex-load-quality.util';
+import { validateCexCodigoCIEDiagnostico1Row, validateCexCodigoCIEDiagnostico1Age } from './cex-cie-diagnostico1.validator';
+import { calculateAge } from '../../../utils/age-calculator.util';
+import { mapSexoToGiisBiologico } from '../../../utils/sexo-mapper.util';
+import { CatalogType, CIE10Entry } from '../../catalogs/interfaces/catalog-entry.interface';
+import { normalizeCie10CatalogKey } from '../../../utils/cie10-diagnostico-sis.util';
 import { getTrabajadorIdsForProveedor } from '../utils/giis-proveedor-scope.util';
 
 type Guide = 'CEX';
@@ -48,6 +55,7 @@ export class GiisValidationService {
     private readonly catalogsService: CatalogsService,
     private readonly proveedoresSaludService: ProveedoresSaludService,
     private readonly firmanteHelper: FirmanteHelper,
+    private readonly cexCatalogResolver: CexCatalogResolver,
   ) {}
 
   private buildCatalogLookup(): CatalogLookup {
@@ -66,6 +74,10 @@ export class GiisValidationService {
       validateTipoPersonal: (code: string) =>
         Promise.resolve(
           this.catalogsService.validateGIISTipoPersonal(code).valid,
+        ),
+      validateServicioAtencion: (code: string) =>
+        Promise.resolve(
+          this.catalogsService.validateGIISServicioAtencion(code).valid,
         ),
       validateAfiliacion: (code: string) =>
         Promise.resolve(
@@ -160,10 +172,15 @@ export class GiisValidationService {
         if (arr.length > 0) firstInYearIds.add(arr[0]._id.toString());
       }
 
-      const cexContext = {
+      const cexCodes = this.cexCatalogResolver.getCodes();
+      const cexContextBase = {
         clues,
         getPaisCatalogKeyFromNacionalidad: (clave: string) =>
           this.catalogsService.getPaisCatalogKeyFromNacionalidad(clave),
+        cexDefaults: {
+          tipoPersonal: cexCodes.tipoPersonal.medicoGeneral,
+          servicioAtencion: cexCodes.servicioAtencion,
+        },
       };
       const schema = loadGiisSchema('CEX');
       const rows: Record<string, string | number>[] = [];
@@ -181,10 +198,31 @@ export class GiisValidationService {
           : null;
         const primeraVezAnio = firstInYearIds.has(nota._id.toString()) ? 1 : 0;
         const consultaWithPrimera = { ...nota, primeraVezAnio };
+        const codigo1 = extractCieCode(consultaWithPrimera.codigoCIE10Principal);
+        const diag2NoAplica =
+          consultaWithPrimera.primeraVezDiagnostico2 !== 0 &&
+          consultaWithPrimera.primeraVezDiagnostico2 !== 1;
+        const codigo2 = diag2NoAplica
+          ? ''
+          : extractCieCode(consultaWithPrimera.codigoCIEDiagnostico2 as string);
+        const diag3NoAplica =
+          consultaWithPrimera.primeraVezDiagnostico3 !== 0 &&
+          consultaWithPrimera.primeraVezDiagnostico3 !== 1;
+        const codigo3 = diag3NoAplica
+          ? ''
+          : extractCieCode(consultaWithPrimera.codigoCIEDiagnostico3 as string);
+        const diagCatalogFlags = await resolveCexDiagCatalogFlags(
+          this.catalogsService,
+          {
+            confirmacion1: codigo1,
+            confirmacion2: codigo2,
+            confirmacion3: codigo3,
+          },
+        );
         rows.push(
           mapNotaMedicaToCexRow(
             consultaWithPrimera,
-            cexContext,
+            { ...cexContextBase, diagCatalogFlags },
             trabajador,
             prestadorData ?? undefined,
           ),
@@ -200,6 +238,56 @@ export class GiisValidationService {
           catalogLookup,
         );
         allErrors.push(...errs);
+
+        const cie1Cause = await validateCexCodigoCIEDiagnostico1Row(
+          rows[i],
+          this.catalogsService,
+        );
+        if (cie1Cause) {
+          allErrors.push({
+            guide: 'CEX',
+            rowIndex: i,
+            field: 'codigoCIEDiagnostico1',
+            cause: cie1Cause,
+            severity: 'blocker',
+          });
+        }
+
+        const nota = notas[i] as any;
+        const trab = nota?.idTrabajador;
+        if (trab?.fechaNacimiento && nota?.fechaNotaMedica) {
+          const edad = calculateAge(
+            new Date(trab.fechaNacimiento),
+            new Date(nota.fechaNotaMedica),
+          );
+          const catalogKey = normalizeCie10CatalogKey(
+            String(rows[i].codigoCIEDiagnostico1 ?? ''),
+          );
+          if (catalogKey) {
+            const entry = (await this.catalogsService.getCatalogEntry(
+              CatalogType.CIE10,
+              catalogKey,
+            )) as CIE10Entry | null;
+            if (entry) {
+              const sexoBiologico = mapSexoToGiisBiologico(trab.sexo ?? '');
+              const ageCause = validateCexCodigoCIEDiagnostico1Age(
+                catalogKey,
+                entry,
+                edad,
+                sexoBiologico,
+              );
+              if (ageCause) {
+                allErrors.push({
+                  guide: 'CEX',
+                  rowIndex: i,
+                  field: 'codigoCIEDiagnostico1',
+                  cause: ageCause,
+                  severity: 'blocker',
+                });
+              }
+            }
+          }
+        }
       }
 
       if (giisExportConfig.cexLoadQualityRulesEnabled) {

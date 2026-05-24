@@ -47,6 +47,8 @@ import { GiisExportAuditService } from '../../src/modules/giis-export/giis-expor
 import { AuditService } from '../../src/modules/audit/audit.service';
 import { FirmanteHelper } from '../../src/modules/expedientes/helpers/firmante-helper';
 import { CatalogsService } from '../../src/modules/catalogs/catalogs.service';
+import { CexCatalogResolver } from '../../src/modules/catalogs/cex-catalog.resolver';
+import { mockCexCatalogResolver } from '../fixtures/cex-catalog-resolver.mock';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -116,6 +118,10 @@ describe('NOM-024 GIIS Batch (Phase 1A)', () => {
           useValue: {
             getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
           },
+        },
+        {
+          provide: CexCatalogResolver,
+          useValue: mockCexCatalogResolver,
         },
       ],
     }).compile();
@@ -218,6 +224,10 @@ describe('NOM-024 GIIS Batch Phase 6 — automatic encryption', () => {
           useValue: {
             getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
           },
+        },
+        {
+          provide: CexCatalogResolver,
+          useValue: mockCexCatalogResolver,
         },
       ],
     }).compile();

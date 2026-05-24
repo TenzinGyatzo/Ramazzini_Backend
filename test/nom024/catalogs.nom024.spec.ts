@@ -58,6 +58,11 @@ describe('NOM-024 Catalog Service (Task 1, 12, 14, 19)', () => {
       file: 'cat_pais.csv',
       name: 'País (GIIS-B019)',
     },
+    {
+      type: CatalogType.SERVICIOS_ATENCION_CE,
+      file: 'servicios_atencion_por_tipo_personal_sis_ce.csv',
+      name: 'Servicios Atención CE',
+    },
   ];
 
   const allOptionalGIISCatalogs = [...optionalGIISB019Catalogs];
@@ -137,13 +142,13 @@ describe('NOM-024 Catalog Service (Task 1, 12, 14, 19)', () => {
       const stats = service.getCatalogStats();
 
       expect(stats.baseTotal).toBe(9);
-      expect(stats.giisTotal).toBe(3);
+      expect(stats.giisTotal).toBe(4);
       expect(typeof stats.baseLoaded).toBe('number');
       expect(typeof stats.giisLoaded).toBe('number');
       expect(stats.baseLoaded).toBeGreaterThanOrEqual(0);
       expect(stats.baseLoaded).toBeLessThanOrEqual(9);
       expect(stats.giisLoaded).toBeGreaterThanOrEqual(0);
-      expect(stats.giisLoaded).toBeLessThanOrEqual(3);
+      expect(stats.giisLoaded).toBeLessThanOrEqual(4);
       expect(Array.isArray(stats.loadedCatalogs)).toBe(true);
     });
 
@@ -231,6 +236,59 @@ describe('NOM-024 Catalog Service (Task 1, 12, 14, 19)', () => {
         expect(service.validateGIISPais('XX').valid).toBe(false);
 
         service.clearCatalog(CatalogType.PAIS);
+      });
+    });
+
+    describe('validateGIISServicioAtencion', () => {
+      it('should return non-blocking result if catalog missing', () => {
+        service.clearCatalog(CatalogType.SERVICIOS_ATENCION_CE);
+        service.resetWarningFlags();
+
+        const result = service.validateGIISServicioAtencion(4);
+
+        expect(result.valid).toBe(true);
+        expect(result.catalogLoaded).toBe(false);
+      });
+
+      it('should validate code when catalog is present (mock)', () => {
+        service.injectMockCatalog(CatalogType.SERVICIOS_ATENCION_CE, [
+          { code: '4', description: 'CONSULTA EXTERNA  GENERAL' },
+        ]);
+
+        expect(service.validateGIISServicioAtencion(4).valid).toBe(true);
+        expect(service.validateGIISServicioAtencion(99).valid).toBe(false);
+
+        service.clearCatalog(CatalogType.SERVICIOS_ATENCION_CE);
+      });
+    });
+
+    describe('findCatalogKeyByNormalizedDescription', () => {
+      it('should find CATALOG_KEY by normalized description', () => {
+        service.injectMockCatalog(CatalogType.TIPO_PERSONAL, [
+          { code: '2', description: 'MÉDICA (O) GENERAL' },
+        ]);
+
+        const key = service.findCatalogKeyByNormalizedDescription(
+          CatalogType.TIPO_PERSONAL,
+          'MÉDICA (O) GENERAL',
+        );
+        expect(key).toBe(2);
+
+        service.clearCatalog(CatalogType.TIPO_PERSONAL);
+      });
+
+      it('should match despite extra spaces in catalog description', () => {
+        service.injectMockCatalog(CatalogType.SERVICIOS_ATENCION_CE, [
+          { code: '4', description: 'CONSULTA EXTERNA  GENERAL' },
+        ]);
+
+        const key = service.findCatalogKeyByNormalizedDescription(
+          CatalogType.SERVICIOS_ATENCION_CE,
+          'CONSULTA EXTERNA GENERAL',
+        );
+        expect(key).toBe(4);
+
+        service.clearCatalog(CatalogType.SERVICIOS_ATENCION_CE);
       });
     });
   });

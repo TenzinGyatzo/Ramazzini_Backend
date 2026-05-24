@@ -77,6 +77,13 @@ export class NotaMedica extends Document {
   @Prop({ required: false })
   resultadoObtenidoaTravesde?: number;
 
+  // CEX: Embarazo
+  @Prop({ required: false })
+  relacionTemporalEmbarazo?: number; // -1=No aplica, 0=Primera vez, 1=Subsecuente
+
+  @Prop({ required: false })
+  trimestreGestacional?: number; // -1=No aplica, 1=Primero, 2=Segundo, 3=Tercero
+
   @Prop()
   diagnostico: string; // Free-text diagnosis (kept for backward compatibility)
 

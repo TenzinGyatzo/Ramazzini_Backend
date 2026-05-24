@@ -6,6 +6,8 @@
  * usando el catálogo oficial de diagnósticos.
  */
 
+import { mapSexoToGiisBiologico } from '../../../utils/sexo-mapper.util';
+
 import { calculateAge } from '../../../utils/age-calculator.util';
 import { extractCIE10Code } from '../../../utils/cie10.util';
 import { parseAgeLimit } from '../../../utils/cie10-age-parser.util';
@@ -21,7 +23,7 @@ export interface CIE10CatalogValidationIssue {
   lsex: string;
   linf: string | null;
   lsup: string | null;
-  sexoTrabajador: 'HOMBRE' | 'MUJER';
+  sexoTrabajador: 'HOMBRE' | 'MUJER' | 'INTERSEXUAL';
   edadTrabajador: number;
   reason: 'Sexo no permitido' | 'Edad fuera de rango';
 }
@@ -46,41 +48,15 @@ export interface CIE10CatalogValidationParams {
 }
 
 /**
- * Normalizes sex to HOMBRE/MUJER format
+ * Normalizes sex to HOMBRE/MUJER/INTERSEXUAL format
  */
-function normalizeSexo(sexo: string): 'MUJER' | 'HOMBRE' | null {
-  if (!sexo) {
-    return null;
-  }
-
-  const normalized = sexo.trim().toLowerCase();
-
-  if (
-    normalized === 'masculino' ||
-    normalized === 'hombre' ||
-    normalized === 'm' ||
-    normalized === 'h'
-  ) {
-    return 'HOMBRE';
-  }
-
-  if (
-    normalized === 'femenino' ||
-    normalized === 'mujer' ||
-    normalized === 'f'
-  ) {
-    return 'MUJER';
-  }
-
-  // If already in uppercase format
-  if (normalized === 'hombre' || normalized === 'hombres') {
-    return 'HOMBRE';
-  }
-
-  if (normalized === 'mujer' || normalized === 'mujeres') {
-    return 'MUJER';
-  }
-
+function normalizeSexo(
+  sexo: string,
+): 'MUJER' | 'HOMBRE' | 'INTERSEXUAL' | null {
+  const giis = mapSexoToGiisBiologico(sexo);
+  if (giis === 1) return 'HOMBRE';
+  if (giis === 2) return 'MUJER';
+  if (giis === 3) return 'INTERSEXUAL';
   return null;
 }
 
@@ -182,7 +158,7 @@ function validateAge(
 async function validateSingleCIE10Code(
   cie10Code: string,
   field: string,
-  sexoTrabajador: 'HOMBRE' | 'MUJER',
+  sexoTrabajador: 'HOMBRE' | 'MUJER' | 'INTERSEXUAL',
   edadTrabajador: number,
   lookup: (code: string) => Promise<DiagnosisRule | null>,
 ): Promise<CIE10CatalogValidationIssue | null> {
@@ -200,20 +176,22 @@ async function validateSingleCIE10Code(
     return null;
   }
 
-  // Validate sex
-  const sexValid = validateSex(rule.lsex, sexoTrabajador);
-  if (!sexValid) {
-    return {
-      field,
-      cie10: normalizedCode,
-      catalogKeyUsed: rule.key,
-      lsex: rule.lsex,
-      linf: rule.linf,
-      lsup: rule.lsup,
-      sexoTrabajador,
-      edadTrabajador,
-      reason: 'Sexo no permitido',
-    };
+  // Validate sex (omit for intersexual — solo aplica LINF/LSUP)
+  if (sexoTrabajador !== 'INTERSEXUAL') {
+    const sexValid = validateSex(rule.lsex, sexoTrabajador);
+    if (!sexValid) {
+      return {
+        field,
+        cie10: normalizedCode,
+        catalogKeyUsed: rule.key,
+        lsex: rule.lsex,
+        linf: rule.linf,
+        lsup: rule.lsup,
+        sexoTrabajador,
+        edadTrabajador,
+        reason: 'Sexo no permitido',
+      };
+    }
   }
 
   // Validate age

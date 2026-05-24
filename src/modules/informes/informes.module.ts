@@ -13,6 +13,7 @@ import { ProveedoresSaludModule } from '../proveedores-salud/proveedores-salud.m
 import { UsersModule } from '../users/users.module';
 import { CentrosTrabajoModule } from '../centros-trabajo/centros-trabajo.module';
 import { ResultadosClinicosModule } from '../resultados-clinicos/resultados-clinicos.module';
+import { FirmanteHelperModule } from '../expedientes/firmante-helper.module';
 
 @Module({
   controllers: [InformesController],
@@ -30,6 +31,7 @@ import { ResultadosClinicosModule } from '../resultados-clinicos/resultados-clin
     UsersModule,
     CentrosTrabajoModule,
     ResultadosClinicosModule,
+    FirmanteHelperModule,
   ],
   exports: [InformesService],
 })
