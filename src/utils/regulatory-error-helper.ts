@@ -138,6 +138,12 @@ function generateBaseMessage(
       }
       return `El campo ${fieldName} es obligatorio`;
 
+    case RegulatoryErrorCode.REGIMEN_WORKER_IDENTIFICATION_IMMUTABLE:
+      if (regime === 'SIRES_NOM024') {
+        return 'Los datos de identificación del trabajador no pueden modificarse una vez concluido el registro según la normativa SIRES (NOM-024).';
+      }
+      return 'Los datos de identificación del trabajador no pueden modificarse.';
+
     case RegulatoryErrorCode.CONSENT_NOT_ENABLED:
       return 'El consentimiento informado diario solo está disponible para proveedores con régimen SIRES (NOM-024)';
 
@@ -162,6 +168,7 @@ function getStatusCodeForErrorCode(errorCode: RegulatoryErrorCode): number {
   switch (errorCode) {
     case RegulatoryErrorCode.REGIMEN_FEATURE_DISABLED:
     case RegulatoryErrorCode.REGIMEN_DOCUMENT_IMMUTABLE:
+    case RegulatoryErrorCode.REGIMEN_WORKER_IDENTIFICATION_IMMUTABLE:
     case RegulatoryErrorCode.CONSENT_NOT_ENABLED:
     case RegulatoryErrorCode.CONSENT_REQUIRED:
     case RegulatoryErrorCode.CONSENT_INVALID_DATE:

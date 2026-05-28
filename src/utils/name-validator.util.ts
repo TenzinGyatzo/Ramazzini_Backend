@@ -1,3 +1,8 @@
+import {
+  validateCurpNameCaptureField,
+  validateCurpPersonNameCapture,
+} from './curp-name-capture-validation.util';
+
 /**
  * NOM-024 Name Validator Utility
  *
@@ -202,12 +207,11 @@ export function validateNameField(
     result.normalizedValue = normalizedName.replace(/\.+$/, '').trim();
   }
 
-  // Check for invalid characters (only letters, spaces, accents, hyphens allowed)
-  const invalidChars = normalizedName.match(/[^A-ZÁÉÍÓÚÜÑ\s\-']/g);
-  if (invalidChars && invalidChars.length > 0) {
-    result.warnings.push(
-      `${fieldName} contiene caracteres inusuales: ${[...new Set(invalidChars)].join(', ')}`,
-    );
+  // Validación CURP: caracteres permitidos en captura (instructivo RENAPO)
+  const curpCapture = validateCurpNameCaptureField(normalizedName, fieldName);
+  if (!curpCapture.isValid) {
+    result.isValid = false;
+    result.errors.push(...curpCapture.errors);
   }
 
   return result;

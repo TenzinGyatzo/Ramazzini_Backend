@@ -14,4 +14,8 @@ export class EnfermeraFirmante extends Document {
     contentType: string;
   };
   idUser: User | string;
+  curp?: string;
+  entidadNacimiento?: string;
+  paisNacimiento: number;
+  fechaNacimiento: Date;
 }

@@ -22,4 +22,9 @@ export class MedicoFirmante extends Document {
     contentType: string;
   };
   idUser: User | string;
+  curp?: string;
+  sexo?: string;
+  entidadNacimiento?: string;
+  paisNacimiento: number;
+  fechaNacimiento: Date;
 }

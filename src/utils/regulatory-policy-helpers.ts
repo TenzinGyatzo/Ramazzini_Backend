@@ -66,6 +66,12 @@ export const policyFeatures = {
    */
   dailyConsentEnabled: (policy: RegulatoryPolicy): boolean =>
     policy.features.dailyConsentEnabled,
+
+  /**
+   * Indica si los datos de identificación del trabajador son inmutables tras el alta
+   */
+  workerIdentificationImmutable: (policy: RegulatoryPolicy): boolean =>
+    policy.features.workerIdentificationImmutable,
 };
 
 /**

@@ -17,6 +17,7 @@ export interface RegulatoryPolicy {
     notaAclaratoriaEnabled: boolean;
     cluesFieldVisible: boolean; // CLUES visible solo en SIRES
     dailyConsentEnabled: boolean; // Consentimiento informado diario
+    workerIdentificationImmutable: boolean; // Identificación trabajador inmutable post-alta
   };
   validation: {
     curpFirmantes: 'required' | 'optional';
@@ -108,6 +109,7 @@ export class RegulatoryPolicyService {
         notaAclaratoriaEnabled: true,
         cluesFieldVisible: true,
         dailyConsentEnabled: true,
+        workerIdentificationImmutable: true,
       },
       validation: {
         curpFirmantes: 'required',
@@ -134,6 +136,7 @@ export class RegulatoryPolicyService {
         notaAclaratoriaEnabled: false,
         cluesFieldVisible: false,
         dailyConsentEnabled: false,
+        workerIdentificationImmutable: false,
       },
       validation: {
         curpFirmantes: 'optional',

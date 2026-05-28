@@ -264,6 +264,26 @@ export function normalizeMedicoFirmanteData(
     normalizedDto.curp = dto.curp.trim().toUpperCase();
   }
 
+  if ('sexo' in dto && typeof dto.sexo === 'string') {
+    normalizedDto.sexo = dto.sexo.trim();
+  }
+
+  if ('entidadNacimiento' in dto && typeof dto.entidadNacimiento === 'string') {
+    normalizedDto.entidadNacimiento = dto.entidadNacimiento.trim().toUpperCase();
+  }
+
+  if ('entidadResidencia' in dto && typeof dto.entidadResidencia === 'string') {
+    normalizedDto.entidadResidencia = dto.entidadResidencia.trim().toUpperCase();
+  }
+
+  if ('municipioResidencia' in dto && typeof dto.municipioResidencia === 'string') {
+    normalizedDto.municipioResidencia = dto.municipioResidencia.trim();
+  }
+
+  if ('localidadResidencia' in dto && typeof dto.localidadResidencia === 'string') {
+    normalizedDto.localidadResidencia = dto.localidadResidencia.trim();
+  }
+
   // País de nacimiento (CATALOG_KEY de cat_pais): parsear a número si viene como string
   if (
     'paisNacimiento' in dto &&
@@ -274,6 +294,13 @@ export function normalizeMedicoFirmanteData(
     normalizedDto.paisNacimiento = typeof val === 'number' ? val : Number(val);
     if (Number.isNaN(normalizedDto.paisNacimiento))
       delete normalizedDto.paisNacimiento;
+  }
+
+  if ('fechaNacimiento' in dto && dto.fechaNacimiento) {
+    normalizedDto.fechaNacimiento = new Date(dto.fechaNacimiento);
+    if (Number.isNaN(normalizedDto.fechaNacimiento.getTime())) {
+      delete normalizedDto.fechaNacimiento;
+    }
   }
 
   // ✅ Verificar y eliminar idUser si está vacío
@@ -292,7 +319,6 @@ export function normalizeEnfermeraFirmanteData(
   const normalizedDto: any = {
     ...dto,
     nombre: typeof dto.nombre === 'string' ? dto.nombre.trim() : '',
-    sexo: typeof dto.sexo === 'string' ? dto.sexo.trim() : '',
     tituloProfesional:
       typeof dto.tituloProfesional === 'string'
         ? dto.tituloProfesional.trim()
@@ -325,6 +351,26 @@ export function normalizeEnfermeraFirmanteData(
     normalizedDto.curp = dto.curp.trim().toUpperCase();
   }
 
+  if ('sexo' in dto && typeof dto.sexo === 'string') {
+    normalizedDto.sexo = dto.sexo.trim();
+  }
+
+  if ('entidadNacimiento' in dto && typeof dto.entidadNacimiento === 'string') {
+    normalizedDto.entidadNacimiento = dto.entidadNacimiento.trim().toUpperCase();
+  }
+
+  if ('entidadResidencia' in dto && typeof dto.entidadResidencia === 'string') {
+    normalizedDto.entidadResidencia = dto.entidadResidencia.trim().toUpperCase();
+  }
+
+  if ('municipioResidencia' in dto && typeof dto.municipioResidencia === 'string') {
+    normalizedDto.municipioResidencia = dto.municipioResidencia.trim();
+  }
+
+  if ('localidadResidencia' in dto && typeof dto.localidadResidencia === 'string') {
+    normalizedDto.localidadResidencia = dto.localidadResidencia.trim();
+  }
+
   // País de nacimiento (CATALOG_KEY de cat_pais): parsear a número si viene como string
   if (
     'paisNacimiento' in dto &&
@@ -335,6 +381,13 @@ export function normalizeEnfermeraFirmanteData(
     normalizedDto.paisNacimiento = typeof val === 'number' ? val : Number(val);
     if (Number.isNaN(normalizedDto.paisNacimiento))
       delete normalizedDto.paisNacimiento;
+  }
+
+  if ('fechaNacimiento' in dto && dto.fechaNacimiento) {
+    normalizedDto.fechaNacimiento = new Date(dto.fechaNacimiento);
+    if (Number.isNaN(normalizedDto.fechaNacimiento.getTime())) {
+      delete normalizedDto.fechaNacimiento;
+    }
   }
 
   // ✅ Verificar y eliminar idUser si está vacío

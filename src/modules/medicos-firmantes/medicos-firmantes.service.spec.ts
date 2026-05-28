@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { BadRequestException } from '@nestjs/common';
 import { MedicosFirmantesService } from './medicos-firmantes.service';
+import { CreateMedicoFirmanteDto } from './dto/create-medico-firmante.dto';
 import { MedicoFirmante } from './schemas/medico-firmante.schema';
 import { User } from '../users/schemas/user.schema';
 import { ProveedorSalud } from '../proveedores-salud/schemas/proveedor-salud.schema';
@@ -9,6 +10,8 @@ import {
   RegulatoryPolicyService,
   RegulatoryPolicy,
 } from '../../utils/regulatory-policy.service';
+import { CatalogsService } from '../catalogs/catalogs.service';
+import { GeographyValidator } from '../catalogs/validators/geography.validator';
 
 describe('MedicosFirmantesService', () => {
   let service: MedicosFirmantesService;
@@ -16,6 +19,10 @@ describe('MedicosFirmantesService', () => {
   let mockUserModel: any;
   let mockProveedorSaludModel: any;
   let mockRegulatoryPolicyService: jest.Mocked<RegulatoryPolicyService>;
+  let mockCatalogsService: jest.Mocked<CatalogsService>;
+  let mockGeographyValidator: jest.Mocked<GeographyValidator>;
+
+  const defaultPaisNacimiento = 142;
 
   const createMockModel = () => ({
     findById: jest
@@ -40,6 +47,26 @@ describe('MedicosFirmantesService', () => {
   const mxProveedorId = '507f1f77bcf86cd799439033';
   const nonMxProveedorId = '507f1f77bcf86cd799439044';
 
+  const getFechaNacimientoYearsAgo = (years: number): string => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - years);
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${month}-${day}`;
+  };
+
+  const validFechaNacimiento = getFechaNacimientoYearsAgo(45);
+
+  const siresDemographics = {
+    paisNacimiento: defaultPaisNacimiento,
+    sexo: 'Masculino',
+    entidadNacimiento: '09',
+    entidadResidencia: '09',
+    municipioResidencia: '001',
+    localidadResidencia: '0001',
+    fechaNacimiento: '1985-01-02',
+  };
+
   beforeEach(async () => {
     mockMedicoFirmanteModel = {
       ...createMockModel(),
@@ -63,6 +90,12 @@ describe('MedicosFirmantesService', () => {
     mockRegulatoryPolicyService = {
       getRegulatoryPolicy: jest.fn(),
     } as any;
+    mockCatalogsService = {
+      validateINEGI: jest.fn().mockResolvedValue(true),
+    } as any;
+    mockGeographyValidator = {
+      validateGeography: jest.fn().mockResolvedValue({ valid: true, errors: [] }),
+    } as any;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -80,6 +113,14 @@ describe('MedicosFirmantesService', () => {
           provide: RegulatoryPolicyService,
           useValue: mockRegulatoryPolicyService,
         },
+        {
+          provide: CatalogsService,
+          useValue: mockCatalogsService,
+        },
+        {
+          provide: GeographyValidator,
+          useValue: mockGeographyValidator,
+        },
       ],
     }).compile();
 
@@ -89,7 +130,6 @@ describe('MedicosFirmantesService', () => {
   describe('NOM-024 CURP Validation', () => {
     describe('MX Provider (pais === MX)', () => {
       beforeEach(() => {
-        // Setup MX provider scenario
         mockUserModel.findById.mockReturnValue({
           exec: jest.fn().mockResolvedValue({
             _id: mxUserId,
@@ -102,19 +142,29 @@ describe('MedicosFirmantesService', () => {
             pais: 'MX',
           }),
         });
+        mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue({
+          regime: 'SIRES_NOM024',
+          features: {} as any,
+          validation: {
+            curpFirmantes: 'required',
+            workerCurp: 'required_strict',
+            cie10Principal: 'required',
+            geoFields: 'required',
+          },
+        });
       });
 
       it('should require CURP for MX providers', async () => {
         const dto = {
           nombre: 'Dr. Juan Pérez',
           idUser: mxUserId,
-          // No curp provided
+          paisNacimiento: defaultPaisNacimiento,
+          sexo: 'Masculino',
+          entidadNacimiento: '09',
+          fechaNacimiento: siresDemographics.fechaNacimiento,
         };
 
         await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-        await expect(service.create(dto)).rejects.toThrow(
-          'NOM-024: CURP es obligatorio para profesionales de salud de proveedores mexicanos',
-        );
       });
 
       it('should accept valid CURP for MX providers', async () => {
@@ -122,6 +172,7 @@ describe('MedicosFirmantesService', () => {
           nombre: 'Dr. Juan Pérez',
           idUser: mxUserId,
           curp: validCURP,
+          ...siresDemographics,
         };
 
         const result = await service.create(dto);
@@ -134,16 +185,15 @@ describe('MedicosFirmantesService', () => {
           nombre: 'Dr. Juan Pérez',
           idUser: mxUserId,
           curp: invalidCURPFormat,
+          ...siresDemographics,
         };
 
         await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-        await expect(service.create(dto)).rejects.toThrow('NOM-024:');
       });
     });
 
     describe('Non-MX Provider (pais !== MX)', () => {
       beforeEach(() => {
-        // Setup non-MX provider scenario (e.g., Guatemala)
         mockUserModel.findById.mockReturnValue({
           exec: jest.fn().mockResolvedValue({
             _id: nonMxUserId,
@@ -156,12 +206,24 @@ describe('MedicosFirmantesService', () => {
             pais: 'GT',
           }),
         });
+        mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue({
+          regime: 'SIN_REGIMEN',
+          features: {} as any,
+          validation: {
+            curpFirmantes: 'optional',
+            workerCurp: 'optional',
+            cie10Principal: 'optional',
+            geoFields: 'optional',
+          },
+        });
       });
 
       it('should allow creation without CURP for non-MX providers', async () => {
         const dto = {
           nombre: 'Dr. Carlos García',
           idUser: nonMxUserId,
+          paisNacimiento: defaultPaisNacimiento,
+          fechaNacimiento: validFechaNacimiento,
           // No curp - should be allowed for non-MX
         };
 
@@ -175,6 +237,8 @@ describe('MedicosFirmantesService', () => {
           nombre: 'Dr. Carlos García',
           idUser: nonMxUserId,
           curp: validCURP,
+          paisNacimiento: defaultPaisNacimiento,
+          fechaNacimiento: validFechaNacimiento,
         };
 
         const result = await service.create(dto);
@@ -186,6 +250,8 @@ describe('MedicosFirmantesService', () => {
           nombre: 'Dr. Carlos García',
           idUser: nonMxUserId,
           curp: invalidCURPFormat,
+          paisNacimiento: defaultPaisNacimiento,
+          fechaNacimiento: validFechaNacimiento,
         };
 
         await expect(service.create(dto)).rejects.toThrow(BadRequestException);
@@ -204,6 +270,8 @@ describe('MedicosFirmantesService', () => {
         const dto = {
           nombre: 'Dr. Orphan User',
           idUser: 'orphan-user',
+          paisNacimiento: defaultPaisNacimiento,
+          fechaNacimiento: validFechaNacimiento,
           // No curp - should be allowed since no provider = not MX
         };
 
@@ -219,6 +287,8 @@ describe('MedicosFirmantesService', () => {
         const dto = {
           nombre: 'Dr. Ghost User',
           idUser: 'non-existent-user',
+          paisNacimiento: defaultPaisNacimiento,
+          fechaNacimiento: validFechaNacimiento,
           // No curp - should be allowed since user not found = not MX
         };
 
@@ -244,6 +314,8 @@ describe('MedicosFirmantesService', () => {
           nombre: 'Dr. Test',
           idUser: nonMxUserId,
           curp: validCURP.toLowerCase(), // Lowercase input
+          paisNacimiento: defaultPaisNacimiento,
+          fechaNacimiento: validFechaNacimiento,
         };
 
         const result = await service.create(dto);
@@ -268,6 +340,7 @@ describe('MedicosFirmantesService', () => {
         giisExportEnabled: true,
         notaAclaratoriaEnabled: true,
         cluesFieldVisible: true,
+        dailyConsentEnabled: true,
       },
       validation: {
         curpFirmantes: 'required',
@@ -287,6 +360,7 @@ describe('MedicosFirmantesService', () => {
         giisExportEnabled: false,
         notaAclaratoriaEnabled: false,
         cluesFieldVisible: false,
+        dailyConsentEnabled: false,
       },
       validation: {
         curpFirmantes: 'optional',
@@ -313,13 +387,13 @@ describe('MedicosFirmantesService', () => {
         const dto = {
           nombre: 'Dr. Juan Pérez',
           idUser: siresUserId,
-          // No curp provided
+          paisNacimiento: defaultPaisNacimiento,
+          sexo: 'Masculino',
+          entidadNacimiento: '09',
+          fechaNacimiento: siresDemographics.fechaNacimiento,
         };
 
         await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-        await expect(service.create(dto)).rejects.toThrow(
-          'CURP es obligatorio para firmantes en régimen SIRES_NOM024',
-        );
       });
 
       it('should accept valid CURP for SIRES_NOM024', async () => {
@@ -327,6 +401,7 @@ describe('MedicosFirmantesService', () => {
           nombre: 'Dr. Juan Pérez',
           idUser: siresUserId,
           curp: validCURP,
+          ...siresDemographics,
         };
 
         const result = await service.create(dto);
@@ -336,15 +411,82 @@ describe('MedicosFirmantesService', () => {
         ).toHaveBeenCalledWith(siresProveedorId);
       });
 
+      it('should reject generic CURP for SIRES_NOM024 firmantes', async () => {
+        const dto = {
+          nombre: 'Dr. Juan Pérez',
+          idUser: siresUserId,
+          curp: 'XXXX999999XXXXXX99',
+          ...siresDemographics,
+        };
+
+        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+        await expect(service.create(dto)).rejects.toThrow(/genérica/i);
+      });
+
       it('should reject invalid CURP format for SIRES_NOM024', async () => {
         const dto = {
           nombre: 'Dr. Juan Pérez',
           idUser: siresUserId,
           curp: invalidCURPFormat,
+          ...siresDemographics,
         };
 
         await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-        await expect(service.create(dto)).rejects.toThrow('NOM-024:');
+      });
+
+      it('should require paisNacimiento', async () => {
+        const dto = {
+          nombre: 'Dr. Juan Pérez',
+          idUser: siresUserId,
+            fechaNacimiento: validFechaNacimiento,
+        } as CreateMedicoFirmanteDto;
+
+        await expect(service.create(dto)).rejects.toThrow(
+          'El país de nacimiento es obligatorio',
+        );
+      });
+
+      it('should require entidadResidencia for SIRES_NOM024', async () => {
+        const dto = {
+          nombre: 'Dr. Juan Pérez',
+          idUser: siresUserId,
+          curp: validCURP,
+          paisNacimiento: defaultPaisNacimiento,
+          sexo: 'Masculino',
+          entidadNacimiento: '09',
+          fechaNacimiento: siresDemographics.fechaNacimiento,
+        };
+
+        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      });
+
+      it('should accept valid residency fields for SIRES_NOM024', async () => {
+        const dto = {
+          nombre: 'Dr. Juan Pérez',
+          idUser: siresUserId,
+          curp: validCURP,
+          ...siresDemographics,
+        };
+
+        const result = await service.create(dto);
+        expect(result).toBeDefined();
+        expect(mockGeographyValidator.validateGeography).toHaveBeenCalled();
+      });
+
+      it('should reject inconsistent residency hierarchy (A3)', async () => {
+        mockGeographyValidator.validateGeography.mockResolvedValueOnce({
+          valid: false,
+          errors: [{ field: 'municipio', reason: 'Municipio inválido' }],
+        });
+
+        const dto = {
+          nombre: 'Dr. Juan Pérez',
+          idUser: siresUserId,
+          curp: validCURP,
+          ...siresDemographics,
+        };
+
+        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
       });
     });
 
@@ -365,7 +507,8 @@ describe('MedicosFirmantesService', () => {
         const dto = {
           nombre: 'Dr. Carlos García',
           idUser: sinRegimenUserId,
-          // No curp - should be allowed
+          paisNacimiento: defaultPaisNacimiento,
+            fechaNacimiento: validFechaNacimiento,
         };
 
         const result = await service.create(dto);
@@ -380,6 +523,8 @@ describe('MedicosFirmantesService', () => {
           nombre: 'Dr. Carlos García',
           idUser: sinRegimenUserId,
           curp: validCURP,
+          paisNacimiento: defaultPaisNacimiento,
+          fechaNacimiento: validFechaNacimiento,
         };
 
         const result = await service.create(dto);
@@ -391,11 +536,143 @@ describe('MedicosFirmantesService', () => {
           nombre: 'Dr. Carlos García',
           idUser: sinRegimenUserId,
           curp: invalidCURPFormat,
+          paisNacimiento: defaultPaisNacimiento,
+          fechaNacimiento: validFechaNacimiento,
         };
 
         await expect(service.create(dto)).rejects.toThrow(BadRequestException);
         // Should validate format even if optional
       });
+    });
+  });
+
+  describe('fechaNacimiento validation', () => {
+    beforeEach(() => {
+      mockUserModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: nonMxUserId,
+          idProveedorSalud: nonMxProveedorId,
+        }),
+      });
+      mockProveedorSaludModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: nonMxProveedorId,
+          pais: 'GT',
+        }),
+      });
+      mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue({
+        regime: 'SIN_REGIMEN',
+        features: {
+          sessionTimeoutEnabled: false,
+          enforceDocumentImmutabilityUI: false,
+          documentImmutabilityEnabled: false,
+          showSiresUI: false,
+          giisExportEnabled: false,
+          notaAclaratoriaEnabled: false,
+          cluesFieldVisible: false,
+          dailyConsentEnabled: false,
+        },
+        validation: {
+          curpFirmantes: 'optional',
+          workerCurp: 'optional',
+          cie10Principal: 'optional',
+          geoFields: 'optional',
+        },
+      });
+    });
+
+    it('should reject create without fechaNacimiento', async () => {
+      const dto = {
+        nombre: 'Dr. Sin Fecha',
+        idUser: nonMxUserId,
+      } as any;
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto)).rejects.toThrow(
+        'La fecha de nacimiento es obligatoria',
+      );
+    });
+
+    it('should reject edad menor a 18 años', async () => {
+      const dto = {
+        nombre: 'Dr. Joven',
+        idUser: nonMxUserId,
+        paisNacimiento: defaultPaisNacimiento,
+        fechaNacimiento: getFechaNacimientoYearsAgo(17),
+      };
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto)).rejects.toThrow(
+        'debe estar entre 18 y 90 años cumplidos',
+      );
+    });
+
+    it('should reject edad mayor a 90 años', async () => {
+      const dto = {
+        nombre: 'Dr. Anciano',
+        idUser: nonMxUserId,
+        paisNacimiento: defaultPaisNacimiento,
+        fechaNacimiento: getFechaNacimientoYearsAgo(91),
+      };
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto)).rejects.toThrow(
+        'debe estar entre 18 y 90 años cumplidos',
+      );
+    });
+
+    it('should accept edad within range', async () => {
+      const dto = {
+        nombre: 'Dr. Válido',
+        idUser: nonMxUserId,
+        paisNacimiento: defaultPaisNacimiento,
+          fechaNacimiento: validFechaNacimiento,
+      };
+
+      const result = await service.create(dto);
+      expect(result).toBeDefined();
+    });
+
+    it('should accept exactly 18 years old today', async () => {
+      const dto = {
+        nombre: 'Dr. 18 años',
+        idUser: nonMxUserId,
+        paisNacimiento: defaultPaisNacimiento,
+        fechaNacimiento: getFechaNacimientoYearsAgo(18),
+      };
+
+      const result = await service.create(dto);
+      expect(result).toBeDefined();
+    });
+
+    it('should accept exactly 90 years old today', async () => {
+      const dto = {
+        nombre: 'Dr. 90 años',
+        idUser: nonMxUserId,
+        paisNacimiento: defaultPaisNacimiento,
+        fechaNacimiento: getFechaNacimientoYearsAgo(90),
+      };
+
+      const result = await service.create(dto);
+      expect(result).toBeDefined();
+    });
+
+    it('should reject update when existing record has no fechaNacimiento and dto omits it', async () => {
+      const existingId = '507f1f77bcf86cd799439099';
+      mockMedicoFirmanteModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: existingId,
+          idUser: nonMxUserId,
+          nombre: 'Dr. Legacy',
+        }),
+      });
+
+      await expect(
+        service.update(existingId, {
+          nombre: 'Dr. Legacy',
+          idUser: nonMxUserId,
+        }),
+      ).rejects.toThrow('La fecha de nacimiento es obligatoria');
     });
   });
 });

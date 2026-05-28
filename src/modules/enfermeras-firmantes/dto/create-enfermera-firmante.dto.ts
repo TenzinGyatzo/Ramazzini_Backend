@@ -7,6 +7,7 @@ import {
   IsMongoId,
   IsOptional,
   IsNumber,
+  IsDateString,
   Matches,
 } from 'class-validator';
 
@@ -56,6 +57,34 @@ export class CreateEnfermeraFirmanteDto {
   @IsNotEmpty({ message: 'El ID del usuario no puede estar vacío' })
   idUser: string;
 
+  @IsOptional()
+  @IsString({ message: 'La entidad de nacimiento debe ser un string' })
+  entidadNacimiento?: string;
+
+  @IsOptional()
+  @IsString({ message: 'La entidad de residencia debe ser un string' })
+  @Matches(/^$|^(0[1-9]|[12][0-9]|3[0-2]|NE|00)$/, {
+    message:
+      'Entidad de residencia debe ser código INEGI válido (01-32, NE, o 00)',
+  })
+  entidadResidencia?: string;
+
+  @IsOptional()
+  @IsString({ message: 'El municipio de residencia debe ser un string' })
+  @Matches(/^$|^[0-9]{3}$/, {
+    message:
+      'Municipio de residencia debe ser código INEGI válido (3 dígitos, ej: 001)',
+  })
+  municipioResidencia?: string;
+
+  @IsOptional()
+  @IsString({ message: 'La localidad de residencia debe ser un string' })
+  @Matches(/^$|^[0-9]{4}$/, {
+    message:
+      'Localidad de residencia debe ser código INEGI válido (4 dígitos, ej: 0001)',
+  })
+  localidadResidencia?: string;
+
   // NOM-024: CURP for healthcare professionals
   // Required for MX providers, optional for non-MX (validation in service layer)
   @IsOptional()
@@ -67,12 +96,19 @@ export class CreateEnfermeraFirmanteDto {
   })
   curp?: string;
 
-  @IsOptional()
+  @IsNotEmpty({ message: 'El país de nacimiento no puede estar vacío' })
   @IsNumber()
   @Transform(({ value }) =>
     value === '' || value == null ? undefined : Number(value),
   )
-  paisNacimiento?: number;
+  paisNacimiento: number;
+
+  @IsNotEmpty({ message: 'La fecha de nacimiento no puede estar vacía' })
+  @IsDateString(
+    {},
+    { message: 'La fecha de nacimiento debe ser una fecha válida (YYYY-MM-DD)' },
+  )
+  fechaNacimiento: string;
 
   static firma: { data: string; contentType: string };
 }

@@ -175,58 +175,48 @@ export function formatResultEnum(value: number | null | undefined): string {
   return String(value);
 }
 
-/** Mapa de acentos y ñ a letras GIIS (A-Z, Ñ). validationRaw: solo A–Z Ñ mayúsculas, sin acentos. */
+/** Acentos (sin diéresis) → letra base. Diéresis en vocal (ä, ë, ï, ö, ü) se conservan. */
 const GIIS_NAME_ACCENT_MAP: Record<string, string> = {
   á: 'A',
   à: 'A',
   â: 'A',
-  ä: 'A',
   Á: 'A',
   À: 'A',
   Â: 'A',
-  Ä: 'A',
   é: 'E',
   è: 'E',
   ê: 'E',
-  ë: 'E',
   É: 'E',
   È: 'E',
   Ê: 'E',
-  Ë: 'E',
   í: 'I',
   ì: 'I',
   î: 'I',
-  ï: 'I',
   Í: 'I',
   Ì: 'I',
   Î: 'I',
-  Ï: 'I',
   ó: 'O',
   ò: 'O',
   ô: 'O',
-  ö: 'O',
   Ó: 'O',
   Ò: 'O',
   Ô: 'O',
-  Ö: 'O',
   ú: 'U',
   ù: 'U',
   û: 'U',
-  ü: 'U',
   Ú: 'U',
   Ù: 'U',
   Û: 'U',
-  Ü: 'U',
   ñ: 'Ñ',
   Ñ: 'Ñ',
 };
 
-/** Caracteres permitidos en nombres GIIS: A-Z, Ñ, espacio, - , . / ' ¨ */
-const GIIS_NAME_ALLOWED = /^[A-ZÑ\s\-,\.\/'¨]$/u;
+/** Caracteres permitidos en nombres GIIS: A-Z, Ñ, diéresis en vocal, espacio, - , . / ' ¨ */
+const GIIS_NAME_ALLOWED = /^[A-ZÑÄËÏÖÜ\s\-,\.\/'¨]$/u;
 
 /**
  * Normaliza un nombre o apellido al formato GIIS (NOM-024 validationRaw).
- * - Solo A–Z, Ñ en mayúsculas; sin acentos.
+ * - Solo A–Z, Ñ en mayúsculas; sin acentos (sí conserva diéresis en vocal: Ä, Ë, Ï, Ö, Ü).
  * - Especiales permitidos: - , . / ' ¨
  * - No más de un espacio consecutivo; no más de un caracter especial consecutivo.
  *

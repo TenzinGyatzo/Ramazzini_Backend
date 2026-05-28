@@ -1,8 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 
 // Constantes de política
-export const AGE_MIN_YEARS = 0;
-export const AGE_MAX_YEARS = 120;
+export const AGE_MIN_YEARS = 18;
+export const AGE_MAX_YEARS = 70;
 
 /**
  * Normaliza una fecha a objeto Date (date-only, sin hora)
@@ -36,14 +36,13 @@ function calcularEdadDesdeFecha(fechaNacimiento: Date): number {
 }
 
 /**
- * Valida fechaNacimiento (A2):
- * - No puede ser futura
- * - La edad resultante debe estar entre AGE_MIN_YEARS y AGE_MAX_YEARS
- *
- * @param fechaNacimiento - Fecha de nacimiento (Date o string ISO)
- * @returns void - Lanza BadRequestException si es inválida
+ * Valida fechaNacimiento con rango de edad configurable (precisa, mes/día).
  */
-export function validateFechaNacimiento(fechaNacimiento: Date | string): void {
+export function validateFechaNacimientoWithRange(
+  fechaNacimiento: Date | string,
+  minYears: number,
+  maxYears: number,
+): void {
   const fecha = normalizeDate(fechaNacimiento);
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
@@ -57,13 +56,42 @@ export function validateFechaNacimiento(fechaNacimiento: Date | string): void {
   }
 
   const edad = calcularEdadDesdeFecha(fecha);
-  if (edad < AGE_MIN_YEARS || edad > AGE_MAX_YEARS) {
+  if (edad < minYears || edad > maxYears) {
     throw new BadRequestException({
       code: 'VALIDATION_ERROR',
       ruleId: 'A2',
-      message: `La edad calculada (${edad} años) está fuera del rango válido (${AGE_MIN_YEARS}-${AGE_MAX_YEARS} años)`,
+      message: `La edad calculada (${edad} años) debe estar entre ${minYears} y ${maxYears} años cumplidos`,
     });
   }
+}
+
+/**
+ * Valida fechaNacimiento (A2):
+ * - No puede ser futura
+ * - La edad resultante debe estar entre AGE_MIN_YEARS y AGE_MAX_YEARS
+ *
+ * @param fechaNacimiento - Fecha de nacimiento (Date o string ISO)
+ * @returns void - Lanza BadRequestException si es inválida
+ */
+export function validateFechaNacimiento(fechaNacimiento: Date | string): void {
+  validateFechaNacimientoWithRange(
+    fechaNacimiento,
+    AGE_MIN_YEARS,
+    AGE_MAX_YEARS,
+  );
+}
+
+export const FIRMANTE_AGE_MIN_YEARS = 18;
+export const FIRMANTE_AGE_MAX_YEARS = 90;
+
+export function validateFechaNacimientoFirmante(
+  fechaNacimiento: Date | string,
+): void {
+  validateFechaNacimientoWithRange(
+    fechaNacimiento,
+    FIRMANTE_AGE_MIN_YEARS,
+    FIRMANTE_AGE_MAX_YEARS,
+  );
 }
 
 /**

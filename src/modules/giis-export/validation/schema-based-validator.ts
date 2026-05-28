@@ -40,8 +40,8 @@ function getNum(
   return Number.isNaN(n) ? null : n;
 }
 
-/** Allowed characters for names (validationRaw: A–Z Ñ, mayúsculas; especiales: - , . / ' ¨) */
-const NAME_REGEX = /^[A-ZÑ\s\-,\.\/'¨]+$/;
+/** Allowed characters for names (validationRaw: A–Z Ñ, mayúsculas; diéresis en vocal; especiales: - , . / ' ¨) */
+const NAME_REGEX = /^[A-ZÑÄËÏÖÜ\s\-,\.\/'¨]+$/;
 
 function hasConsecutiveSpecial(s: string): boolean {
   const specials = s.replace(/\s/g, '').replace(/[A-ZÑ]/g, '');
@@ -229,7 +229,8 @@ async function validateFieldByRule(
         guide,
         rowIndex,
         field: name,
-        cause: "Solo caracteres A-Z, Ñ y especiales permitidos (- , . / ' ¨)",
+        cause:
+          "Solo caracteres A-Z, Ñ, diéresis en vocal (Ä, Ë, Ï, Ö, Ü) y especiales permitidos (- , . / ' ¨)",
         severity: 'blocker',
       });
     }

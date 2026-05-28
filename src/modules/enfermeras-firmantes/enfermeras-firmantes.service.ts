@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, BadRequestException } from '@nestjs/common';
 import { CreateEnfermeraFirmanteDto } from './dto/create-enfermera-firmante.dto';
 import { UpdateEnfermeraFirmanteDto } from './dto/update-enfermera-firmante.dto';
 import { InjectModel } from '@nestjs/mongoose';
@@ -8,7 +8,10 @@ import { normalizeEnfermeraFirmanteData } from 'src/utils/normalization';
 import { User } from '../users/schemas/user.schema';
 import { ProveedorSalud } from '../proveedores-salud/schemas/proveedor-salud.schema';
 import { RegulatoryPolicyService } from 'src/utils/regulatory-policy.service';
-import { validateCurpByPolicy } from 'src/utils/curp-policy-validator.util';
+import { validateFechaNacimientoFirmante } from '../expedientes/validators/date-validators';
+import { CatalogsService } from '../catalogs/catalogs.service';
+import { GeographyValidator } from '../catalogs/validators/geography.validator';
+import { validateFirmanteRegulatoryFields } from 'src/utils/firmante-regulatory-validation.util';
 
 @Injectable()
 export class EnfermerasFirmantesService {
@@ -21,30 +24,64 @@ export class EnfermerasFirmantesService {
     private proveedorSaludModel: Model<ProveedorSalud>,
     @Inject(forwardRef(() => RegulatoryPolicyService))
     private readonly regulatoryPolicyService: RegulatoryPolicyService,
+    private readonly catalogsService: CatalogsService,
+    private readonly geographyValidator: GeographyValidator,
   ) {}
 
-  /**
-   * Validate CURP based on regulatory policy
-   * Uses Policy Layer to determine if CURP is required or optional
-   */
-  private async validateCURPByPolicy(
-    curp: string | undefined,
+  private async getPolicyForUser(idUser: string) {
+    const user = await this.userModel.findById(idUser).exec();
+    if (!user?.idProveedorSalud) {
+      return null;
+    }
+    return this.regulatoryPolicyService.getRegulatoryPolicy(
+      user.idProveedorSalud,
+    );
+  }
+
+  private async validateFirmanteSiresFields(
+    data: Record<string, unknown>,
     idUser: string,
   ): Promise<void> {
-    // Get user to obtain idProveedorSalud
-    const user = await this.userModel.findById(idUser).exec();
-    if (!user || !user.idProveedorSalud) {
-      // If no user or provider, assume SIN_REGIMEN (most permissive)
+    if (data.paisNacimiento == null || Number.isNaN(Number(data.paisNacimiento))) {
+      throw new BadRequestException('El país de nacimiento es obligatorio');
+    }
+
+    const policy = await this.getPolicyForUser(idUser);
+    if (!policy) {
       return;
     }
 
-    // Get regulatory policy for the provider
-    const policy = await this.regulatoryPolicyService.getRegulatoryPolicy(
-      user.idProveedorSalud,
+    await validateFirmanteRegulatoryFields(
+      policy,
+      {
+        paisNacimiento: data.paisNacimiento as number | undefined,
+        entidadNacimiento: data.entidadNacimiento as string | undefined,
+        entidadResidencia: data.entidadResidencia as string | undefined,
+        municipioResidencia: data.municipioResidencia as string | undefined,
+        localidadResidencia: data.localidadResidencia as string | undefined,
+        curp: data.curp as string | undefined,
+        fechaNacimiento: data.fechaNacimiento as Date | undefined,
+        sexo: data.sexo as string | undefined,
+        nombre: data.nombre as string | undefined,
+      },
+      this.catalogsService,
+      this.geographyValidator,
     );
+  }
 
-    // Validate CURP using policy
-    validateCurpByPolicy(curp, policy);
+  private validateFechaNacimientoField(
+    fechaNacimiento: Date | undefined,
+    isCreate: boolean,
+  ): void {
+    if (!fechaNacimiento) {
+      if (isCreate) {
+        throw new BadRequestException(
+          'La fecha de nacimiento es obligatoria',
+        );
+      }
+      return;
+    }
+    validateFechaNacimientoFirmante(fechaNacimiento);
   }
 
   async create(createEnfermeraFirmanteDto: CreateEnfermeraFirmanteDto) {
@@ -52,9 +89,13 @@ export class EnfermerasFirmantesService {
       createEnfermeraFirmanteDto,
     );
 
-    // Validate CURP based on regulatory policy
-    await this.validateCURPByPolicy(
-      (normalizedDto as any).curp,
+    this.validateFechaNacimientoField(
+      (normalizedDto as any).fechaNacimiento,
+      true,
+    );
+
+    await this.validateFirmanteSiresFields(
+      normalizedDto as Record<string, unknown>,
       createEnfermeraFirmanteDto.idUser,
     );
 
@@ -84,18 +125,36 @@ export class EnfermerasFirmantesService {
       updateEnfermeraFirmanteDto,
     );
 
-    // Get existing record to determine idUser for validation
     const existing = await this.enfermeraFirmanteModel.findById(id).exec();
+
+    const fechaNacimientoToValidate =
+      (normalizedDto as any).fechaNacimiento !== undefined
+        ? (normalizedDto as any).fechaNacimiento
+        : (existing as any)?.fechaNacimiento;
+
+    if ((normalizedDto as any).fechaNacimiento !== undefined) {
+      this.validateFechaNacimientoField(
+        (normalizedDto as any).fechaNacimiento,
+        false,
+      );
+    } else if (!fechaNacimientoToValidate) {
+      throw new BadRequestException(
+        'La fecha de nacimiento es obligatoria',
+      );
+    }
+
     if (existing) {
       const idUser =
         updateEnfermeraFirmanteDto.idUser || existing.idUser?.toString();
       if (idUser) {
-        // Validate CURP based on regulatory policy
-        const curpToValidate =
-          (normalizedDto as any).curp !== undefined
-            ? (normalizedDto as any).curp
-            : (existing as any).curp;
-        await this.validateCURPByPolicy(curpToValidate, idUser);
+        const merged = {
+          ...(existing.toObject?.() ?? existing),
+          ...normalizedDto,
+        };
+        await this.validateFirmanteSiresFields(
+          merged as Record<string, unknown>,
+          idUser,
+        );
       }
     }
 

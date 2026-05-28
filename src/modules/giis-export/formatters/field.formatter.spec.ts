@@ -239,6 +239,13 @@ describe('Field Formatter', () => {
       expect(normalizeNameForGiis('Niño')).toBe('NIÑO');
     });
 
+    it('should preserve diéresis on vowels and remove plain accents', () => {
+      expect(normalizeNameForGiis('Argüello')).toBe('ARGÜELLO');
+      expect(normalizeNameForGiis('Cöss')).toBe('CÖSS');
+      expect(normalizeNameForGiis('Gärcia')).toBe('GÄRCIA');
+      expect(normalizeNameForGiis('Álvarez')).toBe('ALVAREZ');
+    });
+
     it('should allow permitted special chars and collapse consecutive same special', () => {
       expect(normalizeNameForGiis("O'Brien")).toBe("O'BRIEN");
       expect(normalizeNameForGiis('Del Río')).toBe('DEL RIO');

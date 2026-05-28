@@ -5,11 +5,22 @@
  * and checksum algorithm. Used for NOM-024 compliance for Mexican providers.
  */
 
+import {
+  deriveCurpNameSegments,
+  getExpectedHomoclavePattern,
+} from './curp-name-segments.util';
+
 /**
  * Discrepancy information for CURP cross-check validation
  */
 export interface Discrepancy {
-  field: 'fechaNacimiento' | 'sexo' | 'entidadNacimiento';
+  field:
+    | 'fechaNacimiento'
+    | 'sexo'
+    | 'entidadNacimiento'
+    | 'iniciales'
+    | 'consonantesInternas'
+    | 'homoclave';
   expected: string;
   gotFromCurp: string;
 }
@@ -409,13 +420,14 @@ function parseDateSafe(dateInput: Date | string): {
 /**
  * Valida coherencia semántica entre CURP y datos demográficos (A1)
  *
- * Estructura CURP RENAPO:
- * - Posiciones 0-3: Primeras letras del primer apellido
- * - Posiciones 4-9: AAMMDD (año, mes, día de nacimiento)
- * - Posición 10: H (Hombre) o M (Mujer)
- * - Posiciones 11-15: Letras del segundo apellido y nombre
- * - Posición 16: Alfanumérico
- * - Posición 17: Dígito verificador
+ * Estructura CURP RENAPO (1-based):
+ * - Posiciones 1-4: Iniciales de apellidos y nombre
+ * - Posiciones 5-10: AAMMDD (año, mes, día de nacimiento)
+ * - Posición 11: H (Hombre) o M (Mujer)
+ * - Posiciones 12-13: Entidad federativa de nacimiento
+ * - Posiciones 14-16: Consonantes internas de apellidos y nombre
+ * - Posición 17: Homoclave (diferenciador de homonimia y siglo)
+ * - Posición 18: Dígito verificador
  *
  * @param curp - CURP string (debe estar normalizado a uppercase)
  * @param data - Datos demográficos del trabajador
@@ -457,10 +469,13 @@ export function validateCURPCrossCheck(
     };
   }
 
-  // Extraer componentes de la CURP
-  const curpAAMMDD = normalizedCurp.substring(4, 10); // posiciones 4-9 (AAMMDD)
-  const curpSexo = normalizedCurp.charAt(10); // posición 10 (H/M)
-  const curpEntidad = normalizedCurp.substring(11, 13); // posiciones 11-12 (entidad)
+  // Extraer componentes de la CURP (índices 0-based)
+  const curpIniciales = normalizedCurp.substring(0, 4); // posiciones 1-4
+  const curpAAMMDD = normalizedCurp.substring(4, 10); // posiciones 5-10 (AAMMDD)
+  const curpSexo = normalizedCurp.charAt(10); // posición 11 (H/M)
+  const curpEntidad = normalizedCurp.substring(11, 13); // posiciones 12-13 (entidad)
+  const curpConsonantes = normalizedCurp.substring(13, 16); // posiciones 14-16
+  const curpHomoclave = normalizedCurp.charAt(16); // posición 17
 
   // 1. Validación BLOQUEANTE: Fecha de nacimiento
   const fechaParsed = parseDateSafe(data.fechaNacimiento);
@@ -509,22 +524,41 @@ export function validateCURPCrossCheck(
     }
   }
 
-  // 4. Validación NO BLOQUEANTE: Nombres y apellidos (solo advertencia en logs)
-  // Nota: Esta validación es compleja debido a homonimias, nombres compuestos, Ñ, etc.
-  // Por ahora, solo logueamos si hay discrepancias obvias, pero no bloqueamos
-  if (data.primerApellido && data.nombre) {
-    // Extraer primera letra del primer apellido (posición 0 de CURP)
-    const primeraLetraApellido = normalizedCurp.charAt(0);
-    const primeraLetraEsperada = data.primerApellido
-      .trim()
-      .toUpperCase()
-      .charAt(0);
+  // 4. Validación BLOQUEANTE: Iniciales y consonantes internas (posiciones 1-4 y 14-16)
+  // Reglas canónicas RENAPO + palabras inconvenientes (pos 1-4) en deriveCurpNameSegments;
+  // otros casos especiales (partículas, nombres compuestos, etc.) pendientes — ver curp-name-segments.util.ts
+  if (data.primerApellido?.trim() && data.nombre?.trim()) {
+    const expectedSegments = deriveCurpNameSegments({
+      nombre: data.nombre,
+      primerApellido: data.primerApellido,
+      segundoApellido: data.segundoApellido,
+    });
 
-    if (primeraLetraApellido !== primeraLetraEsperada) {
-      console.warn(
-        `CURP ${normalizedCurp}: Primera letra del apellido en CURP (${primeraLetraApellido}) no coincide con primerApellido (${primeraLetraEsperada}). Esto puede ser por homonimias o nombres compuestos.`,
-      );
+    if (curpIniciales !== expectedSegments.iniciales) {
+      discrepancies.push({
+        field: 'iniciales',
+        expected: expectedSegments.iniciales,
+        gotFromCurp: curpIniciales,
+      });
     }
+
+    if (curpConsonantes !== expectedSegments.consonantes) {
+      discrepancies.push({
+        field: 'consonantesInternas',
+        expected: expectedSegments.consonantes,
+        gotFromCurp: curpConsonantes,
+      });
+    }
+  }
+
+  // 5. Validación BLOQUEANTE: Homoclave / siglo (posición 17)
+  const homoclaveRule = getExpectedHomoclavePattern(fechaParsed.year);
+  if (!homoclaveRule.pattern.test(curpHomoclave)) {
+    discrepancies.push({
+      field: 'homoclave',
+      expected: homoclaveRule.label,
+      gotFromCurp: curpHomoclave,
+    });
   }
 
   // isValid = false solo si hay discrepancias BLOQUEANTES

@@ -19,31 +19,38 @@ describe('Date Validators', () => {
       );
     });
 
-    it('debe lanzar error si edad > 120 años', () => {
-      const fechaHace121 = new Date();
-      fechaHace121.setFullYear(fechaHace121.getFullYear() - 121);
-      expect(() => validateFechaNacimiento(fechaHace121)).toThrow(
+    it('debe lanzar error si edad > 70 años', () => {
+      const fechaHace71 = new Date();
+      fechaHace71.setFullYear(fechaHace71.getFullYear() - 71);
+      expect(() => validateFechaNacimiento(fechaHace71)).toThrow(
         BadRequestException,
       );
-      expect(() => validateFechaNacimiento(fechaHace121)).toThrow(
-        `La edad calculada (121 años) está fuera del rango válido (${AGE_MIN_YEARS}-${AGE_MAX_YEARS} años)`,
+      expect(() => validateFechaNacimiento(fechaHace71)).toThrow(
+        `La edad calculada (71 años) está fuera del rango válido (${AGE_MIN_YEARS}-${AGE_MAX_YEARS} años)`,
       );
     });
 
-    it('debe permitir fechaNacimiento válida (hoy)', () => {
-      const hoy = new Date();
-      expect(() => validateFechaNacimiento(hoy)).not.toThrow();
+    it('debe lanzar error si edad < 18 años', () => {
+      const fechaHace10 = new Date();
+      fechaHace10.setFullYear(fechaHace10.getFullYear() - 10);
+      expect(() => validateFechaNacimiento(fechaHace10)).toThrow(
+        BadRequestException,
+      );
+      expect(() => validateFechaNacimiento(fechaHace10)).toThrow(
+        `La edad calculada (10 años) está fuera del rango válido (${AGE_MIN_YEARS}-${AGE_MAX_YEARS} años)`,
+      );
     });
 
-    it('debe permitir fechaNacimiento válida (120 años)', () => {
-      const fechaHace120 = new Date();
-      fechaHace120.setFullYear(fechaHace120.getFullYear() - 120);
-      expect(() => validateFechaNacimiento(fechaHace120)).not.toThrow();
+    it('debe permitir fechaNacimiento válida (18 años)', () => {
+      const fechaHace18 = new Date();
+      fechaHace18.setFullYear(fechaHace18.getFullYear() - 18);
+      expect(() => validateFechaNacimiento(fechaHace18)).not.toThrow();
     });
 
-    it('debe permitir fechaNacimiento válida (edad 0 años)', () => {
-      const hoy = new Date();
-      expect(() => validateFechaNacimiento(hoy)).not.toThrow();
+    it('debe permitir fechaNacimiento válida (70 años)', () => {
+      const fechaHace70 = new Date();
+      fechaHace70.setFullYear(fechaHace70.getFullYear() - 70);
+      expect(() => validateFechaNacimiento(fechaHace70)).not.toThrow();
     });
 
     it('debe aceptar string ISO como fechaNacimiento', () => {

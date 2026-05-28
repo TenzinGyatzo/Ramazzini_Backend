@@ -18,12 +18,13 @@ import {
   convertirFechaADDMMAAAA,
 } from 'src/utils/dates';
 import {
-  validateCURP,
-  validateCURPCrossCheck,
-} from 'src/utils/curp-validator.util';
+  validateCurpForSires,
+  validateOptionalCurpSinRegimen,
+} from 'src/utils/curp-sires-validation.util';
 import { NOM024ComplianceUtil } from 'src/utils/nom024-compliance.util';
 import { validateTrabajadorNames } from 'src/utils/name-validator.util';
 import { RegulatoryPolicyService } from 'src/utils/regulatory-policy.service';
+import { validateWorkerIdentificationImmutable } from 'src/utils/worker-identification-immutability.util';
 import { createRegulatoryError } from 'src/utils/regulatory-error-helper';
 import { RegulatoryErrorCode } from 'src/utils/regulatory-error-codes';
 import { validateFechaNacimiento } from '../expedientes/validators/date-validators';
@@ -388,70 +389,28 @@ export class TrabajadoresService {
       await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
 
     const workerCurpPolicy = policy.validation.workerCurp;
+    const isCurpRequired = workerCurpPolicy === 'required_strict';
 
-    if (workerCurpPolicy === 'required_strict') {
-      // SIRES: CURP is mandatory and must be valid
-      if (!curp || curp.trim() === '') {
-        throw createRegulatoryError({
-          errorCode: RegulatoryErrorCode.REGIMEN_FIELD_REQUIRED,
-          details: { fieldName: 'curp' },
+    if (isCurpRequired) {
+      validateCurpForSires(
+        curp,
+        true,
+        {
+          fechaNacimiento: trabajadorData?.fechaNacimiento,
+          sexo: trabajadorData?.sexo,
+          entidadNacimiento: trabajadorData?.entidadNacimiento,
+          nombre: trabajadorData?.nombre,
+          primerApellido: trabajadorData?.primerApellido,
+          segundoApellido: trabajadorData?.segundoApellido,
+        },
+        {
+          allowGenericCurp: true,
+          subjectLabel: 'trabajador',
           regime: policy.regime,
-        });
-      }
-
-      // Normalize CURP (uppercase, trim)
-      const normalizedCurp = curp.trim().toUpperCase();
-      const validation = validateCURP(normalizedCurp);
-
-      if (!validation.isValid) {
-        throw new BadRequestException(
-          `CURP inválido: ${validation.errors.join(', ')}`,
-        );
-      }
-
-      // Validación cruzada A1 (solo si hay datos demográficos)
-      if (
-        trabajadorData &&
-        trabajadorData.fechaNacimiento &&
-        trabajadorData.sexo
-      ) {
-        const crossCheck = validateCURPCrossCheck(normalizedCurp, {
-          fechaNacimiento: trabajadorData.fechaNacimiento,
-          sexo: trabajadorData.sexo,
-          entidadNacimiento: trabajadorData.entidadNacimiento,
-          nombre: trabajadorData.nombre,
-          primerApellido: trabajadorData.primerApellido,
-          segundoApellido: trabajadorData.segundoApellido,
-        });
-
-        if (!crossCheck.isValid) {
-          // Construir mensaje específico con campos que fallaron
-          const fieldsFailed = crossCheck.discrepancies
-            .map((d) => d.field)
-            .join(', ');
-          throw new BadRequestException({
-            code: 'VALIDATION_ERROR',
-            ruleId: 'A1',
-            message: `La CURP no es consistente con los datos demográficos del trabajador. Campos con discrepancias: ${fieldsFailed}`,
-            details: crossCheck.discrepancies,
-          });
-        }
-      }
+        },
+      );
     } else {
-      // SIN_REGIMEN: CURP is optional, but if provided, validate format (basic validation)
-      if (curp && curp.trim() !== '') {
-        const normalizedCurp = curp.trim().toUpperCase();
-        const validation = validateCURP(normalizedCurp);
-
-        if (!validation.isValid) {
-          // For SIN_REGIMEN, we still validate format but don't require it
-          // Log warning but allow (backward compatibility)
-          console.warn(
-            `CURP con formato inválido para proveedor SIN_REGIMEN: ${validation.errors.join(', ')}`,
-          );
-        }
-        // No cross-check for SIN_REGIMEN
-      }
+      validateOptionalCurpSinRegimen(curp);
     }
   }
 
@@ -1745,6 +1704,14 @@ export class TrabajadoresService {
     const proveedorSaludId =
       await this.getProveedorSaludIdFromCentroTrabajo(idCentroTrabajo);
 
+    const policy =
+      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
+    validateWorkerIdentificationImmutable(
+      normalizedDto,
+      trabajadorActual,
+      policy,
+    );
+
     // Merge current worker data with update DTO for validation
     const mergedDto = {
       ...trabajadorActual.toObject(),
@@ -2926,7 +2893,7 @@ export class TrabajadoresService {
       if (!parsedDate) {
         errors.push(`Fecha de nacimiento inválida: ${worker.fechaNacimiento}`);
       } else {
-        // ✅ SOLUCIÓN: Validar edad mínima de 15 años (edad mínima para laborar en México)
+        // Validar edad permitida para registro: 18-70 años
         const fechaNacimiento = new Date(parsedDate);
         const hoy = new Date();
         const edad = hoy.getFullYear() - fechaNacimiento.getFullYear();
@@ -2942,9 +2909,15 @@ export class TrabajadoresService {
             ? edad - 1
             : edad;
 
-        if (edadReal < 15) {
+        if (edadReal < 18) {
           errors.push(
-            `Según el registro, el trabajador tiene ${edadReal} años. La edad mínima para laborar es 15 años. `,
+            `Según el registro, el trabajador tiene ${edadReal} años. La edad mínima para registrar es 18 años.`,
+          );
+        }
+
+        if (edadReal > 70) {
+          errors.push(
+            `Según el registro, el trabajador tiene ${edadReal} años. La edad máxima para registrar es 70 años.`,
           );
         }
 

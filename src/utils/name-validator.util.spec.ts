@@ -136,9 +136,10 @@ describe('Name Validator Utility', () => {
       expect(result2.normalizedValue).toBe('');
     });
 
-    it('should warn about unusual characters', () => {
+    it('debe rechazar caracteres no permitidos para captura CURP', () => {
       const result = validateNameField('JUAN@PEREZ', 'Nombre');
-      expect(result.warnings.some((w) => w.includes('caracteres'))).toBe(true);
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some((e) => e.includes('no permitidos'))).toBe(true);
     });
 
     it('should allow accented characters', () => {
@@ -147,8 +148,8 @@ describe('Name Validator Utility', () => {
       expect(result.warnings).toHaveLength(0);
     });
 
-    it('should allow hyphens in names', () => {
-      const result = validateNameField('JEAN-PIERRE', 'Nombre');
+    it('should allow CURP special characters in names', () => {
+      const result = validateNameField('D/AMICO', 'Primer apellido');
       expect(result.isValid).toBe(true);
     });
   });

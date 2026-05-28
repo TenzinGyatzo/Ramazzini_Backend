@@ -21,6 +21,12 @@ export enum RegulatoryErrorCode {
   REGIMEN_DOCUMENT_IMMUTABLE = 'REGIMEN_DOCUMENT_IMMUTABLE',
 
   /**
+   * Datos de identificación del trabajador inmutables tras el registro (SIRES)
+   */
+  REGIMEN_WORKER_IDENTIFICATION_IMMUTABLE =
+    'REGIMEN_WORKER_IDENTIFICATION_IMMUTABLE',
+
+  /**
    * Campo requerido por régimen regulatorio
    * Ejemplos: CURP, campos geográficos, CIE-10 principal
    */
@@ -94,4 +100,9 @@ export interface RegulatoryErrorDetails {
    * Ejemplos: 'create_document', 'export_giis', 'finalize_document'
    */
   action?: string;
+
+  /**
+   * Campos de identificación que no pueden modificarse
+   */
+  immutableFields?: string[];
 }

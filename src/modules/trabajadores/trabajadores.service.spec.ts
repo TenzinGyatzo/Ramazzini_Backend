@@ -293,13 +293,13 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
       );
     });
 
-    it('debe rechazar crear trabajador con edad > 120 años', async () => {
-      const fechaHace121 = new Date();
-      fechaHace121.setFullYear(fechaHace121.getFullYear() - 121);
+    it('debe rechazar crear trabajador con edad > 70 años', async () => {
+      const fechaHace71 = new Date();
+      fechaHace71.setFullYear(fechaHace71.getFullYear() - 71);
 
       const dto = {
         ...mockCreateTrabajadorDto,
-        fechaNacimiento: fechaHace121,
+        fechaNacimiento: fechaHace71,
       };
 
       // Mock para getProveedorSaludIdFromCentroTrabajo
@@ -377,7 +377,7 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
 
       const dto = {
         ...mockCreateTrabajadorDto,
-        curp: 'GALJ900515HDFLRN08', // Fecha: 1990-05-15
+        curp: 'GALJ900515HDFRPN08', // Fecha: 1990-05-15
         fechaNacimiento: new Date('1991-05-15'), // Fecha diferente
         sexo: 'Masculino',
         entidadNacimiento: '09',
@@ -417,7 +417,7 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
 
       const dto = {
         ...mockCreateTrabajadorDto,
-        curp: 'GALJ900515HDFLRN08', // H (Hombre)
+        curp: 'GALJ900515HDFRPN08', // H (Hombre)
         fechaNacimiento: new Date('1990-05-15'),
         sexo: 'Femenino', // Sexo diferente
         entidadNacimiento: '09',
@@ -494,7 +494,7 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
 
       const dto = {
         ...mockCreateTrabajadorDto,
-        curp: 'GALJ900515HDFLRN08', // 1990-05-15, H, DF (09)
+        curp: 'GALJ900515HDFRPN08', // 1990-05-15, H, DF (09)
         fechaNacimiento: new Date('1990-05-15'),
         sexo: 'Masculino',
         entidadNacimiento: '09',
@@ -739,6 +739,8 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
         giisExportEnabled: true,
         notaAclaratoriaEnabled: true,
         cluesFieldVisible: true,
+        dailyConsentEnabled: true,
+        workerIdentificationImmutable: true,
       },
       validation: {
         curpFirmantes: 'required',
@@ -758,6 +760,8 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
         giisExportEnabled: false,
         notaAclaratoriaEnabled: false,
         cluesFieldVisible: false,
+        dailyConsentEnabled: false,
+        workerIdentificationImmutable: false,
       },
       validation: {
         curpFirmantes: 'optional',

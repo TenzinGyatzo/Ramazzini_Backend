@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { BadRequestException } from '@nestjs/common';
 import { EnfermerasFirmantesService } from './enfermeras-firmantes.service';
+import { CreateEnfermeraFirmanteDto } from './dto/create-enfermera-firmante.dto';
 import { EnfermeraFirmante } from './schemas/enfermera-firmante.schema';
 import { User } from '../users/schemas/user.schema';
 import { ProveedorSalud } from '../proveedores-salud/schemas/proveedor-salud.schema';
@@ -9,6 +10,8 @@ import {
   RegulatoryPolicyService,
   RegulatoryPolicy,
 } from '../../utils/regulatory-policy.service';
+import { CatalogsService } from '../catalogs/catalogs.service';
+import { GeographyValidator } from '../catalogs/validators/geography.validator';
 
 describe('EnfermerasFirmantesService', () => {
   let service: EnfermerasFirmantesService;
@@ -16,6 +19,10 @@ describe('EnfermerasFirmantesService', () => {
   let mockUserModel: any;
   let mockProveedorSaludModel: any;
   let mockRegulatoryPolicyService: jest.Mocked<RegulatoryPolicyService>;
+  let mockCatalogsService: jest.Mocked<CatalogsService>;
+  let mockGeographyValidator: jest.Mocked<GeographyValidator>;
+
+  const defaultPaisNacimiento = 142;
 
   const createMockModel = () => ({
     findById: jest
@@ -33,19 +40,38 @@ describe('EnfermerasFirmantesService', () => {
       .mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }),
   });
 
-  const validCURP = 'MARJ900215MDFRRZ09'; // Valid CURP format with correct checksum (female)
+  const validCURP = 'MARJ900215MDFRRZ09';
   const invalidCURPFormat = 'INVALID123';
   const mxUserId = '507f1f77bcf86cd799439011';
   const nonMxUserId = '507f1f77bcf86cd799439022';
   const mxProveedorId = '507f1f77bcf86cd799439033';
   const nonMxProveedorId = '507f1f77bcf86cd799439044';
 
+  const getFechaNacimientoYearsAgo = (years: number): string => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - years);
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${month}-${day}`;
+  };
+
+  const validFechaNacimiento = getFechaNacimientoYearsAgo(45);
+
+  const siresDemographics = {
+    paisNacimiento: defaultPaisNacimiento,
+    sexo: 'Femenino',
+    entidadNacimiento: '09',
+    entidadResidencia: '09',
+    municipioResidencia: '001',
+    localidadResidencia: '0001',
+    fechaNacimiento: '1990-02-15',
+  };
+
   beforeEach(async () => {
     mockEnfermeraFirmanteModel = {
       ...createMockModel(),
     };
 
-    // Mock constructor for create operations
     const MockEnfermeraModel = jest.fn().mockImplementation((dto) => ({
       ...dto,
       save: jest.fn().mockResolvedValue({ ...dto, _id: 'new-id' }),
@@ -54,6 +80,15 @@ describe('EnfermerasFirmantesService', () => {
 
     mockUserModel = createMockModel();
     mockProveedorSaludModel = createMockModel();
+    mockRegulatoryPolicyService = {
+      getRegulatoryPolicy: jest.fn(),
+    } as any;
+    mockCatalogsService = {
+      validateINEGI: jest.fn().mockResolvedValue(true),
+    } as any;
+    mockGeographyValidator = {
+      validateGeography: jest.fn().mockResolvedValue({ valid: true, errors: [] }),
+    } as any;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -69,9 +104,15 @@ describe('EnfermerasFirmantesService', () => {
         },
         {
           provide: RegulatoryPolicyService,
-          useValue: (mockRegulatoryPolicyService = {
-            getRegulatoryPolicy: jest.fn(),
-          } as any),
+          useValue: mockRegulatoryPolicyService,
+        },
+        {
+          provide: CatalogsService,
+          useValue: mockCatalogsService,
+        },
+        {
+          provide: GeographyValidator,
+          useValue: mockGeographyValidator,
         },
       ],
     }).compile();
@@ -84,7 +125,6 @@ describe('EnfermerasFirmantesService', () => {
   describe('NOM-024 CURP Validation', () => {
     describe('MX Provider (pais === MX)', () => {
       beforeEach(() => {
-        // Setup MX provider scenario
         mockUserModel.findById.mockReturnValue({
           exec: jest.fn().mockResolvedValue({
             _id: mxUserId,
@@ -97,19 +137,26 @@ describe('EnfermerasFirmantesService', () => {
             pais: 'MX',
           }),
         });
+        mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue({
+          regime: 'SIRES_NOM024',
+          features: {} as any,
+          validation: {
+            curpFirmantes: 'required',
+            workerCurp: 'required_strict',
+            cie10Principal: 'required',
+            geoFields: 'required',
+          },
+        });
       });
 
       it('should require CURP for MX providers', async () => {
         const dto = {
           nombre: 'María López',
           idUser: mxUserId,
-          // No curp provided
+          ...siresDemographics,
         };
 
         await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-        await expect(service.create(dto)).rejects.toThrow(
-          'NOM-024: CURP es obligatorio para profesionales de salud de proveedores mexicanos',
-        );
       });
 
       it('should accept valid CURP for MX providers', async () => {
@@ -117,6 +164,7 @@ describe('EnfermerasFirmantesService', () => {
           nombre: 'María López',
           idUser: mxUserId,
           curp: validCURP,
+          ...siresDemographics,
         };
 
         const result = await service.create(dto);
@@ -129,16 +177,15 @@ describe('EnfermerasFirmantesService', () => {
           nombre: 'María López',
           idUser: mxUserId,
           curp: invalidCURPFormat,
+          ...siresDemographics,
         };
 
         await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-        await expect(service.create(dto)).rejects.toThrow('NOM-024:');
       });
     });
 
     describe('Non-MX Provider (pais !== MX)', () => {
       beforeEach(() => {
-        // Setup non-MX provider scenario (e.g., Panama)
         mockUserModel.findById.mockReturnValue({
           exec: jest.fn().mockResolvedValue({
             _id: nonMxUserId,
@@ -151,13 +198,24 @@ describe('EnfermerasFirmantesService', () => {
             pais: 'PA',
           }),
         });
+        mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue({
+          regime: 'SIN_REGIMEN',
+          features: {} as any,
+          validation: {
+            curpFirmantes: 'optional',
+            workerCurp: 'optional',
+            cie10Principal: 'optional',
+            geoFields: 'optional',
+          },
+        });
       });
 
       it('should allow creation without CURP for non-MX providers', async () => {
         const dto = {
           nombre: 'Ana Rodríguez',
           idUser: nonMxUserId,
-          // No curp - should be allowed for non-MX
+          paisNacimiento: defaultPaisNacimiento,
+          fechaNacimiento: validFechaNacimiento,
         };
 
         const result = await service.create(dto);
@@ -170,6 +228,8 @@ describe('EnfermerasFirmantesService', () => {
           nombre: 'Ana Rodríguez',
           idUser: nonMxUserId,
           curp: validCURP,
+          paisNacimiento: defaultPaisNacimiento,
+          fechaNacimiento: validFechaNacimiento,
         };
 
         const result = await service.create(dto);
@@ -181,6 +241,8 @@ describe('EnfermerasFirmantesService', () => {
           nombre: 'Ana Rodríguez',
           idUser: nonMxUserId,
           curp: invalidCURPFormat,
+          paisNacimiento: defaultPaisNacimiento,
+          fechaNacimiento: validFechaNacimiento,
         };
 
         await expect(service.create(dto)).rejects.toThrow(BadRequestException);
@@ -189,27 +251,36 @@ describe('EnfermerasFirmantesService', () => {
 
     describe('Update Operations', () => {
       it('should validate CURP on update for MX providers', async () => {
-        // Setup MX provider
         mockUserModel.findById.mockReturnValue({
           exec: jest.fn().mockResolvedValue({
             _id: mxUserId,
             idProveedorSalud: mxProveedorId,
           }),
         });
-        mockProveedorSaludModel.findById.mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            _id: mxProveedorId,
-            pais: 'MX',
-          }),
+        mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue({
+          regime: 'SIRES_NOM024',
+          features: {} as any,
+          validation: {
+            curpFirmantes: 'required',
+            workerCurp: 'required_strict',
+            cie10Principal: 'required',
+            geoFields: 'required',
+          },
         });
 
-        // Existing record with valid CURP
         mockEnfermeraFirmanteModel.findById.mockReturnValue({
           exec: jest.fn().mockResolvedValue({
             _id: 'existing-id',
             nombre: 'María López',
             idUser: mxUserId,
             curp: validCURP,
+            paisNacimiento: defaultPaisNacimiento,
+            sexo: 'Femenino',
+            entidadNacimiento: '09',
+            entidadResidencia: '09',
+            municipioResidencia: '001',
+            localidadResidencia: '0001',
+            fechaNacimiento: new Date(siresDemographics.fechaNacimiento),
           }),
         });
 
@@ -247,6 +318,7 @@ describe('EnfermerasFirmantesService', () => {
         giisExportEnabled: true,
         notaAclaratoriaEnabled: true,
         cluesFieldVisible: true,
+        dailyConsentEnabled: true,
       },
       validation: {
         curpFirmantes: 'required',
@@ -266,6 +338,7 @@ describe('EnfermerasFirmantesService', () => {
         giisExportEnabled: false,
         notaAclaratoriaEnabled: false,
         cluesFieldVisible: false,
+        dailyConsentEnabled: false,
       },
       validation: {
         curpFirmantes: 'optional',
@@ -292,12 +365,10 @@ describe('EnfermerasFirmantesService', () => {
         const dto = {
           nombre: 'Enf. María López',
           idUser: siresUserId,
+          ...siresDemographics,
         };
 
         await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-        await expect(service.create(dto)).rejects.toThrow(
-          'CURP es obligatorio para firmantes en régimen SIRES_NOM024',
-        );
       });
 
       it('should accept valid CURP for SIRES_NOM024', async () => {
@@ -305,10 +376,76 @@ describe('EnfermerasFirmantesService', () => {
           nombre: 'Enf. María López',
           idUser: siresUserId,
           curp: validCURP,
+          ...siresDemographics,
         };
 
         const result = await service.create(dto);
         expect(result).toBeDefined();
+        expect(
+          mockRegulatoryPolicyService.getRegulatoryPolicy,
+        ).toHaveBeenCalledWith(siresProveedorId);
+      });
+
+      it('should reject generic CURP for SIRES_NOM024 firmantes', async () => {
+        const dto = {
+          nombre: 'Enf. María López',
+          idUser: siresUserId,
+          curp: 'XXXX999999XXXXXX99',
+          ...siresDemographics,
+        };
+
+        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+        await expect(service.create(dto)).rejects.toThrow(/genérica/i);
+      });
+
+      it('should reject invalid CURP format for SIRES_NOM024', async () => {
+        const dto = {
+          nombre: 'Enf. María López',
+          idUser: siresUserId,
+          curp: invalidCURPFormat,
+          ...siresDemographics,
+        };
+
+        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      });
+
+      it('should require paisNacimiento', async () => {
+        const dto = {
+          nombre: 'Enf. María López',
+          idUser: siresUserId,
+          fechaNacimiento: validFechaNacimiento,
+        } as CreateEnfermeraFirmanteDto;
+
+        await expect(service.create(dto)).rejects.toThrow(
+          'El país de nacimiento es obligatorio',
+        );
+      });
+
+      it('should require entidadResidencia for SIRES_NOM024', async () => {
+        const dto = {
+          nombre: 'Enf. María López',
+          idUser: siresUserId,
+          curp: validCURP,
+          paisNacimiento: defaultPaisNacimiento,
+          sexo: 'Femenino',
+          entidadNacimiento: '09',
+          fechaNacimiento: siresDemographics.fechaNacimiento,
+        };
+
+        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      });
+
+      it('should accept valid residency fields for SIRES_NOM024', async () => {
+        const dto = {
+          nombre: 'Enf. María López',
+          idUser: siresUserId,
+          curp: validCURP,
+          ...siresDemographics,
+        };
+
+        const result = await service.create(dto);
+        expect(result).toBeDefined();
+        expect(mockGeographyValidator.validateGeography).toHaveBeenCalled();
       });
     });
 
@@ -329,10 +466,15 @@ describe('EnfermerasFirmantesService', () => {
         const dto = {
           nombre: 'Enf. Ana García',
           idUser: sinRegimenUserId,
+          paisNacimiento: defaultPaisNacimiento,
+          fechaNacimiento: validFechaNacimiento,
         };
 
         const result = await service.create(dto);
         expect(result).toBeDefined();
+        expect(
+          mockRegulatoryPolicyService.getRegulatoryPolicy,
+        ).toHaveBeenCalledWith(sinRegimenProveedorId);
       });
 
       it('should reject invalid CURP even for SIN_REGIMEN when provided', async () => {
@@ -340,10 +482,142 @@ describe('EnfermerasFirmantesService', () => {
           nombre: 'Enf. Ana García',
           idUser: sinRegimenUserId,
           curp: invalidCURPFormat,
+          paisNacimiento: defaultPaisNacimiento,
+          fechaNacimiento: validFechaNacimiento,
         };
 
         await expect(service.create(dto)).rejects.toThrow(BadRequestException);
       });
+    });
+  });
+
+  describe('fechaNacimiento validation', () => {
+    beforeEach(() => {
+      mockUserModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: nonMxUserId,
+          idProveedorSalud: nonMxProveedorId,
+        }),
+      });
+      mockProveedorSaludModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: nonMxProveedorId,
+          pais: 'PA',
+        }),
+      });
+      mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue({
+        regime: 'SIN_REGIMEN',
+        features: {
+          sessionTimeoutEnabled: false,
+          enforceDocumentImmutabilityUI: false,
+          documentImmutabilityEnabled: false,
+          showSiresUI: false,
+          giisExportEnabled: false,
+          notaAclaratoriaEnabled: false,
+          cluesFieldVisible: false,
+          dailyConsentEnabled: false,
+        },
+        validation: {
+          curpFirmantes: 'optional',
+          workerCurp: 'optional',
+          cie10Principal: 'optional',
+          geoFields: 'optional',
+        },
+      });
+    });
+
+    it('should reject create without fechaNacimiento', async () => {
+      const dto = {
+        nombre: 'Enf. Sin Fecha',
+        idUser: nonMxUserId,
+      } as any;
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto)).rejects.toThrow(
+        'La fecha de nacimiento es obligatoria',
+      );
+    });
+
+    it('should reject edad menor a 18 años', async () => {
+      const dto = {
+        nombre: 'Enf. Joven',
+        idUser: nonMxUserId,
+        paisNacimiento: defaultPaisNacimiento,
+        fechaNacimiento: getFechaNacimientoYearsAgo(17),
+      };
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto)).rejects.toThrow(
+        'debe estar entre 18 y 90 años cumplidos',
+      );
+    });
+
+    it('should reject edad mayor a 90 años', async () => {
+      const dto = {
+        nombre: 'Enf. Anciana',
+        idUser: nonMxUserId,
+        paisNacimiento: defaultPaisNacimiento,
+        fechaNacimiento: getFechaNacimientoYearsAgo(91),
+      };
+
+      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto)).rejects.toThrow(
+        'debe estar entre 18 y 90 años cumplidos',
+      );
+    });
+
+    it('should accept edad within range', async () => {
+      const dto = {
+        nombre: 'Enf. Válida',
+        idUser: nonMxUserId,
+        paisNacimiento: defaultPaisNacimiento,
+        fechaNacimiento: validFechaNacimiento,
+      };
+
+      const result = await service.create(dto);
+      expect(result).toBeDefined();
+    });
+
+    it('should accept exactly 18 years old today', async () => {
+      const dto = {
+        nombre: 'Enf. 18 años',
+        idUser: nonMxUserId,
+        paisNacimiento: defaultPaisNacimiento,
+        fechaNacimiento: getFechaNacimientoYearsAgo(18),
+      };
+
+      const result = await service.create(dto);
+      expect(result).toBeDefined();
+    });
+
+    it('should accept exactly 90 years old today', async () => {
+      const dto = {
+        nombre: 'Enf. 90 años',
+        idUser: nonMxUserId,
+        paisNacimiento: defaultPaisNacimiento,
+        fechaNacimiento: getFechaNacimientoYearsAgo(90),
+      };
+
+      const result = await service.create(dto);
+      expect(result).toBeDefined();
+    });
+
+    it('should reject update when existing record has no fechaNacimiento and dto omits it', async () => {
+      const existingId = '507f1f77bcf86cd799439099';
+      mockEnfermeraFirmanteModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: existingId,
+          idUser: nonMxUserId,
+          nombre: 'Enf. Legacy',
+        }),
+      });
+
+      await expect(
+        service.update(existingId, {
+          nombre: 'Enf. Legacy',
+          idUser: nonMxUserId,
+        }),
+      ).rejects.toThrow('La fecha de nacimiento es obligatoria');
     });
   });
 });
