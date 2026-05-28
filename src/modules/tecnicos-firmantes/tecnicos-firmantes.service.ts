@@ -4,7 +4,7 @@ import { Model } from 'mongoose';
 import { TecnicoFirmante } from './schemas/tecnico-firmante.schema';
 import { CreateTecnicoFirmanteDto } from './dto/create-tecnico-firmante.dto';
 import { UpdateTecnicoFirmanteDto } from './dto/update-tecnico-firmante.dto';
-import { normalizeEnfermeraFirmanteData } from 'src/utils/normalization';
+import { normalizeTecnicoFirmanteData } from 'src/utils/normalization';
 
 @Injectable()
 export class TecnicosFirmantesService {
@@ -12,7 +12,7 @@ export class TecnicosFirmantesService {
 
   async create(dto: CreateTecnicoFirmanteDto) {
     // Reusar normalización similar a enfermera
-    const normalized = normalizeEnfermeraFirmanteData(dto as any);
+    const normalized = normalizeTecnicoFirmanteData(dto);
     const created = new this.tecnicoModel(normalized);
     return created.save();
   }
@@ -30,7 +30,7 @@ export class TecnicosFirmantesService {
   }
 
   async update(id: string, dto: UpdateTecnicoFirmanteDto): Promise<TecnicoFirmante> {
-    const normalized = normalizeEnfermeraFirmanteData(dto as any);
+    const normalized = normalizeTecnicoFirmanteData(dto);
     return this.tecnicoModel.findByIdAndUpdate(id, normalized, { new: true }).exec();
   }
 

@@ -4,7 +4,9 @@ import type {
   StyleDictionary,
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
-import { formatearNombreTrabajador } from '../../../utils/names';
+import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
+import { MedicoFirmanteInforme } from '../types/firmante-informe.types';
+import { firmanteTieneLineaNombre } from '../helpers/firmante-informe.helpers';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -99,20 +101,6 @@ interface Trabajador {
   antiguedad: string;
 }
 
-interface MedicoFirmante {
-  nombre: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  especialistaSaludTrabajo: string;
-  numeroCedulaEspecialista: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  }
-}
-
 interface ProveedorSalud {
   nombre: string;
   pais: string;
@@ -135,7 +123,7 @@ interface ProveedorSalud {
 export const dashboardInforme = (
   nombreEmpresa: string,
   trabajador: Trabajador,
-  medicoFirmante: MedicoFirmante,
+  medicoFirmante: MedicoFirmanteInforme,
   proveedorSalud: ProveedorSalud,
 ): TDocumentDefinitions => {
 
@@ -283,9 +271,9 @@ export const dashboardInforme = (
           columns: [
             {
               text: [
-                medicoFirmante.tituloProfesional && medicoFirmante.nombre
+                firmanteTieneLineaNombre(medicoFirmante)
                   ? {
-                      text: `${medicoFirmante.tituloProfesional} ${medicoFirmante.nombre}\n`,
+                      text: `${formatearTituloYNombreFirmante(medicoFirmante)}\n`,
                       bold: true,
                     }
                   : null,

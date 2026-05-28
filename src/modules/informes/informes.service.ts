@@ -48,6 +48,11 @@ import { EnfermerasFirmantesService } from '../enfermeras-firmantes/enfermeras-f
 import { TecnicosFirmantesService } from '../tecnicos-firmantes/tecnicos-firmantes.service';
 import { ProveedoresSaludService } from '../proveedores-salud/proveedores-salud.service';
 import { ResultadosClinicosService } from '../resultados-clinicos/resultados-clinicos.service';
+import {
+  EnfermeraFirmanteInforme,
+  MedicoFirmanteInforme,
+  TecnicoFirmanteInforme,
+} from './types/firmante-informe.types';
 
 @Injectable()
 export class InformesService {
@@ -68,6 +73,8 @@ export class InformesService {
   private mapMedicoFirmante(
     medicoFirmante: {
       nombre?: string;
+      primerApellido?: string;
+      segundoApellido?: string;
       tituloProfesional?: string;
       universidad?: string;
       numeroCedulaProfesional?: string;
@@ -78,12 +85,14 @@ export class InformesService {
       nombreCredencialAdicional2?: string;
       numeroCredencialAdicional2?: string;
       firma?: { data: string; contentType: string } | null;
-      [key: string]: any; // Permitir campos adicionales
+      [key: string]: any;
     } | null,
-  ) {
+  ): MedicoFirmanteInforme {
     if (!medicoFirmante) {
       return {
         nombre: '',
+        primerApellido: '',
+        segundoApellido: '',
         tituloProfesional: '',
         universidad: '',
         numeroCedulaProfesional: '',
@@ -96,9 +105,11 @@ export class InformesService {
         firma: null,
       };
     }
-    
+
     return {
       nombre: medicoFirmante.nombre || '',
+      primerApellido: medicoFirmante.primerApellido || '',
+      segundoApellido: medicoFirmante.segundoApellido || '',
       tituloProfesional: medicoFirmante.tituloProfesional || '',
       universidad: medicoFirmante.universidad || '',
       numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
@@ -109,6 +120,86 @@ export class InformesService {
       nombreCredencialAdicional2: medicoFirmante.nombreCredencialAdicional2 || '',
       numeroCredencialAdicional2: medicoFirmante.numeroCredencialAdicional2 || '',
       firma: medicoFirmante.firma || null,
+    };
+  }
+
+  private mapEnfermeraFirmante(
+    enfermeraFirmante: {
+      nombre?: string;
+      primerApellido?: string;
+      segundoApellido?: string;
+      sexo?: string;
+      tituloProfesional?: string;
+      numeroCedulaProfesional?: string;
+      nombreCredencialAdicional?: string;
+      numeroCredencialAdicional?: string;
+      firma?: { data: string; contentType: string } | null;
+    } | null,
+  ): EnfermeraFirmanteInforme {
+    if (!enfermeraFirmante) {
+      return {
+        nombre: '',
+        primerApellido: '',
+        segundoApellido: '',
+        sexo: '',
+        tituloProfesional: '',
+        numeroCedulaProfesional: '',
+        nombreCredencialAdicional: '',
+        numeroCredencialAdicional: '',
+        firma: null,
+      };
+    }
+
+    return {
+      nombre: enfermeraFirmante.nombre || '',
+      primerApellido: enfermeraFirmante.primerApellido || '',
+      segundoApellido: enfermeraFirmante.segundoApellido || '',
+      sexo: enfermeraFirmante.sexo || '',
+      tituloProfesional: enfermeraFirmante.tituloProfesional || '',
+      numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || '',
+      nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || '',
+      numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || '',
+      firma: enfermeraFirmante.firma || null,
+    };
+  }
+
+  private mapTecnicoFirmante(
+    tecnicoFirmante: {
+      nombre?: string;
+      primerApellido?: string;
+      segundoApellido?: string;
+      sexo?: string;
+      tituloProfesional?: string;
+      numeroCedulaProfesional?: string;
+      nombreCredencialAdicional?: string;
+      numeroCredencialAdicional?: string;
+      firma?: { data: string; contentType: string } | null;
+    } | null,
+  ): TecnicoFirmanteInforme {
+    if (!tecnicoFirmante) {
+      return {
+        nombre: '',
+        primerApellido: '',
+        segundoApellido: '',
+        sexo: '',
+        tituloProfesional: '',
+        numeroCedulaProfesional: '',
+        nombreCredencialAdicional: '',
+        numeroCredencialAdicional: '',
+        firma: null,
+      };
+    }
+
+    return {
+      nombre: tecnicoFirmante.nombre || '',
+      primerApellido: tecnicoFirmante.primerApellido || '',
+      segundoApellido: tecnicoFirmante.segundoApellido || '',
+      sexo: tecnicoFirmante.sexo || '',
+      tituloProfesional: tecnicoFirmante.tituloProfesional || '',
+      numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || '',
+      nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || '',
+      numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || '',
+      firma: tecnicoFirmante.firma || null,
     };
   }
 
@@ -166,6 +257,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -182,6 +275,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -191,6 +286,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         sexo: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
@@ -203,6 +300,8 @@ export class InformesService {
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
@@ -553,6 +652,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -760,6 +861,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -912,6 +1015,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -928,6 +1033,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -937,6 +1044,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         sexo: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
@@ -949,6 +1058,8 @@ export class InformesService {
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
@@ -1193,6 +1304,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -1329,6 +1442,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -1490,6 +1605,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -1506,6 +1623,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -1515,6 +1634,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         sexo: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
@@ -1527,6 +1648,8 @@ export class InformesService {
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
@@ -1695,6 +1818,8 @@ export class InformesService {
     const datosMedicoFirmante = medicoFirmante
     ? {
         nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
         tituloProfesional: medicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
         especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
@@ -1705,6 +1830,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
         especialistaSaludTrabajo: "",
@@ -1718,6 +1845,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -1727,6 +1856,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         sexo: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
@@ -1739,6 +1870,8 @@ export class InformesService {
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
@@ -1960,6 +2093,8 @@ export class InformesService {
     const datosMedicoFirmante = medicoFirmante
     ? {
         nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
         tituloProfesional: medicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
         especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
@@ -1970,6 +2105,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
         especialistaSaludTrabajo: "",
@@ -1983,6 +2120,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -1992,6 +2131,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         sexo: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
@@ -2004,6 +2145,8 @@ export class InformesService {
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
@@ -2128,6 +2271,8 @@ export class InformesService {
     const datosMedicoFirmante = medicoFirmante
     ? {
         nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
         tituloProfesional: medicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
         especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
@@ -2138,6 +2283,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
         especialistaSaludTrabajo: "",
@@ -2151,6 +2298,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -2358,6 +2507,8 @@ export class InformesService {
     const datosMedicoFirmante = medicoFirmante
     ? {
         nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
         tituloProfesional: medicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
         especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
@@ -2368,6 +2519,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
         especialistaSaludTrabajo: "",
@@ -2381,6 +2534,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -2390,6 +2545,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         sexo: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
@@ -2402,6 +2559,8 @@ export class InformesService {
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
@@ -2536,6 +2695,8 @@ export class InformesService {
     const datosMedicoFirmante = medicoFirmante
     ? {
         nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
         tituloProfesional: medicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
         especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
@@ -2546,6 +2707,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
         especialistaSaludTrabajo: "",
@@ -2559,6 +2722,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -2568,6 +2733,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         sexo: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
@@ -2580,6 +2747,8 @@ export class InformesService {
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
@@ -2717,6 +2886,8 @@ export class InformesService {
     const datosMedicoFirmante = medicoFirmante
     ? {
         nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
         tituloProfesional: medicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
         especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
@@ -2727,6 +2898,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
         especialistaSaludTrabajo: "",
@@ -2740,6 +2913,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -2749,6 +2924,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         sexo: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
@@ -2761,6 +2938,8 @@ export class InformesService {
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
@@ -2896,6 +3075,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -3048,6 +3229,8 @@ export class InformesService {
     const datosMedicoFirmante = medicoFirmante
     ? {
         nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
         tituloProfesional: medicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
         especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
@@ -3058,6 +3241,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
         especialistaSaludTrabajo: "",
@@ -3071,6 +3256,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -3080,6 +3267,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         sexo: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
@@ -3092,6 +3281,8 @@ export class InformesService {
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
@@ -3232,6 +3423,8 @@ export class InformesService {
     const datosMedicoFirmante = medicoFirmante
     ? {
         nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
         tituloProfesional: medicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
         especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
@@ -3242,6 +3435,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
         especialistaSaludTrabajo: "",
@@ -3255,6 +3450,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -3264,6 +3461,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         sexo: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
@@ -3276,6 +3475,8 @@ export class InformesService {
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
@@ -3441,6 +3642,8 @@ export class InformesService {
     const datosMedicoFirmante = medicoFirmante
     ? {
         nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
         tituloProfesional: medicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
         especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
@@ -3451,6 +3654,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
         especialistaSaludTrabajo: "",
@@ -3464,6 +3669,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -3473,6 +3680,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         sexo: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
@@ -3485,6 +3694,8 @@ export class InformesService {
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
@@ -3618,6 +3829,8 @@ export class InformesService {
     const datosMedicoFirmante = medicoFirmante
     ? {
         nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
         tituloProfesional: medicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
         especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
@@ -3628,6 +3841,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
         especialistaSaludTrabajo: "",
@@ -3641,6 +3856,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -3650,6 +3867,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         sexo: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
@@ -3662,6 +3881,8 @@ export class InformesService {
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
@@ -3768,6 +3989,8 @@ export class InformesService {
     const datosMedicoFirmante = medicoFirmante
     ? {
         nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
         tituloProfesional: medicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
         especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
@@ -3778,6 +4001,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
         especialistaSaludTrabajo: "",
@@ -3887,6 +4112,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -3903,6 +4130,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -3912,6 +4141,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         sexo: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
@@ -3924,6 +4155,8 @@ export class InformesService {
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
@@ -4073,6 +4306,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -4089,6 +4324,8 @@ export class InformesService {
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
@@ -4098,6 +4335,8 @@ export class InformesService {
       }
     : {
         nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
         sexo: "",
         tituloProfesional: "",
         numeroCedulaProfesional: "",
@@ -4110,6 +4349,8 @@ export class InformesService {
     const datosTecnicoFirmante = tecnicoFirmante
     ? {
         nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",

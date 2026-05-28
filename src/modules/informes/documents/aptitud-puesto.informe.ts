@@ -4,8 +4,10 @@ import type {
   TDocumentDefinitions,
   TableCell,
 } from 'pdfmake/interfaces';
-import { formatearNombreTrabajador } from '../../../utils/names';
+import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
 import { Interface } from 'readline';
+import { MedicoFirmanteInforme } from '../types/firmante-informe.types';
+import { firmanteTieneLineaNombre } from '../helpers/firmante-informe.helpers';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -570,20 +572,6 @@ export interface AptitudInformeFilaTamizajePsicologia {
   resumen: string;
 }
 
-interface MedicoFirmante {
-  nombre: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  especialistaSaludTrabajo: string;
-  numeroCedulaEspecialista: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  }
-}
-
 interface ProveedorSalud {
   nombre: string;
   pais: string;
@@ -618,7 +606,7 @@ export const aptitudPuestoInforme = (
   resultadoEspirometria: ResultadoClinicoEspirometria | null,
   resultadoRayosX: ResultadoClinicoRayosX | null,
   resultadoAnalisisLaboratorio: ResultadoClinicoAnalisisLaboratorio | null,
-  medicoFirmante: MedicoFirmante,
+  medicoFirmante: MedicoFirmanteInforme,
   proveedorSalud: ProveedorSalud,
   filasTamizajePsicologia: AptitudInformeFilaTamizajePsicologia[] = [],
 ): TDocumentDefinitions => {
@@ -1133,9 +1121,9 @@ if (trabajador.nss || trabajador.curp) {
           columns: [
             {
               text: [
-                medicoFirmante.tituloProfesional && medicoFirmante.nombre
+                firmanteTieneLineaNombre(medicoFirmante)
                   ? {
-                      text: `${medicoFirmante.tituloProfesional} ${medicoFirmante.nombre}\n`,
+                      text: `${formatearTituloYNombreFirmante(medicoFirmante)}\n`,
                       bold: true,
                     }
                   : null,

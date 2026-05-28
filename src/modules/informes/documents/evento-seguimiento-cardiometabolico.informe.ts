@@ -15,7 +15,9 @@ import type {
   SomatometriaCardiometabolico,
   TratamientoActualCardiometabolico,
 } from '../../expedientes/schemas/evento-seguimiento-cardiometabolico.schema';
-import { formatearNombreTrabajador } from '../../../utils/names';
+import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
+import { EnfermeraFirmanteInforme, MedicoFirmanteInforme, TecnicoFirmanteInforme } from '../types/firmante-informe.types';
+import { firmanteTieneLineaNombre, resolverFirmanteActivo } from '../helpers/firmante-informe.helpers';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -227,46 +229,6 @@ interface DatosEventoSeguimientoCardiometabolicoInforme {
   sintomasRelevantes?: string;
   riesgosActuales?: string;
   proximaRevisionSugerida?: Date | string;
-}
-
-interface MedicoFirmante {
-  nombre: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  especialistaSaludTrabajo: string;
-  numeroCedulaEspecialista: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  } | null;
-}
-
-interface EnfermeraFirmante {
-  nombre: string;
-  sexo: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  } | null;
-}
-
-interface TecnicoFirmante {
-  nombre: string;
-  sexo: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  } | null;
 }
 
 interface ProveedorSalud {
@@ -988,9 +950,9 @@ export const eventoSeguimientoCardiometabolicoInforme = (
   nombreEmpresa: string,
   trabajador: Trabajador,
   eventoSeguimientoCardiometabolico: DatosEventoSeguimientoCardiometabolicoInforme,
-  medicoFirmante: MedicoFirmante | null,
-  enfermeraFirmante: EnfermeraFirmante | null,
-  tecnicoFirmante: TecnicoFirmante | null,
+  medicoFirmante: MedicoFirmanteInforme | null,
+  enfermeraFirmante: EnfermeraFirmanteInforme | null,
+  tecnicoFirmante: TecnicoFirmanteInforme | null,
   proveedorSalud: ProveedorSalud,
 ): TDocumentDefinitions => {
 
@@ -1176,9 +1138,9 @@ export const eventoSeguimientoCardiometabolicoInforme = (
             {
               text: [
                 // Nombre y título profesional
-                (firmanteActivo?.tituloProfesional && firmanteActivo?.nombre)
+                firmanteTieneLineaNombre(firmanteActivo)
                   ? {
-                      text: `${firmanteActivo.tituloProfesional} ${firmanteActivo.nombre}\n`,
+                      text: `${formatearTituloYNombreFirmante(firmanteActivo)}\n`,
                       bold: true,
                     }
                   : null,

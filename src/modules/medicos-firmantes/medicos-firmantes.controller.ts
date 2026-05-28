@@ -18,6 +18,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import path from 'path';
 import { isValidObjectId } from 'mongoose';
+import { sanitizarNombreFirmanteParaArchivo } from 'src/utils/names';
 
 @Controller('medicos-firmantes')
 export class MedicosFirmantesController {
@@ -35,10 +36,11 @@ export class MedicosFirmantesController {
         ),
         filename: (req, file, callback) => {
           // Genera un nombre de archivo único basado en el nombre del médico firmante
-          const sanitizedDoctorName = req.body.nombre
-            .replace(/\s+/g, '-') // Reemplaza espacios por guiones
-            .replace(/[^a-zA-Z0-9\-]/g, '') // Elimina caracteres especiales
-            .toLowerCase(); // Convierte a minúsculas
+          const sanitizedDoctorName = sanitizarNombreFirmanteParaArchivo({
+            nombre: req.body.nombre,
+            primerApellido: req.body.primerApellido,
+            segundoApellido: req.body.segundoApellido,
+          }) || 'firmante';
 
           // Forma el nombre del archivo dependiendo del campo enviado
           let uniqueFilename = `${sanitizedDoctorName}-firma${path.extname(file.originalname)}`;
@@ -134,10 +136,11 @@ export class MedicosFirmantesController {
         ),
         filename: (req, file, callback) => {
           // Genera un nombre de archivo único basado en el nombre del médico firmante
-          const sanitizedDoctorName = req.body.nombre
-            .replace(/\s+/g, '-') // Reemplaza espacios por guiones
-            .replace(/[^a-zA-Z0-9\-]/g, '') // Elimina caracteres especiales
-            .toLowerCase(); // Convierte a minúsculas
+          const sanitizedDoctorName = sanitizarNombreFirmanteParaArchivo({
+            nombre: req.body.nombre,
+            primerApellido: req.body.primerApellido,
+            segundoApellido: req.body.segundoApellido,
+          }) || 'firmante';
 
           // Forma el nombre del archivo dependiendo del campo enviado
           let uniqueFilename = `${sanitizedDoctorName}-firma${path.extname(file.originalname)}`;

@@ -4,6 +4,8 @@ import { User } from "src/modules/users/entities/user.entity";
 export class EnfermeraFirmante extends Document {
     _id: string;
     nombre: string;
+    primerApellido?: string;
+    segundoApellido?: string;
     sexo?: string;
     tituloProfesional?: string;
     numeroCedulaProfesional?: string;

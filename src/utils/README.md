@@ -84,6 +84,12 @@ const camposFormateados = formatearCampos(['Juan', undefined, 'García'], ' - ')
 // Retorna: "Juan - García"
 ```
 
+#### `formatearNombreFirmante(firmante)`
+Formatea el nombre de un médico, enfermera o técnico firmante. Si no hay `primerApellido` (registro legacy), devuelve solo `nombre`.
+
+#### `sanitizarNombreFirmanteParaArchivo(firmante)`
+Genera un slug seguro para nombres de archivo de firma a partir del nombre completo del firmante.
+
 ## Uso en Informes
 
 Estas funciones están diseñadas para ser utilizadas en todos los informes PDF para evitar que aparezcan valores "undefined" en los documentos generados.

@@ -17,6 +17,16 @@ export class CreateTecnicoFirmanteDto {
   @IsNotEmpty()
   nombre: string;
 
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  primerApellido: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  segundoApellido?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()

@@ -3,7 +3,9 @@ import type {
   StyleDictionary,
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
-import { formatearNombreTrabajador } from '../../../utils/names';
+import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
+import { EnfermeraFirmanteInforme, MedicoFirmanteInforme, TecnicoFirmanteInforme } from '../types/firmante-informe.types';
+import { firmanteTieneLineaNombre, resolverFirmanteActivo } from '../helpers/firmante-informe.helpers';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -197,46 +199,6 @@ interface Audiometria {
   diagnosticoAudiometria: string;
   recomendacionesAudiometria: string[];
   graficaAudiometria?: string; // Base64 de la gráfica audiométrica
-}
-
-interface MedicoFirmante {
-  nombre: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  especialistaSaludTrabajo: string;
-  numeroCedulaEspecialista: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  }
-}
-
-interface EnfermeraFirmante {
-  nombre: string;
-  sexo: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  }
-}
-
-interface TecnicoFirmante {
-  nombre: string;
-  sexo: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  }
 }
 
 interface ProveedorSalud {
@@ -435,9 +397,9 @@ export const audiometriaInforme = (
   nombreEmpresa: string,
   trabajador: Trabajador,
   audiometria: Audiometria,
-  medicoFirmante: MedicoFirmante | null,
-  enfermeraFirmante: EnfermeraFirmante | null,
-  tecnicoFirmante: TecnicoFirmante | null,
+  medicoFirmante: MedicoFirmanteInforme | null,
+  enfermeraFirmante: EnfermeraFirmanteInforme | null,
+  tecnicoFirmante: TecnicoFirmanteInforme | null,
   proveedorSalud: ProveedorSalud,
 ): TDocumentDefinitions => {
 
@@ -719,9 +681,9 @@ export const audiometriaInforme = (
             {
               text: [
                 // Nombre y título profesional
-                (firmanteActivo?.tituloProfesional && firmanteActivo?.nombre)
+                firmanteTieneLineaNombre(firmanteActivo)
                   ? {
-                      text: `${firmanteActivo.tituloProfesional} ${firmanteActivo.nombre}\n`,
+                      text: `${formatearTituloYNombreFirmante(firmanteActivo)}\n`,
                       bold: true,
                     }
                   : null,

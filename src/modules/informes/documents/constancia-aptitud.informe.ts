@@ -3,7 +3,8 @@ import type {
   StyleDictionary,
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
-import { formatearNombreTrabajador } from '../../../utils/names';
+import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
+import { MedicoFirmanteInforme } from '../types/firmante-informe.types';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -184,20 +185,6 @@ interface ConstanciaAptitud {
   fechaConstanciaAptitud: Date;
 }
 
-interface MedicoFirmante {
-  nombre: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  especialistaSaludTrabajo: string;
-  numeroCedulaEspecialista: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  }
-}
-
 interface ProveedorSalud {
   nombre: string;
   pais: string;
@@ -222,7 +209,7 @@ export const constanciaAptitudInforme = (
   nombreEmpresa: string,
   trabajador: Trabajador,
   constanciaAptitud: ConstanciaAptitud,
-  medicoFirmante: MedicoFirmante,
+  medicoFirmante: MedicoFirmanteInforme,
   proveedorSalud: ProveedorSalud,
 ): TDocumentDefinitions => {
 
@@ -316,7 +303,7 @@ export const constanciaAptitudInforme = (
                     alignment: 'center' as const,
                   }] : []),
                   {
-                    text: `${medicoFirmante.tituloProfesional || ''} ${medicoFirmante.nombre || 'Nombre del Emisor'}`.trim(),
+                    text: formatearTituloYNombreFirmanteConFallback(medicoFirmante, 'Nombre del Emisor'),
                     style: 'nombreEmisor',
                     alignment: 'center' as const,
                     margin: [0, 5, 0, 0] as [number, number, number, number],

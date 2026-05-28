@@ -39,6 +39,77 @@ export function formatearNombreTrabajador(trabajador: {
 }
 
 /**
+ * Formatea el nombre completo de un firmante (médico, enfermera o técnico).
+ * Si no hay primerApellido (registro legacy), devuelve solo nombre.
+ */
+export function formatearNombreFirmante(firmante: {
+  nombre?: string;
+  primerApellido?: string;
+  segundoApellido?: string;
+}): string {
+  const nombre = firmante.nombre?.trim() ?? '';
+  const primerApellido = firmante.primerApellido?.trim() ?? '';
+  const segundoApellido = firmante.segundoApellido?.trim() ?? '';
+
+  if (!primerApellido) {
+    return nombre || 'Sin nombre';
+  }
+
+  const partes = [nombre, primerApellido, segundoApellido].filter(
+    (parte) => parte !== '',
+  );
+
+  return partes.join(' ') || 'Sin nombre';
+}
+
+/**
+ * Sanitiza el nombre de un firmante para usarlo como parte de un filename.
+ */
+export function sanitizarNombreFirmanteParaArchivo(firmante: {
+  nombre?: string;
+  primerApellido?: string;
+  segundoApellido?: string;
+}): string {
+  return formatearNombreFirmante(firmante)
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9\-]/g, '')
+    .toLowerCase();
+}
+
+/**
+ * Formatea título profesional + nombre completo del firmante.
+ */
+export function formatearTituloYNombreFirmante(firmante: {
+  tituloProfesional?: string;
+  nombre?: string;
+  primerApellido?: string;
+  segundoApellido?: string;
+}): string {
+  const titulo = firmante.tituloProfesional?.trim() ?? '';
+  const nombre = formatearNombreFirmante(firmante);
+  return `${titulo} ${nombre}`.trim();
+}
+
+/**
+ * Formatea título + nombre con fallback cuando no hay nombre configurado.
+ */
+export function formatearTituloYNombreFirmanteConFallback(
+  firmante: {
+    tituloProfesional?: string;
+    nombre?: string;
+    primerApellido?: string;
+    segundoApellido?: string;
+  } | null,
+  fallback: string,
+): string {
+  if (!firmante?.nombre) {
+    const titulo = firmante?.tituloProfesional?.trim() ?? '';
+    return `${titulo} ${fallback}`.trim();
+  }
+  return formatearTituloYNombreFirmante(firmante);
+}
+
+/**
  * Formatea el nombre completo de un trabajador en el orden: nombre + primer apellido + segundo apellido
  * @param trabajador - Objeto con las propiedades del trabajador
  * @returns Nombre completo formateado o 'Sin nombre' si no hay datos válidos

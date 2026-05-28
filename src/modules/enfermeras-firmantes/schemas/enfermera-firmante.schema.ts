@@ -12,6 +12,10 @@ export class EnfermeraFirmante extends Document {
     @Prop({ required: true })
     nombre: string;
     @Prop()
+    primerApellido?: string;
+    @Prop()
+    segundoApellido?: string;
+    @Prop()
     sexo?: string;
     @Prop()
     tituloProfesional?: string;

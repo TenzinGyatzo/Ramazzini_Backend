@@ -3,7 +3,9 @@ import type {
   StyleDictionary,
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
-import { formatearNombreTrabajador } from '../../../utils/names';
+import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
+import { EnfermeraFirmanteInforme, MedicoFirmanteInforme } from '../types/firmante-informe.types';
+import { firmanteTieneLineaNombre, resolverFirmanteMedicoEnfermera } from '../helpers/firmante-informe.helpers';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -196,34 +198,6 @@ interface Receta {
   indicaciones: string;
 }
 
-interface MedicoFirmante {
-  nombre: string;
-  tituloProfesional: string;
-  universidad?: string;
-  numeroCedulaProfesional: string;
-  especialistaSaludTrabajo: string;
-  numeroCedulaEspecialista: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  }
-}
-
-interface EnfermeraFirmante {
-  nombre: string;
-  sexo: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  }
-}
-
 interface ProveedorSalud {
   nombre: string;
   pais: string;
@@ -247,8 +221,8 @@ export const recetaInforme = (
   nombreEmpresa: string,
   trabajador: Trabajador,
   receta: Receta,
-  medicoFirmante: MedicoFirmante | null,
-  enfermeraFirmante: EnfermeraFirmante | null,
+  medicoFirmante: MedicoFirmanteInforme | null,
+  enfermeraFirmante: EnfermeraFirmanteInforme | null,
   proveedorSalud: ProveedorSalud,
 ): TDocumentDefinitions => {
 
@@ -268,18 +242,10 @@ export const recetaInforme = (
     }
   : { text: '' };
 
-  const universidadFirmante = (() => {
-    if (
-      firmanteActivo &&
-      typeof (firmanteActivo as { universidad?: unknown }).universidad === 'string'
-    ) {
-      const universidad = (firmanteActivo as { universidad?: string }).universidad?.trim();
-      if (universidad) {
-        return universidad;
-      }
-    }
-    return undefined;
-  })();
+  const universidadFirmante =
+    usarMedico && medicoFirmante?.universidad?.trim()
+      ? medicoFirmante.universidad.trim()
+      : undefined;
 
   const logo: Content = proveedorSalud.logotipoEmpresa?.data
   ? { image: `assets/providers-logos/${proveedorSalud.logotipoEmpresa.data}`, width: 55, margin: [40, 20, 0, 0] }
@@ -403,9 +369,7 @@ export const recetaInforme = (
             firma,
             {
               text:
-                (firmanteActivo?.tituloProfesional
-                  ? `${firmanteActivo.tituloProfesional} `
-                  : '') + (firmanteActivo?.nombre ?? ''),
+                firmanteActivo ? formatearTituloYNombreFirmante(firmanteActivo) : '',
               fontSize: 12,
               bold: true,
               alignment: 'center' as const,
