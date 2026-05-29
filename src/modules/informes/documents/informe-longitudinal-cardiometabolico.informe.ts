@@ -1402,13 +1402,17 @@ function buildCuerpoInformeLongitudinalPdf(ilc: DatosInformeLongitudinalCardiome
       width: 460,
       alignment: 'center',
       margin: [0, 0, 0, 8],
-      pageBreak: 'after',
     });
   }
 
   const imgPresionArterial = ilc.graficaEvolucionPresionArterial?.trim();
   if (imgPresionArterial) {
-    out.push({ text: 'EVOLUCIÓN DE PRESIÓN ARTERIAL', style: 'sectionHeader', margin: [0, 12, 0, 2] });
+    out.push({
+      text: 'EVOLUCIÓN DE PRESIÓN ARTERIAL',
+      style: 'sectionHeader',
+      margin: [0, 12, 0, 2],
+      pageBreak: 'before',
+    });
     out.push({
       text: 'Presión sistólica y diastólica durante el periodo evaluado',
       fontSize: 8,

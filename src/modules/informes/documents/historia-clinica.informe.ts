@@ -544,6 +544,10 @@ export const historiaClinicaInforme = (
   }
 
   // Datos del Trabajador
+  const contactoEmergenciaNombre = trabajador.contactoEmergenciaNombre?.trim() ?? '';
+  const contactoEmergenciaTelefono = trabajador.contactoEmergenciaTelefono?.trim() ?? '';
+  const tieneContactoEmergencia = Boolean(contactoEmergenciaNombre || contactoEmergenciaTelefono);
+
   const trabajadorSeccion: Content = {
     style: 'table',
     table: {
@@ -579,12 +583,14 @@ export const historiaClinicaInforme = (
           { text: 'NUM. DE EMPLEADO', style: 'label' },
           { text: trabajador.numeroEmpleado || '-', style: 'value' },
         ],
-        [
-          { text: 'C. EMERGENCIA', style: 'label' },
-          { text: trabajador.contactoEmergenciaNombre || '-', style: 'value' },
-          { text: 'TEL. C. EMERGENCIA', style: 'label' },
-          { text: trabajador.contactoEmergenciaTelefono || '-', style: 'value' },
-        ],
+        ...(tieneContactoEmergencia
+          ? [[
+              { text: 'C. EMERGENCIA', style: 'label' },
+              { text: contactoEmergenciaNombre || '-', style: 'value' },
+              { text: 'TEL. C. EMERGENCIA', style: 'label' },
+              { text: contactoEmergenciaTelefono || '-', style: 'value' },
+            ]]
+          : []),
       ],
     },
     layout: {
