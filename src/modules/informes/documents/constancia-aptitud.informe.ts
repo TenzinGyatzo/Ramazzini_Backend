@@ -3,9 +3,10 @@ import type {
   StyleDictionary,
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
-import { formatearNombreTrabajador } from '../../../utils/names';
 import { FooterFirmantesData } from '../interfaces/firmante-data.interface';
 import { generarFooterFirmantes } from '../helpers/footer-firmantes.helper';
+import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
+import { MedicoFirmanteInforme } from '../types/firmante-informe.types';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -196,20 +197,6 @@ interface ConstanciaAptitud {
   fechaConstanciaAptitud: Date;
 }
 
-interface MedicoFirmante {
-  nombre: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  especialistaSaludTrabajo: string;
-  numeroCedulaEspecialista: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  };
-}
-
 interface ProveedorSalud {
   nombre: string;
   pais: string;
@@ -234,7 +221,7 @@ export const constanciaAptitudInforme = (
   nombreEmpresa: string,
   trabajador: Trabajador,
   constanciaAptitud: ConstanciaAptitud,
-  medicoFirmante: MedicoFirmante,
+  medicoFirmante: MedicoFirmanteInforme,
   proveedorSalud: ProveedorSalud,
   footerFirmantesData?: FooterFirmantesData,
 ): TDocumentDefinitions => {
@@ -247,6 +234,8 @@ export const constanciaAptitudInforme = (
       ? {
           tituloProfesional: footerFirmantesData.finalizador.tituloProfesional,
           nombre: footerFirmantesData.finalizador.nombre,
+          primerApellido: footerFirmantesData.finalizador.primerApellido,
+          segundoApellido: footerFirmantesData.finalizador.segundoApellido,
           numeroCedulaProfesional:
             footerFirmantesData.finalizador.numeroCedulaProfesional || '',
           especialistaSaludTrabajo:
@@ -354,7 +343,7 @@ export const constanciaAptitudInforme = (
                       ]
                     : []),
                   {
-                    text: `${firmanteActivo.tituloProfesional || ''} ${firmanteActivo.nombre || 'Nombre del Emisor'}`.trim(),
+                    text: formatearTituloYNombreFirmanteConFallback(firmanteActivo, 'Nombre del Emisor'),
                     style: 'nombreEmisor',
                     alignment: 'center' as const,
                     margin: [0, 5, 0, 0] as [number, number, number, number],
@@ -365,15 +354,15 @@ export const constanciaAptitudInforme = (
                     alignment: 'center' as const,
                     margin: [0, 0, 0, 0] as [number, number, number, number],
                   },
-                  ...(medicoFirmante.numeroCedulaProfesional
+                  ...(firmanteActivo.numeroCedulaProfesional
                     ? [
                         {
                           text:
                             proveedorSalud.pais === 'MX'
-                              ? `Cédula profesional No. ${medicoFirmante.numeroCedulaProfesional}.`
+                              ? `Cédula profesional No. ${firmanteActivo.numeroCedulaProfesional}.`
                               : proveedorSalud.pais === 'GT'
-                                ? `Colegiado Activo No. ${medicoFirmante.numeroCedulaProfesional}.`
-                                : `Registro Profesional No. ${medicoFirmante.numeroCedulaProfesional}.`,
+                                ? `Colegiado Activo No. ${firmanteActivo.numeroCedulaProfesional}.`
+                                : `Registro Profesional No. ${firmanteActivo.numeroCedulaProfesional}.`,
                           style: 'credencialMedico',
                           alignment: 'center' as const,
                           margin: [0, 0, 0, 0] as [
@@ -385,14 +374,14 @@ export const constanciaAptitudInforme = (
                         },
                       ]
                     : []),
-                  ...(medicoFirmante.nombreCredencialAdicional &&
-                  medicoFirmante.numeroCredencialAdicional
+                  ...(firmanteActivo.nombreCredencialAdicional &&
+                  firmanteActivo.numeroCredencialAdicional
                     ? [
                         {
                           text:
                             proveedorSalud.pais === 'GT'
-                              ? `Registro ${medicoFirmante.nombreCredencialAdicional} No. ${medicoFirmante.numeroCredencialAdicional}.`
-                              : `${medicoFirmante.nombreCredencialAdicional} No. ${medicoFirmante.numeroCredencialAdicional}.`,
+                              ? `Registro ${firmanteActivo.nombreCredencialAdicional} No. ${firmanteActivo.numeroCredencialAdicional}.`
+                              : `${firmanteActivo.nombreCredencialAdicional} No. ${firmanteActivo.numeroCredencialAdicional}.`,
                           style: 'credencialMedico',
                           alignment: 'center' as const,
                           margin: [0, 0, 0, 0] as [

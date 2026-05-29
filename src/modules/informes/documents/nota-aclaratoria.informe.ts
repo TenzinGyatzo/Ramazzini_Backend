@@ -3,9 +3,11 @@ import type {
   StyleDictionary,
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
-import { formatearNombreTrabajador } from '../../../utils/names';
+import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
 import { FooterFirmantesData } from '../interfaces/firmante-data.interface';
 import { generarFooterFirmantes } from '../helpers/footer-firmantes.helper';
+import { EnfermeraFirmanteInforme, MedicoFirmanteInforme, TecnicoFirmanteInforme } from '../types/firmante-informe.types';
+import { firmanteTieneLineaNombre, resolverFirmanteActivo } from '../helpers/firmante-informe.helpers';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -864,9 +866,9 @@ export const notaAclaratoriaInforme = (
                 ? generarFooterFirmantes(footerFirmantesData, proveedorSalud)
                 : [
                     // Nombre y título profesional
-                    firmanteActivo?.tituloProfesional && firmanteActivo?.nombre
+                    firmanteTieneLineaNombre(firmanteActivo)
                       ? {
-                          text: `${firmanteActivo.tituloProfesional} ${firmanteActivo.nombre}\n`,
+                          text: `${formatearTituloYNombreFirmante(firmanteActivo)}\n`,
                           bold: true,
                         }
                       : null,

@@ -2,19 +2,6 @@ import { buildCurpDemographicsForFirmante } from './curp-firmante-demographics.u
 import { validateCURPCrossCheck } from './curp-validator.util';
 
 describe('buildCurpDemographicsForFirmante', () => {
-  it('debe descomponer nombre completo con parseNombreCompleto', () => {
-    const result = buildCurpDemographicsForFirmante({
-      nombre: 'Dr. Juan Garcia Lopez',
-      fechaNacimiento: new Date('1990-05-15'),
-      sexo: 'Masculino',
-      entidadNacimiento: '09',
-    });
-
-    expect(result.nombre).toBe('Juan');
-    expect(result.primerApellido).toBe('Garcia');
-    expect(result.segundoApellido).toBe('Lopez');
-  });
-
   it('debe respetar apellidos explícitos si ya vienen separados', () => {
     const result = buildCurpDemographicsForFirmante({
       nombre: 'JUAN',
@@ -27,9 +14,24 @@ describe('buildCurpDemographicsForFirmante', () => {
     expect(result.segundoApellido).toBe('LOPEZ');
   });
 
-  it('debe permitir cruce CURP de firmante con nombre completo parseado', () => {
+  it('debe devolver solo nombre en registros legacy sin primerApellido', () => {
+    const result = buildCurpDemographicsForFirmante({
+      nombre: 'Dr. Juan Garcia Lopez',
+      fechaNacimiento: new Date('1990-05-15'),
+      sexo: 'Masculino',
+      entidadNacimiento: '09',
+    });
+
+    expect(result.nombre).toBe('Dr. Juan Garcia Lopez');
+    expect(result.primerApellido).toBeUndefined();
+    expect(result.segundoApellido).toBeUndefined();
+  });
+
+  it('debe permitir cruce CURP de firmante con campos separados', () => {
     const demographics = buildCurpDemographicsForFirmante({
-      nombre: 'Juan Garcia Lopez',
+      nombre: 'JUAN',
+      primerApellido: 'GARCIA',
+      segundoApellido: 'LOPEZ',
       fechaNacimiento: new Date('1990-05-15'),
       sexo: 'Masculino',
       entidadNacimiento: '09',
@@ -48,9 +50,11 @@ describe('buildCurpDemographicsForFirmante', () => {
     expect(crossCheck.discrepancies).toHaveLength(0);
   });
 
-  it('debe detectar discrepancia de iniciales cuando el nombre parseado no coincide', () => {
+  it('debe detectar discrepancia de iniciales cuando los apellidos no coinciden', () => {
     const demographics = buildCurpDemographicsForFirmante({
-      nombre: 'Pedro Rodriguez Martinez',
+      nombre: 'PEDRO',
+      primerApellido: 'RODRIGUEZ',
+      segundoApellido: 'MARTINEZ',
       fechaNacimiento: new Date('1990-05-15'),
       sexo: 'Masculino',
       entidadNacimiento: '09',

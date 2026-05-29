@@ -3,9 +3,11 @@ import type {
   StyleDictionary,
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
-import { formatearNombreTrabajador } from '../../../utils/names';
+import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
 import { FooterFirmantesData } from '../interfaces/firmante-data.interface';
 import { generarFooterFirmantes } from '../helpers/footer-firmantes.helper';
+import { EnfermeraFirmanteInforme, MedicoFirmanteInforme, TecnicoFirmanteInforme } from '../types/firmante-informe.types';
+import { firmanteTieneLineaNombre, resolverFirmanteActivo } from '../helpers/firmante-informe.helpers';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -164,46 +166,6 @@ interface Antidoping {
   ketamina?: string;
 }
 
-interface MedicoFirmante {
-  nombre: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  especialistaSaludTrabajo: string;
-  numeroCedulaEspecialista: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  };
-}
-
-interface EnfermeraFirmante {
-  nombre: string;
-  sexo: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  };
-}
-
-interface TecnicoFirmante {
-  nombre: string;
-  sexo: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  };
-}
-
 interface ProveedorSalud {
   nombre: string;
   pais: string;
@@ -227,9 +189,9 @@ export const antidopingInforme = (
   nombreEmpresa: string,
   trabajador: Trabajador,
   antidoping: Antidoping,
-  medicoFirmante: MedicoFirmante | null,
-  enfermeraFirmante: EnfermeraFirmante | null,
-  tecnicoFirmante: TecnicoFirmante | null,
+  medicoFirmante: MedicoFirmanteInforme | null,
+  enfermeraFirmante: EnfermeraFirmanteInforme | null,
+  tecnicoFirmante: TecnicoFirmanteInforme | null,
   proveedorSalud: ProveedorSalud,
   footerFirmantesData?: FooterFirmantesData,
 ): TDocumentDefinitions => {
@@ -505,9 +467,9 @@ export const antidopingInforme = (
                 ? generarFooterFirmantes(footerFirmantesData, proveedorSalud)
                 : [
                     // Nombre y título profesional
-                    firmanteActivo?.tituloProfesional && firmanteActivo?.nombre
+                    firmanteTieneLineaNombre(firmanteActivo)
                       ? {
-                          text: `${firmanteActivo.tituloProfesional} ${firmanteActivo.nombre}\n`,
+                          text: `${formatearTituloYNombreFirmante(firmanteActivo)}\n`,
                           bold: true,
                         }
                       : null,

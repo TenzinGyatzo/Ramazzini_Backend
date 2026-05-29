@@ -1,7 +1,7 @@
 import { Document } from 'mongoose';
 import { User } from 'src/modules/users/entities/user.entity';
 
-export class EnfermeraFirmante extends Document {
+export class TecnicoFirmante extends Document {
   _id: string;
   nombre: string;
   primerApellido?: string;
@@ -16,12 +16,4 @@ export class EnfermeraFirmante extends Document {
     contentType: string;
   };
   idUser: User | string;
-  curp?: string;
-  tipoPersonalId?: number;
-  entidadNacimiento?: string;
-  entidadResidencia?: string;
-  municipioResidencia?: string;
-  localidadResidencia?: string;
-  paisNacimiento: number;
-  fechaNacimiento: Date;
 }

@@ -63,6 +63,11 @@ import { DocumentoEstado } from '../expedientes/enums/documento-estado.enum';
 import { ResultadosClinicosService } from '../resultados-clinicos/resultados-clinicos.service';
 import { FirmanteHelper } from '../expedientes/helpers/firmante-helper';
 import { computeMuestraConfirmacionFlagsForNotaMedica } from './helpers/nota-medica-confirmacion.helper';
+import {
+  EnfermeraFirmanteInforme,
+  MedicoFirmanteInforme,
+  TecnicoFirmanteInforme,
+} from './types/firmante-informe.types';
 
 @Injectable()
 export class InformesService {
@@ -122,6 +127,8 @@ export class InformesService {
   private mapMedicoFirmante(
     medicoFirmante: {
       nombre?: string;
+      primerApellido?: string;
+      segundoApellido?: string;
       tituloProfesional?: string;
       universidad?: string;
       numeroCedulaProfesional?: string;
@@ -132,12 +139,14 @@ export class InformesService {
       nombreCredencialAdicional2?: string;
       numeroCredencialAdicional2?: string;
       firma?: { data: string; contentType: string } | null;
-      [key: string]: any; // Permitir campos adicionales
+      [key: string]: any;
     } | null,
-  ) {
+  ): MedicoFirmanteInforme {
     if (!medicoFirmante) {
       return {
         nombre: '',
+        primerApellido: '',
+        segundoApellido: '',
         tituloProfesional: '',
         universidad: '',
         numeroCedulaProfesional: '',
@@ -153,6 +162,8 @@ export class InformesService {
 
     return {
       nombre: medicoFirmante.nombre || '',
+      primerApellido: medicoFirmante.primerApellido || '',
+      segundoApellido: medicoFirmante.segundoApellido || '',
       tituloProfesional: medicoFirmante.tituloProfesional || '',
       universidad: medicoFirmante.universidad || '',
       numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
@@ -187,6 +198,8 @@ export class InformesService {
     if (medico?.nombre) {
       return {
         nombre: medico.nombre || '',
+        primerApellido: medico.primerApellido || '',
+        segundoApellido: medico.segundoApellido || '',
         tituloProfesional: medico.tituloProfesional || '',
         numeroCedulaProfesional: medico.numeroCedulaProfesional || '',
         especialistaSaludTrabajo: medico.especialistaSaludTrabajo || '',
@@ -204,6 +217,8 @@ export class InformesService {
     if (enfermera?.nombre) {
       return {
         nombre: enfermera.nombre || '',
+        primerApellido: enfermera.primerApellido || '',
+        segundoApellido: enfermera.segundoApellido || '',
         tituloProfesional: enfermera.tituloProfesional || '',
         numeroCedulaProfesional: enfermera.numeroCedulaProfesional || '',
         nombreCredencialAdicional: enfermera.nombreCredencialAdicional || '',
@@ -220,6 +235,8 @@ export class InformesService {
     if (tecnico?.nombre) {
       return {
         nombre: tecnico.nombre || '',
+        primerApellido: tecnico.primerApellido || '',
+        segundoApellido: tecnico.segundoApellido || '',
         tituloProfesional: tecnico.tituloProfesional || '',
         numeroCedulaProfesional: tecnico.numeroCedulaProfesional || '',
         nombreCredencialAdicional: tecnico.nombreCredencialAdicional || '',
@@ -812,6 +829,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -829,58 +848,54 @@ export class InformesService {
     const enfermeraFirmante =
       await this.enfermerasFirmantesService.findOneByUserId(userId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-      ? {
-          nombre: tecnicoFirmante.nombre || '',
-          sexo: tecnicoFirmante.sexo || '',
-          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            tecnicoFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            tecnicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            tecnicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
@@ -1279,6 +1294,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -1557,6 +1574,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -1766,6 +1785,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -1783,58 +1804,54 @@ export class InformesService {
     const enfermeraFirmante =
       await this.enfermerasFirmantesService.findOneByUserId(userId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-      ? {
-          nombre: tecnicoFirmante.nombre || '',
-          sexo: tecnicoFirmante.sexo || '',
-          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            tecnicoFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            tecnicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            tecnicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
@@ -2132,6 +2149,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -2324,6 +2343,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -2541,6 +2562,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -2554,62 +2577,59 @@ export class InformesService {
           }
         : null,
     );
-
-    const enfermeraFirmante =
-      await this.enfermerasFirmantesService.findOneByUserId(userId);
+    
+    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(userId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
+
+
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-      ? {
-          nombre: tecnicoFirmante.nombre || '',
-          sexo: tecnicoFirmante.sexo || '',
-          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            tecnicoFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            tecnicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            tecnicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
@@ -2818,88 +2838,82 @@ export class InformesService {
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosMedicoFirmante = medicoFirmante
-      ? {
-          nombre: medicoFirmante.nombre || '',
-          tituloProfesional: medicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
-          especialistaSaludTrabajo:
-            medicoFirmante.especialistaSaludTrabajo || '',
-          numeroCedulaEspecialista:
-            medicoFirmante.numeroCedulaEspecialista || '',
-          nombreCredencialAdicional:
-            medicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            medicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (medicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          especialistaSaludTrabajo: '',
-          numeroCedulaEspecialista: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
+        tituloProfesional: medicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
+        especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
+        numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista || "",
+        nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional || "",
+        firma: medicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        especialistaSaludTrabajo: "",
+        numeroCedulaEspecialista: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const enfermeraFirmante =
       await this.enfermerasFirmantesService.findOneByUserId(userId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-      ? {
-          nombre: tecnicoFirmante.nombre || '',
-          sexo: tecnicoFirmante.sexo || '',
-          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            tecnicoFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            tecnicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            tecnicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
@@ -3158,88 +3172,82 @@ export class InformesService {
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosMedicoFirmante = medicoFirmante
-      ? {
-          nombre: medicoFirmante.nombre || '',
-          tituloProfesional: medicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
-          especialistaSaludTrabajo:
-            medicoFirmante.especialistaSaludTrabajo || '',
-          numeroCedulaEspecialista:
-            medicoFirmante.numeroCedulaEspecialista || '',
-          nombreCredencialAdicional:
-            medicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            medicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (medicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          especialistaSaludTrabajo: '',
-          numeroCedulaEspecialista: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
+        tituloProfesional: medicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
+        especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
+        numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista || "",
+        nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional || "",
+        firma: medicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        especialistaSaludTrabajo: "",
+        numeroCedulaEspecialista: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const enfermeraFirmante =
       await this.enfermerasFirmantesService.findOneByUserId(userId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-      ? {
-          nombre: tecnicoFirmante.nombre || '',
-          sexo: tecnicoFirmante.sexo || '',
-          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            tecnicoFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            tecnicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            tecnicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
@@ -3463,39 +3471,33 @@ export class InformesService {
 
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
-    const datosMedicoFirmante = medicoFirmante
-      ? {
-          nombre: medicoFirmante.nombre || '',
-          tituloProfesional: medicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
-          especialistaSaludTrabajo:
-            medicoFirmante.especialistaSaludTrabajo || '',
-          numeroCedulaEspecialista:
-            medicoFirmante.numeroCedulaEspecialista || '',
-          nombreCredencialAdicional:
-            medicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            medicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (medicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          especialistaSaludTrabajo: '',
-          numeroCedulaEspecialista: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    const datosMedicoFirmante = this.mapMedicoFirmante(
+      medicoFirmante
+        ? {
+            nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
+            tituloProfesional: medicoFirmante.tituloProfesional,
+            universidad: medicoFirmante.universidad,
+            numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
+            especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo,
+            numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista,
+            nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional,
+            numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional,
+            firma:
+              (medicoFirmante.firma as { data: string; contentType: string }) ||
+              null,
+          }
+        : null,
+    );
 
     const enfermeraFirmante =
       await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
       ? {
           nombre: enfermeraFirmante.nombre || '',
+          primerApellido: enfermeraFirmante.primerApellido || '',
+          segundoApellido: enfermeraFirmante.segundoApellido || '',
           sexo: enfermeraFirmante.sexo || '',
           tituloProfesional: enfermeraFirmante.tituloProfesional || '',
           numeroCedulaProfesional:
@@ -3512,6 +3514,8 @@ export class InformesService {
         }
       : {
           nombre: '',
+          primerApellido: '',
+          segundoApellido: '',
           sexo: '',
           tituloProfesional: '',
           numeroCedulaProfesional: '',
@@ -3742,39 +3746,33 @@ export class InformesService {
 
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
-    const datosMedicoFirmante = medicoFirmante
-      ? {
-          nombre: medicoFirmante.nombre || '',
-          tituloProfesional: medicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
-          especialistaSaludTrabajo:
-            medicoFirmante.especialistaSaludTrabajo || '',
-          numeroCedulaEspecialista:
-            medicoFirmante.numeroCedulaEspecialista || '',
-          nombreCredencialAdicional:
-            medicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            medicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (medicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          especialistaSaludTrabajo: '',
-          numeroCedulaEspecialista: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    const datosMedicoFirmante = this.mapMedicoFirmante(
+      medicoFirmante
+        ? {
+            nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
+            tituloProfesional: medicoFirmante.tituloProfesional,
+            universidad: medicoFirmante.universidad,
+            numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
+            especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo,
+            numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista,
+            nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional,
+            numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional,
+            firma:
+              (medicoFirmante.firma as { data: string; contentType: string }) ||
+              null,
+          }
+        : null,
+    );
 
     const enfermeraFirmante =
-      await this.enfermerasFirmantesService.findOneByUserId(userId);
+      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
       ? {
           nombre: enfermeraFirmante.nombre || '',
+          primerApellido: enfermeraFirmante.primerApellido || '',
+          segundoApellido: enfermeraFirmante.segundoApellido || '',
           sexo: enfermeraFirmante.sexo || '',
           tituloProfesional: enfermeraFirmante.tituloProfesional || '',
           numeroCedulaProfesional:
@@ -3791,6 +3789,8 @@ export class InformesService {
         }
       : {
           nombre: '',
+          primerApellido: '',
+          segundoApellido: '',
           sexo: '',
           tituloProfesional: '',
           numeroCedulaProfesional: '',
@@ -4075,88 +4075,82 @@ export class InformesService {
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosMedicoFirmante = medicoFirmante
-      ? {
-          nombre: medicoFirmante.nombre || '',
-          tituloProfesional: medicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
-          especialistaSaludTrabajo:
-            medicoFirmante.especialistaSaludTrabajo || '',
-          numeroCedulaEspecialista:
-            medicoFirmante.numeroCedulaEspecialista || '',
-          nombreCredencialAdicional:
-            medicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            medicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (medicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          especialistaSaludTrabajo: '',
-          numeroCedulaEspecialista: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
+        tituloProfesional: medicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
+        especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
+        numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista || "",
+        nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional || "",
+        firma: medicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        especialistaSaludTrabajo: "",
+        numeroCedulaEspecialista: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const enfermeraFirmante =
       await this.enfermerasFirmantesService.findOneByUserId(userId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-      ? {
-          nombre: tecnicoFirmante.nombre || '',
-          sexo: tecnicoFirmante.sexo || '',
-          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            tecnicoFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            tecnicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            tecnicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
@@ -4343,88 +4337,82 @@ export class InformesService {
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosMedicoFirmante = medicoFirmante
-      ? {
-          nombre: medicoFirmante.nombre || '',
-          tituloProfesional: medicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
-          especialistaSaludTrabajo:
-            medicoFirmante.especialistaSaludTrabajo || '',
-          numeroCedulaEspecialista:
-            medicoFirmante.numeroCedulaEspecialista || '',
-          nombreCredencialAdicional:
-            medicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            medicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (medicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          especialistaSaludTrabajo: '',
-          numeroCedulaEspecialista: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
+        tituloProfesional: medicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
+        especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
+        numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista || "",
+        nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional || "",
+        firma: medicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        especialistaSaludTrabajo: "",
+        numeroCedulaEspecialista: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const enfermeraFirmante =
       await this.enfermerasFirmantesService.findOneByUserId(userId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-      ? {
-          nombre: tecnicoFirmante.nombre || '',
-          sexo: tecnicoFirmante.sexo || '',
-          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            tecnicoFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            tecnicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            tecnicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
@@ -4617,88 +4605,82 @@ export class InformesService {
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosMedicoFirmante = medicoFirmante
-      ? {
-          nombre: medicoFirmante.nombre || '',
-          tituloProfesional: medicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
-          especialistaSaludTrabajo:
-            medicoFirmante.especialistaSaludTrabajo || '',
-          numeroCedulaEspecialista:
-            medicoFirmante.numeroCedulaEspecialista || '',
-          nombreCredencialAdicional:
-            medicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            medicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (medicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          especialistaSaludTrabajo: '',
-          numeroCedulaEspecialista: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
+        tituloProfesional: medicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
+        especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
+        numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista || "",
+        nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional || "",
+        firma: medicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        especialistaSaludTrabajo: "",
+        numeroCedulaEspecialista: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const enfermeraFirmante =
       await this.enfermerasFirmantesService.findOneByUserId(userId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-      ? {
-          nombre: tecnicoFirmante.nombre || '',
-          sexo: tecnicoFirmante.sexo || '',
-          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            tecnicoFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            tecnicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            tecnicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
@@ -4842,31 +4824,28 @@ export class InformesService {
     const enfermeraFirmante =
       await this.enfermerasFirmantesService.findOneByUserId(userId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
@@ -5060,88 +5039,82 @@ export class InformesService {
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosMedicoFirmante = medicoFirmante
-      ? {
-          nombre: medicoFirmante.nombre || '',
-          tituloProfesional: medicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
-          especialistaSaludTrabajo:
-            medicoFirmante.especialistaSaludTrabajo || '',
-          numeroCedulaEspecialista:
-            medicoFirmante.numeroCedulaEspecialista || '',
-          nombreCredencialAdicional:
-            medicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            medicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (medicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          especialistaSaludTrabajo: '',
-          numeroCedulaEspecialista: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
+        tituloProfesional: medicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
+        especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
+        numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista || "",
+        nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional || "",
+        firma: medicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        especialistaSaludTrabajo: "",
+        numeroCedulaEspecialista: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const enfermeraFirmante =
       await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-      ? {
-          nombre: tecnicoFirmante.nombre || '',
-          sexo: tecnicoFirmante.sexo || '',
-          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            tecnicoFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            tecnicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            tecnicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
@@ -5329,88 +5302,82 @@ export class InformesService {
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosMedicoFirmante = medicoFirmante
-      ? {
-          nombre: medicoFirmante.nombre || '',
-          tituloProfesional: medicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
-          especialistaSaludTrabajo:
-            medicoFirmante.especialistaSaludTrabajo || '',
-          numeroCedulaEspecialista:
-            medicoFirmante.numeroCedulaEspecialista || '',
-          nombreCredencialAdicional:
-            medicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            medicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (medicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          especialistaSaludTrabajo: '',
-          numeroCedulaEspecialista: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
+        tituloProfesional: medicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
+        especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
+        numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista || "",
+        nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional || "",
+        firma: medicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        especialistaSaludTrabajo: "",
+        numeroCedulaEspecialista: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const enfermeraFirmante =
       await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-      ? {
-          nombre: tecnicoFirmante.nombre || '',
-          sexo: tecnicoFirmante.sexo || '',
-          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            tecnicoFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            tecnicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            tecnicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
@@ -5636,88 +5603,82 @@ export class InformesService {
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosMedicoFirmante = medicoFirmante
-      ? {
-          nombre: medicoFirmante.nombre || '',
-          tituloProfesional: medicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
-          especialistaSaludTrabajo:
-            medicoFirmante.especialistaSaludTrabajo || '',
-          numeroCedulaEspecialista:
-            medicoFirmante.numeroCedulaEspecialista || '',
-          nombreCredencialAdicional:
-            medicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            medicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (medicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          especialistaSaludTrabajo: '',
-          numeroCedulaEspecialista: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
+        tituloProfesional: medicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
+        especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
+        numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista || "",
+        nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional || "",
+        firma: medicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        especialistaSaludTrabajo: "",
+        numeroCedulaEspecialista: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const enfermeraFirmante =
       await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-      ? {
-          nombre: tecnicoFirmante.nombre || '',
-          sexo: tecnicoFirmante.sexo || '',
-          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            tecnicoFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            tecnicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            tecnicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
@@ -5898,88 +5859,82 @@ export class InformesService {
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosMedicoFirmante = medicoFirmante
-      ? {
-          nombre: medicoFirmante.nombre || '',
-          tituloProfesional: medicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
-          especialistaSaludTrabajo:
-            medicoFirmante.especialistaSaludTrabajo || '',
-          numeroCedulaEspecialista:
-            medicoFirmante.numeroCedulaEspecialista || '',
-          nombreCredencialAdicional:
-            medicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            medicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (medicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          especialistaSaludTrabajo: '',
-          numeroCedulaEspecialista: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
+        tituloProfesional: medicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
+        especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
+        numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista || "",
+        nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional || "",
+        firma: medicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        especialistaSaludTrabajo: "",
+        numeroCedulaEspecialista: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const enfermeraFirmante =
       await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-      ? {
-          nombre: tecnicoFirmante.nombre || '',
-          sexo: tecnicoFirmante.sexo || '',
-          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            tecnicoFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            tecnicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            tecnicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
@@ -6082,32 +6037,30 @@ export class InformesService {
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(userId);
     const datosMedicoFirmante = medicoFirmante
-      ? {
-          nombre: medicoFirmante.nombre || '',
-          tituloProfesional: medicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || '',
-          especialistaSaludTrabajo:
-            medicoFirmante.especialistaSaludTrabajo || '',
-          numeroCedulaEspecialista:
-            medicoFirmante.numeroCedulaEspecialista || '',
-          nombreCredencialAdicional:
-            medicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            medicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (medicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          especialistaSaludTrabajo: '',
-          numeroCedulaEspecialista: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: medicoFirmante.nombre || "",
+        primerApellido: medicoFirmante.primerApellido || "",
+        segundoApellido: medicoFirmante.segundoApellido || "",
+        tituloProfesional: medicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional || "",
+        especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo || "",
+        numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista || "",
+        nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional || "",
+        firma: medicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        especialistaSaludTrabajo: "",
+        numeroCedulaEspecialista: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
       idProveedorSalud: usuario.idProveedorSalud,
@@ -6268,6 +6221,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -6281,62 +6236,59 @@ export class InformesService {
           }
         : null,
     );
-
-    const enfermeraFirmante =
-      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
+    
+    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(userId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
+
+
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-      ? {
-          nombre: tecnicoFirmante.nombre || '',
-          sexo: tecnicoFirmante.sexo || '',
-          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            tecnicoFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            tecnicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            tecnicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {
@@ -6555,6 +6507,8 @@ export class InformesService {
       medicoFirmante
         ? {
             nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
             tituloProfesional: medicoFirmante.tituloProfesional,
             universidad: medicoFirmante.universidad,
             numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
@@ -6568,62 +6522,59 @@ export class InformesService {
           }
         : null,
     );
-
-    const enfermeraFirmante =
-      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
+    
+    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(userId);
     const datosEnfermeraFirmante = enfermeraFirmante
-      ? {
-          nombre: enfermeraFirmante.nombre || '',
-          sexo: enfermeraFirmante.sexo || '',
-          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            enfermeraFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            enfermeraFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            enfermeraFirmante.numeroCredencialAdicional || '',
-          firma:
-            (enfermeraFirmante.firma as {
-              data: string;
-              contentType: string;
-            }) || null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: enfermeraFirmante.nombre || "",
+        primerApellido: enfermeraFirmante.primerApellido || "",
+        segundoApellido: enfermeraFirmante.segundoApellido || "",
+        sexo: enfermeraFirmante.sexo || "",
+        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
+        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
+
+
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-      ? {
-          nombre: tecnicoFirmante.nombre || '',
-          sexo: tecnicoFirmante.sexo || '',
-          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
-          numeroCedulaProfesional:
-            tecnicoFirmante.numeroCedulaProfesional || '',
-          nombreCredencialAdicional:
-            tecnicoFirmante.nombreCredencialAdicional || '',
-          numeroCredencialAdicional:
-            tecnicoFirmante.numeroCredencialAdicional || '',
-          firma:
-            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
-            null,
-        }
-      : {
-          nombre: '',
-          sexo: '',
-          tituloProfesional: '',
-          numeroCedulaProfesional: '',
-          nombreCredencialAdicional: '',
-          numeroCredencialAdicional: '',
-          firma: null,
-        };
+    ? {
+        nombre: tecnicoFirmante.nombre || "",
+        primerApellido: tecnicoFirmante.primerApellido || "",
+        segundoApellido: tecnicoFirmante.segundoApellido || "",
+        sexo: tecnicoFirmante.sexo || "",
+        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
+        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
+        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
+        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
+        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
+      }
+    : {
+        nombre: "",
+        primerApellido: "",
+        segundoApellido: "",
+        sexo: "",
+        tituloProfesional: "",
+        numeroCedulaProfesional: "",
+        nombreCredencialAdicional: "",
+        numeroCredencialAdicional: "",
+        firma: null,
+      };
 
     const usuario = await this.usersService.findById(userId);
     const datosUsuario = {

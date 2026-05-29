@@ -11,7 +11,11 @@ import { RegulatoryPolicyService } from 'src/utils/regulatory-policy.service';
 import { validateFechaNacimientoFirmante } from '../expedientes/validators/date-validators';
 import { CatalogsService } from '../catalogs/catalogs.service';
 import { GeographyValidator } from '../catalogs/validators/geography.validator';
-import { validateFirmanteRegulatoryFields } from 'src/utils/firmante-regulatory-validation.util';
+import {
+  buildFirmanteRegulatoryPayload,
+  validateFirmanteRegulatoryFields,
+} from 'src/utils/firmante-regulatory-validation.util';
+import { validateFirmanteIdentificationImmutable } from 'src/utils/firmante-identification-immutability.util';
 
 @Injectable()
 export class MedicosFirmantesService {
@@ -53,17 +57,7 @@ export class MedicosFirmantesService {
 
     await validateFirmanteRegulatoryFields(
       policy,
-      {
-        paisNacimiento: data.paisNacimiento as number | undefined,
-        entidadNacimiento: data.entidadNacimiento as string | undefined,
-        entidadResidencia: data.entidadResidencia as string | undefined,
-        municipioResidencia: data.municipioResidencia as string | undefined,
-        localidadResidencia: data.localidadResidencia as string | undefined,
-        curp: data.curp as string | undefined,
-        fechaNacimiento: data.fechaNacimiento as Date | undefined,
-        sexo: data.sexo as string | undefined,
-        nombre: data.nombre as string | undefined,
-      },
+      buildFirmanteRegulatoryPayload(data),
       this.catalogsService,
       this.geographyValidator,
     );
@@ -143,10 +137,22 @@ export class MedicosFirmantesService {
       const idUser =
         updateMedicoFirmanteDto.idUser || existing.idUser?.toString();
       if (idUser) {
+        const policy = await this.getPolicyForUser(idUser);
+        if (policy) {
+          validateFirmanteIdentificationImmutable(
+            updateMedicoFirmanteDto as Record<string, unknown>,
+            existing,
+            policy,
+          );
+        }
         const merged = {
           ...(existing.toObject?.() ?? existing),
-          ...normalizedDto,
         };
+        for (const key of Object.keys(updateMedicoFirmanteDto)) {
+          if ((normalizedDto as Record<string, unknown>)[key] !== undefined) {
+            merged[key] = (normalizedDto as Record<string, unknown>)[key];
+          }
+        }
         await this.validateFirmanteSiresFields(
           merged as Record<string, unknown>,
           idUser,

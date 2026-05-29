@@ -194,6 +194,7 @@ Este documento define los términos del dominio utilizados en el repositorio y s
 - Entity: `src/modules/medicos-firmantes/entities/medicos-firmante.entity.ts`
 
 **Campos relevantes:**
+- `nombre`, `primerApellido`, `segundoApellido` - Identificación del profesional (registros legacy conservan el nombre completo en `nombre`)
 - `numeroCedulaProfesional` - Cédula profesional
 - `firma` - Imagen de firma
 - `idUser` - Referencia a User
@@ -205,7 +206,7 @@ Este documento define los términos del dominio utilizados en el repositorio y s
 ---
 
 ### **EnfermeraFirmante** (Signing Nurse)
-**Definición:** Similar a MedicoFirmante, para enfermeras.
+**Definición:** Similar a MedicoFirmante, para enfermeras. Usa `nombre`, `primerApellido` y `segundoApellido` opcional.
 
 **Ubicación:** `src/modules/enfermeras-firmantes/`
 

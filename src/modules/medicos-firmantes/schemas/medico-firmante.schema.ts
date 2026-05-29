@@ -7,6 +7,10 @@ export class MedicoFirmante extends Document {
   @Prop({ required: true })
   nombre: string;
   @Prop()
+  primerApellido?: string;
+  @Prop()
+  segundoApellido?: string;
+  @Prop()
   tituloProfesional?: string;
   @Prop()
   universidad?: string;

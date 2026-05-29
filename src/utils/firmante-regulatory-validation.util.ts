@@ -20,6 +20,25 @@ export interface FirmanteRegulatoryData extends CurpDemographicData {
   localidadResidencia?: string;
 }
 
+/** Construye payload regulatorio a partir de datos normalizados o mergeados del firmante. */
+export function buildFirmanteRegulatoryPayload(
+  data: Record<string, unknown>,
+): FirmanteRegulatoryData {
+  return {
+    paisNacimiento: data.paisNacimiento as number | undefined,
+    entidadNacimiento: data.entidadNacimiento as string | undefined,
+    entidadResidencia: data.entidadResidencia as string | undefined,
+    municipioResidencia: data.municipioResidencia as string | undefined,
+    localidadResidencia: data.localidadResidencia as string | undefined,
+    curp: data.curp as string | undefined,
+    fechaNacimiento: data.fechaNacimiento as Date | undefined,
+    sexo: data.sexo as string | undefined,
+    nombre: data.nombre as string | undefined,
+    primerApellido: data.primerApellido as string | undefined,
+    segundoApellido: data.segundoApellido as string | undefined,
+  };
+}
+
 /**
  * Validaciones regulatorias unificadas para médico/enfermera firmante.
  */

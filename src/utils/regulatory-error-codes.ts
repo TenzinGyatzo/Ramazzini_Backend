@@ -105,4 +105,9 @@ export interface RegulatoryErrorDetails {
    * Campos de identificación que no pueden modificarse
    */
   immutableFields?: string[];
+
+  /**
+   * Sujeto del error de inmutabilidad de identificación
+   */
+  subject?: 'trabajador' | 'firmante';
 }

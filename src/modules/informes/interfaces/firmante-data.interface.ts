@@ -1,5 +1,7 @@
 export interface FirmanteData {
   nombre: string;
+  primerApellido?: string;
+  segundoApellido?: string;
   tituloProfesional: string;
   numeroCedulaProfesional?: string;
   especialistaSaludTrabajo?: string;

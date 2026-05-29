@@ -3,9 +3,10 @@ import type {
   StyleDictionary,
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
-import { formatearNombreTrabajadorCertificado } from '../../../utils/names';
 import { FooterFirmantesData } from '../interfaces/firmante-data.interface';
 import { generarFooterFirmantes } from '../helpers/footer-firmantes.helper';
+import { formatearNombreTrabajadorCertificado, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
+import { MedicoFirmanteInforme } from '../types/firmante-informe.types';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -224,20 +225,6 @@ interface CertificadoExpedito {
   observaciones: string;
 }
 
-interface MedicoFirmante {
-  nombre: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  especialistaSaludTrabajo: string;
-  numeroCedulaEspecialista: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  };
-}
-
 interface ProveedorSalud {
   nombre: string;
   pais: string;
@@ -260,7 +247,7 @@ export const certificadoExpeditoInforme = (
   nombreEmpresa: string,
   trabajador: Trabajador,
   certificado: CertificadoExpedito,
-  medicoFirmante: MedicoFirmante,
+  medicoFirmante: MedicoFirmanteInforme,
   proveedorSalud: ProveedorSalud,
   footerFirmantesData?: FooterFirmantesData,
 ): TDocumentDefinitions => {
@@ -271,6 +258,8 @@ export const certificadoExpeditoInforme = (
       ? {
           tituloProfesional: footerFirmantesData.finalizador.tituloProfesional,
           nombre: footerFirmantesData.finalizador.nombre,
+          primerApellido: footerFirmantesData.finalizador.primerApellido,
+          segundoApellido: footerFirmantesData.finalizador.segundoApellido,
           numeroCedulaProfesional:
             footerFirmantesData.finalizador.numeroCedulaProfesional || '',
           especialistaSaludTrabajo:
@@ -392,7 +381,7 @@ export const certificadoExpeditoInforme = (
                     },
 
                 {
-                  text: `${firmanteActivo.tituloProfesional} ${firmanteActivo.nombre}${firmanteActivo.especialistaSaludTrabajo === 'Si' ? '' : '.'}`, // Sin espacio antes del punto
+                  text: `${formatearTituloYNombreFirmante(firmanteActivo)}${firmanteActivo.especialistaSaludTrabajo === 'Si' ? '' : '.'}`,
                   bold: true,
                 },
 
@@ -584,7 +573,7 @@ export const certificadoExpeditoInforme = (
         margin: [0, 10, 0, 0],
       },
       {
-        text: `${firmanteActivo.tituloProfesional} ${firmanteActivo.nombre}`,
+        text: `${formatearTituloYNombreFirmante(firmanteActivo)}`,
         fontSize: 12,
         bold: false,
         alignment: 'center',

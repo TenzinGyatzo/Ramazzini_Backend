@@ -220,7 +220,7 @@ const GIIS_NAME_ALLOWED = /^[A-ZÑÄËÏÖÜ\s\-,\.\/'¨]$/u;
  * - Especiales permitidos: - , . / ' ¨
  * - No más de un espacio consecutivo; no más de un caracter especial consecutivo.
  *
- * @param value - Nombre o apellido (p. ej. salida de parseNombreCompleto)
+ * @param value - Nombre o apellido del firmante
  * @returns String listo para nombrePrestador / primerApellidoPrestador / segundoApellidoPrestador
  */
 export function normalizeNameForGiis(value: string | null | undefined): string {

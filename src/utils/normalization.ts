@@ -10,6 +10,8 @@ import { CreateMedicoFirmanteDto } from 'src/modules/medicos-firmantes/dto/creat
 import { UpdateMedicoFirmanteDto } from 'src/modules/medicos-firmantes/dto/update-medico-firmante.dto';
 import { CreateEnfermeraFirmanteDto } from 'src/modules/enfermeras-firmantes/dto/create-enfermera-firmante.dto';
 import { UpdateEnfermeraFirmanteDto } from 'src/modules/enfermeras-firmantes/dto/update-enfermera-firmante.dto';
+import { CreateTecnicoFirmanteDto } from 'src/modules/tecnicos-firmantes/dto/create-tecnico-firmante.dto';
+import { UpdateTecnicoFirmanteDto } from 'src/modules/tecnicos-firmantes/dto/update-tecnico-firmante.dto';
 
 export function normalizeEmpresaData(dto: CreateEmpresaDto | UpdateEmpresaDto) {
   // Normalizar RFC: eliminar espacios y convertir a mayúsculas
@@ -205,6 +207,10 @@ export function normalizeMedicoFirmanteData(
   const normalizedDto: any = {
     ...dto,
     nombre: typeof dto.nombre === 'string' ? dto.nombre.trim() : '',
+    primerApellido:
+      typeof dto.primerApellido === 'string' ? dto.primerApellido.trim() : '',
+    segundoApellido:
+      typeof dto.segundoApellido === 'string' ? dto.segundoApellido.trim() : '',
     tituloProfesional:
       typeof dto.tituloProfesional === 'string'
         ? dto.tituloProfesional.trim()
@@ -319,6 +325,11 @@ export function normalizeEnfermeraFirmanteData(
   const normalizedDto: any = {
     ...dto,
     nombre: typeof dto.nombre === 'string' ? dto.nombre.trim() : '',
+    primerApellido:
+      typeof dto.primerApellido === 'string' ? dto.primerApellido.trim() : '',
+    segundoApellido:
+      typeof dto.segundoApellido === 'string' ? dto.segundoApellido.trim() : '',
+    sexo: typeof dto.sexo === 'string' ? dto.sexo.trim() : '',
     tituloProfesional:
       typeof dto.tituloProfesional === 'string'
         ? dto.tituloProfesional.trim()
@@ -392,6 +403,36 @@ export function normalizeEnfermeraFirmanteData(
 
   // ✅ Verificar y eliminar idUser si está vacío
   if (!dto.idUser || dto.idUser.trim() === '') {
+    delete normalizedDto.idUser;
+  } else {
+    normalizedDto.idUser = dto.idUser.trim();
+  }
+
+  return normalizedDto;
+}
+
+export function normalizeTecnicoFirmanteData(
+  dto: CreateTecnicoFirmanteDto | UpdateTecnicoFirmanteDto,
+) {
+  const normalizedDto = {
+    ...dto,
+    nombre: typeof dto.nombre === 'string' ? dto.nombre.trim() : "",
+    primerApellido: typeof dto.primerApellido === 'string' ? dto.primerApellido.trim() : "",
+    segundoApellido: typeof dto.segundoApellido === 'string' ? dto.segundoApellido.trim() : "",
+    sexo: typeof dto.sexo === 'string' ? dto.sexo.trim() : "",
+    tituloProfesional: typeof dto.tituloProfesional === 'string' ? dto.tituloProfesional.trim() : "",
+    numeroCedulaProfesional: typeof dto.numeroCedulaProfesional === 'string' ? dto.numeroCedulaProfesional.trim() : "",
+    nombreCredencialAdicional: typeof dto.nombreCredencialAdicional === 'string' ? dto.nombreCredencialAdicional.trim() : "",
+    numeroCredencialAdicional: typeof dto.numeroCredencialAdicional === 'string' ? dto.numeroCredencialAdicional.trim() : "",
+    firma: dto.firma && typeof dto.firma.data === 'string' && typeof dto.firma.contentType === 'string'
+      ? {
+          data: dto.firma.data.trim(),
+          contentType: dto.firma.contentType.trim(),
+        }
+      : undefined,
+  };
+
+  if (!dto.idUser || dto.idUser.trim() === "") {
     delete normalizedDto.idUser;
   } else {
     normalizedDto.idUser = dto.idUser.trim();

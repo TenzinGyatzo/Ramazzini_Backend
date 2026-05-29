@@ -1,4 +1,3 @@
-import { parseNombreCompleto } from './parseNombreCompleto';
 import { CurpDemographicData } from './curp-sires-validation.util';
 
 export interface FirmanteNombreInput {
@@ -11,8 +10,8 @@ export interface FirmanteNombreInput {
 }
 
 /**
- * Construye demografía para cruce CURP A1 a partir del nombre completo del firmante.
- * Usa parseNombreCompleto (misma heurística que export CEX) cuando no vienen apellidos explícitos.
+ * Construye demografía para cruce CURP A1 a partir de los campos estructurados del firmante.
+ * Si no hay primerApellido (registro legacy), solo devuelve nombre sin inventar apellidos.
  */
 export function buildCurpDemographicsForFirmante(
   data: FirmanteNombreInput,
@@ -23,25 +22,24 @@ export function buildCurpDemographicsForFirmante(
     entidadNacimiento: data.entidadNacimiento,
   };
 
-  if (data.primerApellido?.trim() && data.nombre?.trim()) {
+  const nombre = data.nombre?.trim();
+  const primerApellido = data.primerApellido?.trim();
+
+  if (nombre && primerApellido) {
     return {
       ...base,
-      nombre: data.nombre.trim(),
-      primerApellido: data.primerApellido.trim(),
+      nombre,
+      primerApellido,
       segundoApellido: data.segundoApellido?.trim() || undefined,
     };
   }
 
-  const nombreCompleto = data.nombre?.trim();
-  if (!nombreCompleto) {
-    return base;
+  if (nombre) {
+    return {
+      ...base,
+      nombre,
+    };
   }
 
-  const parsed = parseNombreCompleto(nombreCompleto);
-  return {
-    ...base,
-    nombre: parsed.nombrePrestador,
-    primerApellido: parsed.primerApellidoPrestador,
-    segundoApellido: parsed.segundoApellidoPrestador || undefined,
-  };
+  return base;
 }

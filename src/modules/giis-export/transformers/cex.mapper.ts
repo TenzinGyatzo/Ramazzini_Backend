@@ -10,7 +10,6 @@ import {
   formatCURP,
   normalizeNameForGiis,
 } from '../formatters/field.formatter';
-import { parseNombreCompleto } from '../../../utils/parseNombreCompleto';
 import {
   calcularEdadEmbarazo,
   resolverCamposEmbarazoCex,
@@ -92,6 +91,8 @@ export interface TrabajadorLike {
 export interface PrestadorLike {
   curp?: string;
   nombre?: string;
+  primerApellido?: string;
+  segundoApellido?: string;
   tipoPersonal?: number;
   servicioAtencion?: number;
   /** CATALOG_KEY de cat_pais (ej. 142=México) */
@@ -233,7 +234,7 @@ function getAllCieCodesFromConsulta(consulta: ConsultaExternaLike): string[] {
 /**
  * Map one Consulta externa (NotaMedica) + optional Trabajador + optional Prestador to a flat record with keys = CEX schema field names.
  * All 106 columns are present; required ones get value or default. No hardcoded field list — iterate schema.fields.
- * If prestador is provided, curpPrestador, nombrePrestador, primerApellidoPrestador, segundoApellidoPrestador and tipoPersonal come from it (nombre parsed via parseNombreCompleto).
+ * If prestador is provided, curpPrestador, nombrePrestador, primerApellidoPrestador, segundoApellidoPrestador and tipoPersonal come from it.
  */
 export function mapNotaMedicaToCexRow(
   consulta: ConsultaExternaLike,
@@ -270,19 +271,15 @@ export function mapNotaMedicaToCexRow(
         : '';
   const codigo2 = diag2NoAplica ? '' : codigo2Raw || 'R69X';
 
-  const nombreCompletoPrestador = (prestador?.nombre ?? '').trim();
-  const parsed = nombreCompletoPrestador
-    ? parseNombreCompleto(nombreCompletoPrestador)
-    : null;
   const curpPrestador = prestador?.curp
     ? formatCURP(prestador.curp) || CURP_GENERICA
     : CURP_GENERICA;
   const nombrePrestador =
-    normalizeNameForGiis(parsed?.nombrePrestador) || DEFAULT_NA;
+    normalizeNameForGiis(prestador?.nombre?.trim()) || DEFAULT_NA;
   const primerApellidoPrestador =
-    normalizeNameForGiis(parsed?.primerApellidoPrestador) || DEFAULT_NA;
+    normalizeNameForGiis(prestador?.primerApellido?.trim()) || DEFAULT_NA;
   const segundoApellidoPrestador =
-    normalizeNameForGiis(parsed?.segundoApellidoPrestador) || DEFAULT_XX;
+    normalizeNameForGiis(prestador?.segundoApellido?.trim()) || DEFAULT_XX;
   const tipoPersonal =
     prestador?.tipoPersonal ?? context.cexDefaults?.tipoPersonal ?? 0;
   const servicioAtencion =

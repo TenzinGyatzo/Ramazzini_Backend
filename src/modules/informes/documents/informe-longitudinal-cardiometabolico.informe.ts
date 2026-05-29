@@ -36,7 +36,9 @@ import {
   type LineaResumenCondicionVista,
 } from '../utils/informe-longitudinal-resumen-condiciones-vista';
 import { buildTimelineSeguimientoPdfBlock } from '../utils/timeline-seguimiento-informe-longitudinal';
-import { formatearNombreTrabajador } from '../../../utils/names';
+import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
+import { EnfermeraFirmanteInforme, MedicoFirmanteInforme, TecnicoFirmanteInforme } from '../types/firmante-informe.types';
+import { firmanteTieneLineaNombre, resolverFirmanteActivo } from '../helpers/firmante-informe.helpers';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -264,46 +266,6 @@ interface DatosInformeLongitudinalCardiometabolicoInforme {
   graficaEvolucionPresionArterial?: string;
   graficaEvolucionPesoImc?: string;
   graficaEvolucionPerfilLipidico?: string;
-}
-
-interface MedicoFirmante {
-  nombre: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  especialistaSaludTrabajo: string;
-  numeroCedulaEspecialista: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  } | null;
-}
-
-interface EnfermeraFirmante {
-  nombre: string;
-  sexo: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  } | null;
-}
-
-interface TecnicoFirmante {
-  nombre: string;
-  sexo: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  } | null;
 }
 
 interface ProveedorSalud {
@@ -1442,13 +1404,17 @@ function buildCuerpoInformeLongitudinalPdf(ilc: DatosInformeLongitudinalCardiome
       width: 460,
       alignment: 'center',
       margin: [0, 0, 0, 8],
-      pageBreak: 'after',
     });
   }
 
   const imgPresionArterial = ilc.graficaEvolucionPresionArterial?.trim();
   if (imgPresionArterial) {
-    out.push({ text: 'EVOLUCIÓN DE PRESIÓN ARTERIAL', style: 'sectionHeader', margin: [0, 12, 0, 2] });
+    out.push({
+      text: 'EVOLUCIÓN DE PRESIÓN ARTERIAL',
+      style: 'sectionHeader',
+      margin: [0, 12, 0, 2],
+      pageBreak: 'before',
+    });
     out.push({
       text: 'Presión sistólica y diastólica durante el periodo evaluado',
       fontSize: 8,
@@ -1522,9 +1488,9 @@ export const informeLongitudinalCardiometabolicoInforme = (
   nombreEmpresa: string,
   trabajador: Trabajador,
   informeLongitudinalCardiometabolico: DatosInformeLongitudinalCardiometabolicoInforme,
-  medicoFirmante: MedicoFirmante | null,
-  enfermeraFirmante: EnfermeraFirmante | null,
-  tecnicoFirmante: TecnicoFirmante | null,
+  medicoFirmante: MedicoFirmanteInforme | null,
+  enfermeraFirmante: EnfermeraFirmanteInforme | null,
+  tecnicoFirmante: TecnicoFirmanteInforme | null,
   proveedorSalud: ProveedorSalud,
   footerFirmantesData?: FooterFirmantesData,
 ): TDocumentDefinitions => {
@@ -1723,9 +1689,9 @@ export const informeLongitudinalCardiometabolicoInforme = (
                 ? generarFooterFirmantes(footerFirmantesData, proveedorSalud)
                 : [
                 // Nombre y título profesional
-                (firmanteActivo?.tituloProfesional && firmanteActivo?.nombre)
+                firmanteTieneLineaNombre(firmanteActivo)
                   ? {
-                      text: `${firmanteActivo.tituloProfesional} ${firmanteActivo.nombre}\n`,
+                      text: `${formatearTituloYNombreFirmante(firmanteActivo)}\n`,
                       bold: true,
                     }
                   : null,

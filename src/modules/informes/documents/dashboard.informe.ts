@@ -4,6 +4,9 @@ import type {
   StyleDictionary,
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
+import { EnfermeraFirmanteInforme, MedicoFirmanteInforme, TecnicoFirmanteInforme } from '../types/firmante-informe.types';
+import { firmanteTieneLineaNombre, resolverFirmanteActivo, resolverFirmanteMedicoEnfermera } from '../helpers/firmante-informe.helpers';
+import { formatearNombreTrabajador, formatearTituloYNombreFirmante } from '../../../utils/names';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -289,9 +292,9 @@ export const dashboardInforme = (
           columns: [
             {
               text: [
-                medicoFirmante.tituloProfesional && medicoFirmante.nombre
+                firmanteTieneLineaNombre(medicoFirmante)
                   ? {
-                      text: `${medicoFirmante.tituloProfesional} ${medicoFirmante.nombre}\n`,
+                      text: `${formatearTituloYNombreFirmante(medicoFirmante)}\n`,
                       bold: true,
                     }
                   : null,

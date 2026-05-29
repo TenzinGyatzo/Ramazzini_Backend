@@ -4,6 +4,8 @@ import { User } from 'src/modules/users/entities/user.entity';
 export class MedicoFirmante extends Document {
   _id: string;
   nombre: string;
+  primerApellido?: string;
+  segundoApellido?: string;
   tituloProfesional?: string;
   universidad?: string;
   numeroCedulaProfesional?: string;
@@ -25,6 +27,9 @@ export class MedicoFirmante extends Document {
   curp?: string;
   sexo?: string;
   entidadNacimiento?: string;
-  paisNacimiento: number;
+  entidadResidencia?: string;
+  municipioResidencia?: string;
+  localidadResidencia?: string;
+  paisNacimiento?: number;
   fechaNacimiento: Date;
 }

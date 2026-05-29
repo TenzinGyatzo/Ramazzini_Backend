@@ -1,4 +1,5 @@
 import type { Content } from 'pdfmake/interfaces';
+import { formatearTituloYNombreFirmante } from '../../../utils/names';
 import { FooterFirmantesData } from '../interfaces/firmante-data.interface';
 
 export function generarFooterFirmantes(
@@ -6,18 +7,14 @@ export function generarFooterFirmantes(
   proveedorSalud: { pais: string },
 ): Content[] {
   if (!footerData.esDocumentoFinalizado) {
-    // Footer simple (documento en borrador) - mantener comportamiento actual
-    // Este caso no debería ocurrir en el flujo normal, pero lo manejamos por seguridad
     const firmante = footerData.finalizador || footerData.elaborador;
     if (!firmante) return [];
 
     return generarTextosFirmante(firmante, proveedorSalud, false);
   }
 
-  // Footer con elaborador y finalizador
   const textos: any[] = [];
 
-  // Elaborador
   if (footerData.elaborador) {
     const cedulaElab =
       footerData.elaborador.especialistaSaludTrabajo === 'Si' &&
@@ -36,7 +33,7 @@ export function generarFooterFirmantes(
           : null;
 
     textos.push({
-      text: `Elab. ${footerData.elaborador.tituloProfesional || ''} ${footerData.elaborador.nombre}\n`,
+      text: `Elab. ${formatearTituloYNombreFirmante(footerData.elaborador)}\n`,
       bold: true,
     });
 
@@ -48,7 +45,6 @@ export function generarFooterFirmantes(
     }
   }
 
-  // Finalizador
   if (footerData.finalizador) {
     const cedulaFin =
       footerData.finalizador.especialistaSaludTrabajo === 'Si' &&
@@ -67,7 +63,7 @@ export function generarFooterFirmantes(
           : null;
 
     textos.push({
-      text: `Rev./Fin. ${footerData.finalizador.tituloProfesional || ''} ${footerData.finalizador.nombre}\n`,
+      text: `Rev./Fin. ${formatearTituloYNombreFirmante(footerData.finalizador)}\n`,
       bold: true,
     });
 
@@ -82,7 +78,6 @@ export function generarFooterFirmantes(
   return textos.filter((t) => t !== null);
 }
 
-// Helper para generar textos de un firmante individual (usado en modo borrador)
 function generarTextosFirmante(
   firmante: any,
   proveedorSalud: { pais: string },
@@ -92,7 +87,7 @@ function generarTextosFirmante(
   const prefijo = esElaborador ? 'Elab. ' : '';
 
   textos.push({
-    text: `${prefijo}${firmante.tituloProfesional || ''} ${firmante.nombre}\n`,
+    text: `${prefijo}${formatearTituloYNombreFirmante(firmante)}\n`,
     bold: true,
   });
 

@@ -4,7 +4,7 @@ import { Model } from 'mongoose';
 import { TecnicoFirmante } from './schemas/tecnico-firmante.schema';
 import { CreateTecnicoFirmanteDto } from './dto/create-tecnico-firmante.dto';
 import { UpdateTecnicoFirmanteDto } from './dto/update-tecnico-firmante.dto';
-import { normalizeEnfermeraFirmanteData } from 'src/utils/normalization';
+import { normalizeTecnicoFirmanteData } from 'src/utils/normalization';
 import { User } from '../users/schemas/user.schema';
 import { ProveedorSalud } from '../proveedores-salud/schemas/proveedor-salud.schema';
 import { RegulatoryPolicyService } from 'src/utils/regulatory-policy.service';
@@ -31,27 +31,21 @@ export class TecnicosFirmantesService {
     curp: string | undefined,
     idUser: string,
   ): Promise<void> {
-    // Get user to obtain idProveedorSalud
     const user = await this.userModel.findById(idUser).exec();
     if (!user || !user.idProveedorSalud) {
-      // If no user or provider, assume SIN_REGIMEN (most permissive)
       return;
     }
 
-    // Get regulatory policy for the provider
     const policy = await this.regulatoryPolicyService.getRegulatoryPolicy(
       user.idProveedorSalud,
     );
 
-    // Validate CURP using policy
     validateCurpByPolicy(curp, policy);
   }
 
   async create(dto: CreateTecnicoFirmanteDto) {
-    // Reusar normalización similar a enfermera
-    const normalized = normalizeEnfermeraFirmanteData(dto as any);
+    const normalized = normalizeTecnicoFirmanteData(dto);
 
-    // Validate CURP based on regulatory policy
     await this.validateCURPByPolicy((normalized as any).curp, dto.idUser);
 
     const created = new this.tecnicoModel(normalized);
@@ -74,14 +68,12 @@ export class TecnicosFirmantesService {
     id: string,
     dto: UpdateTecnicoFirmanteDto,
   ): Promise<TecnicoFirmante> {
-    const normalized = normalizeEnfermeraFirmanteData(dto as any);
+    const normalized = normalizeTecnicoFirmanteData(dto);
 
-    // Get existing record to determine idUser for validation
     const existing = await this.tecnicoModel.findById(id).exec();
     if (existing) {
       const idUser = dto.idUser || existing.idUser?.toString();
       if (idUser) {
-        // Validate CURP based on regulatory policy
         const curpToValidate =
           (normalized as any).curp !== undefined
             ? (normalized as any).curp

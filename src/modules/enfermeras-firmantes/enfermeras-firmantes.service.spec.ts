@@ -40,7 +40,7 @@ describe('EnfermerasFirmantesService', () => {
       .mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }),
   });
 
-  const validCURP = 'MARJ900215MDFRRZ09';
+  const validCURP = 'GALJ900515MDFRPN08';
   const invalidCURPFormat = 'INVALID123';
   const mxUserId = '507f1f77bcf86cd799439011';
   const nonMxUserId = '507f1f77bcf86cd799439022';
@@ -64,7 +64,10 @@ describe('EnfermerasFirmantesService', () => {
     entidadResidencia: '09',
     municipioResidencia: '001',
     localidadResidencia: '0001',
-    fechaNacimiento: '1990-02-15',
+    fechaNacimiento: '1990-05-15',
+    nombre: 'JUAN',
+    primerApellido: 'GARCIA',
+    segundoApellido: 'LOPEZ',
   };
 
   beforeEach(async () => {
@@ -156,7 +159,7 @@ describe('EnfermerasFirmantesService', () => {
           ...siresDemographics,
         };
 
-        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+        await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
       });
 
       it('should accept valid CURP for MX providers', async () => {
@@ -167,7 +170,7 @@ describe('EnfermerasFirmantesService', () => {
           ...siresDemographics,
         };
 
-        const result = await service.create(dto);
+        const result = await service.create(dto as any);
         expect(result).toBeDefined();
         expect(result._id).toBe('new-id');
       });
@@ -180,7 +183,7 @@ describe('EnfermerasFirmantesService', () => {
           ...siresDemographics,
         };
 
-        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+        await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
       });
     });
 
@@ -218,7 +221,7 @@ describe('EnfermerasFirmantesService', () => {
           fechaNacimiento: validFechaNacimiento,
         };
 
-        const result = await service.create(dto);
+        const result = await service.create(dto as any);
         expect(result).toBeDefined();
         expect(result._id).toBe('new-id');
       });
@@ -232,7 +235,7 @@ describe('EnfermerasFirmantesService', () => {
           fechaNacimiento: validFechaNacimiento,
         };
 
-        const result = await service.create(dto);
+        const result = await service.create(dto as any);
         expect(result).toBeDefined();
       });
 
@@ -245,7 +248,7 @@ describe('EnfermerasFirmantesService', () => {
           fechaNacimiento: validFechaNacimiento,
         };
 
-        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+        await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
       });
     });
 
@@ -259,7 +262,17 @@ describe('EnfermerasFirmantesService', () => {
         });
         mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue({
           regime: 'SIRES_NOM024',
-          features: {} as any,
+          features: {
+            sessionTimeoutEnabled: true,
+            enforceDocumentImmutabilityUI: true,
+            documentImmutabilityEnabled: true,
+            showSiresUI: true,
+            giisExportEnabled: true,
+            notaAclaratoriaEnabled: true,
+            cluesFieldVisible: true,
+            dailyConsentEnabled: true,
+            workerIdentificationImmutable: true,
+          },
           validation: {
             curpFirmantes: 'required',
             workerCurp: 'required_strict',
@@ -271,7 +284,9 @@ describe('EnfermerasFirmantesService', () => {
         mockEnfermeraFirmanteModel.findById.mockReturnValue({
           exec: jest.fn().mockResolvedValue({
             _id: 'existing-id',
-            nombre: 'María López',
+            nombre: 'JUAN',
+            primerApellido: 'GARCIA',
+            segundoApellido: 'LOPEZ',
             idUser: mxUserId,
             curp: validCURP,
             paisNacimiento: defaultPaisNacimiento,
@@ -281,19 +296,22 @@ describe('EnfermerasFirmantesService', () => {
             municipioResidencia: '001',
             localidadResidencia: '0001',
             fechaNacimiento: new Date(siresDemographics.fechaNacimiento),
+            toObject() {
+              return { ...this };
+            },
           }),
         });
 
         mockEnfermeraFirmanteModel.findByIdAndUpdate.mockReturnValue({
           exec: jest.fn().mockResolvedValue({
             _id: 'existing-id',
-            nombre: 'María López Updated',
+            tituloProfesional: 'Enf.',
             curp: validCURP,
           }),
         });
 
         const updateDto = {
-          nombre: 'María López Updated',
+          tituloProfesional: 'Enf.',
         };
 
         const result = await service.update('existing-id', updateDto);
@@ -319,6 +337,7 @@ describe('EnfermerasFirmantesService', () => {
         notaAclaratoriaEnabled: true,
         cluesFieldVisible: true,
         dailyConsentEnabled: true,
+        workerIdentificationImmutable: true,
       },
       validation: {
         curpFirmantes: 'required',
@@ -339,6 +358,7 @@ describe('EnfermerasFirmantesService', () => {
         notaAclaratoriaEnabled: false,
         cluesFieldVisible: false,
         dailyConsentEnabled: false,
+        workerIdentificationImmutable: false,
       },
       validation: {
         curpFirmantes: 'optional',
@@ -368,7 +388,7 @@ describe('EnfermerasFirmantesService', () => {
           ...siresDemographics,
         };
 
-        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+        await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
       });
 
       it('should accept valid CURP for SIRES_NOM024', async () => {
@@ -379,7 +399,7 @@ describe('EnfermerasFirmantesService', () => {
           ...siresDemographics,
         };
 
-        const result = await service.create(dto);
+        const result = await service.create(dto as any);
         expect(result).toBeDefined();
         expect(
           mockRegulatoryPolicyService.getRegulatoryPolicy,
@@ -394,8 +414,8 @@ describe('EnfermerasFirmantesService', () => {
           ...siresDemographics,
         };
 
-        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-        await expect(service.create(dto)).rejects.toThrow(/genérica/i);
+        await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
+        await expect(service.create(dto as any)).rejects.toThrow(/genérica/i);
       });
 
       it('should reject invalid CURP format for SIRES_NOM024', async () => {
@@ -406,7 +426,7 @@ describe('EnfermerasFirmantesService', () => {
           ...siresDemographics,
         };
 
-        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+        await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
       });
 
       it('should require paisNacimiento', async () => {
@@ -416,7 +436,7 @@ describe('EnfermerasFirmantesService', () => {
           fechaNacimiento: validFechaNacimiento,
         } as CreateEnfermeraFirmanteDto;
 
-        await expect(service.create(dto)).rejects.toThrow(
+        await expect(service.create(dto as any)).rejects.toThrow(
           'El país de nacimiento es obligatorio',
         );
       });
@@ -432,7 +452,7 @@ describe('EnfermerasFirmantesService', () => {
           fechaNacimiento: siresDemographics.fechaNacimiento,
         };
 
-        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+        await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
       });
 
       it('should accept valid residency fields for SIRES_NOM024', async () => {
@@ -443,7 +463,7 @@ describe('EnfermerasFirmantesService', () => {
           ...siresDemographics,
         };
 
-        const result = await service.create(dto);
+        const result = await service.create(dto as any);
         expect(result).toBeDefined();
         expect(mockGeographyValidator.validateGeography).toHaveBeenCalled();
       });
@@ -470,7 +490,7 @@ describe('EnfermerasFirmantesService', () => {
           fechaNacimiento: validFechaNacimiento,
         };
 
-        const result = await service.create(dto);
+        const result = await service.create(dto as any);
         expect(result).toBeDefined();
         expect(
           mockRegulatoryPolicyService.getRegulatoryPolicy,
@@ -486,7 +506,7 @@ describe('EnfermerasFirmantesService', () => {
           fechaNacimiento: validFechaNacimiento,
         };
 
-        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+        await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
       });
     });
   });
@@ -516,6 +536,7 @@ describe('EnfermerasFirmantesService', () => {
           notaAclaratoriaEnabled: false,
           cluesFieldVisible: false,
           dailyConsentEnabled: false,
+          workerIdentificationImmutable: false,
         },
         validation: {
           curpFirmantes: 'optional',
@@ -532,8 +553,8 @@ describe('EnfermerasFirmantesService', () => {
         idUser: nonMxUserId,
       } as any;
 
-      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-      await expect(service.create(dto)).rejects.toThrow(
+      await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto as any)).rejects.toThrow(
         'La fecha de nacimiento es obligatoria',
       );
     });
@@ -546,8 +567,8 @@ describe('EnfermerasFirmantesService', () => {
         fechaNacimiento: getFechaNacimientoYearsAgo(17),
       };
 
-      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-      await expect(service.create(dto)).rejects.toThrow(
+      await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto as any)).rejects.toThrow(
         'debe estar entre 18 y 90 años cumplidos',
       );
     });
@@ -560,8 +581,8 @@ describe('EnfermerasFirmantesService', () => {
         fechaNacimiento: getFechaNacimientoYearsAgo(91),
       };
 
-      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-      await expect(service.create(dto)).rejects.toThrow(
+      await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto as any)).rejects.toThrow(
         'debe estar entre 18 y 90 años cumplidos',
       );
     });
@@ -574,7 +595,7 @@ describe('EnfermerasFirmantesService', () => {
         fechaNacimiento: validFechaNacimiento,
       };
 
-      const result = await service.create(dto);
+      const result = await service.create(dto as any);
       expect(result).toBeDefined();
     });
 
@@ -586,7 +607,7 @@ describe('EnfermerasFirmantesService', () => {
         fechaNacimiento: getFechaNacimientoYearsAgo(18),
       };
 
-      const result = await service.create(dto);
+      const result = await service.create(dto as any);
       expect(result).toBeDefined();
     });
 
@@ -598,7 +619,7 @@ describe('EnfermerasFirmantesService', () => {
         fechaNacimiento: getFechaNacimientoYearsAgo(90),
       };
 
-      const result = await service.create(dto);
+      const result = await service.create(dto as any);
       expect(result).toBeDefined();
     });
 

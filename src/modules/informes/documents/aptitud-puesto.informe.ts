@@ -4,7 +4,9 @@ import type {
   TDocumentDefinitions,
   TableCell,
 } from 'pdfmake/interfaces';
-import { formatearNombreTrabajador } from '../../../utils/names';
+import { EnfermeraFirmanteInforme, MedicoFirmanteInforme, TecnicoFirmanteInforme } from '../types/firmante-informe.types';
+import { firmanteTieneLineaNombre, resolverFirmanteActivo, resolverFirmanteMedicoEnfermera } from '../helpers/firmante-informe.helpers';
+import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
 import { Interface } from 'readline';
 import { FooterFirmantesData } from '../interfaces/firmante-data.interface';
 import { generarFooterFirmantes } from '../helpers/footer-firmantes.helper';
@@ -1172,9 +1174,9 @@ export const aptitudPuestoInforme = (
                 ? generarFooterFirmantes(footerFirmantesData, proveedorSalud)
                 : [
                     // Nombre y título profesional
-                    medicoFirmante.tituloProfesional && medicoFirmante.nombre
+                    firmanteTieneLineaNombre(medicoFirmante)
                       ? {
-                          text: `${medicoFirmante.tituloProfesional} ${medicoFirmante.nombre}\n`,
+                          text: `${formatearTituloYNombreFirmante(medicoFirmante)}\n`,
                           bold: true,
                         }
                       : null,

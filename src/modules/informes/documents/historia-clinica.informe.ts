@@ -3,9 +3,11 @@ import type {
   StyleDictionary,
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
-import { formatearNombreTrabajador } from '../../../utils/names';
 import { FooterFirmantesData } from '../interfaces/firmante-data.interface';
 import { generarFooterFirmantes } from '../helpers/footer-firmantes.helper';
+import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
+import { EnfermeraFirmanteInforme, MedicoFirmanteInforme, TecnicoFirmanteInforme } from '../types/firmante-informe.types';
+import { firmanteTieneLineaNombre, resolverFirmanteActivo } from '../helpers/firmante-informe.helpers';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -286,46 +288,6 @@ interface HistoriaClinica {
   resumenHistoriaClinica?: string;
 }
 
-interface MedicoFirmante {
-  nombre: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  especialistaSaludTrabajo: string;
-  numeroCedulaEspecialista: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  };
-}
-
-interface EnfermeraFirmante {
-  nombre: string;
-  sexo: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  };
-}
-
-interface TecnicoFirmante {
-  nombre: string;
-  sexo: string;
-  tituloProfesional: string;
-  numeroCedulaProfesional: string;
-  nombreCredencialAdicional: string;
-  numeroCredencialAdicional: string;
-  firma: {
-    data: string;
-    contentType: string;
-  };
-}
-
 interface ProveedorSalud {
   nombre: string;
   pais: string;
@@ -349,9 +311,9 @@ export const historiaClinicaInforme = (
   nombreEmpresa: string,
   trabajador: Trabajador,
   historiaClinica: HistoriaClinica,
-  medicoFirmante: MedicoFirmante | null,
-  enfermeraFirmante: EnfermeraFirmante | null,
-  tecnicoFirmante: TecnicoFirmante | null,
+  medicoFirmante: MedicoFirmanteInforme | null,
+  enfermeraFirmante: EnfermeraFirmanteInforme | null,
+  tecnicoFirmante: TecnicoFirmanteInforme | null,
   proveedorSalud: ProveedorSalud,
   footerFirmantesData?: FooterFirmantesData,
 ): TDocumentDefinitions => {
@@ -595,6 +557,10 @@ export const historiaClinicaInforme = (
   };
 
   // Datos del Trabajador
+  const contactoEmergenciaNombre = trabajador.contactoEmergenciaNombre?.trim() ?? '';
+  const contactoEmergenciaTelefono = trabajador.contactoEmergenciaTelefono?.trim() ?? '';
+  const tieneContactoEmergencia = Boolean(contactoEmergenciaNombre || contactoEmergenciaTelefono);
+
   const trabajadorSeccion: Content = {
     style: 'table',
     table: {
@@ -630,12 +596,14 @@ export const historiaClinicaInforme = (
           { text: 'NUM. DE EMPLEADO', style: 'label' },
           { text: trabajador.numeroEmpleado || '-', style: 'value' },
         ],
-        [
-          { text: 'C. EMERGENCIA', style: 'label' },
-          { text: trabajador.contactoEmergenciaNombre || '-', style: 'value' },
-          { text: 'TEL. C. EMERGENCIA', style: 'label' },
-          { text: trabajador.contactoEmergenciaTelefono || '-', style: 'value' },
-        ],
+        ...(tieneContactoEmergencia
+          ? [[
+              { text: 'C. EMERGENCIA', style: 'label' },
+              { text: contactoEmergenciaNombre || '-', style: 'value' },
+              { text: 'TEL. C. EMERGENCIA', style: 'label' },
+              { text: contactoEmergenciaTelefono || '-', style: 'value' },
+            ]]
+          : []),
       ],
     },
     layout: {
@@ -1193,9 +1161,9 @@ export const historiaClinicaInforme = (
             {
               text: [
                 // Nombre y título profesional
-                firmanteActivo?.tituloProfesional && firmanteActivo?.nombre
+                firmanteTieneLineaNombre(firmanteActivo)
                   ? {
-                      text: `${firmanteActivo.tituloProfesional} ${firmanteActivo.nombre}\n`,
+                      text: `${formatearTituloYNombreFirmante(firmanteActivo)}\n`,
                       bold: true,
                     }
                   : null,

@@ -25,6 +25,7 @@ import { AuditEventClass } from '../audit/constants/audit-event-class';
 import { UsersService } from '../users/users.service';
 import { getUserIdFromRequest } from '../../utils/auth-helpers';
 import { toSignerPayloadSnapshot } from '../../utils/signer-audit-payload.util';
+import { sanitizarNombreFirmanteParaArchivo } from 'src/utils/names';
 
 @Controller('tecnicos-firmantes')
 export class TecnicosFirmantesController {
@@ -43,10 +44,11 @@ export class TecnicosFirmantesController {
           process.env.SIGNATORIES_UPLOADS_DIR || 'assets/signatories',
         ),
         filename: (req, file, callback) => {
-          const sanitizedName = req.body.nombre
-            .replace(/\s+/g, '-')
-            .replace(/[^a-zA-Z0-9\-]/g, '')
-            .toLowerCase();
+          const sanitizedName = sanitizarNombreFirmanteParaArchivo({
+            nombre: req.body.nombre,
+            primerApellido: req.body.primerApellido,
+            segundoApellido: req.body.segundoApellido,
+          }) || 'firmante';
           const uniqueFilename = `${sanitizedName}-firma${path.extname(file.originalname)}`;
           callback(null, uniqueFilename);
         },
@@ -149,10 +151,11 @@ export class TecnicosFirmantesController {
           process.env.SIGNATORIES_UPLOADS_DIR || 'assets/signatories',
         ),
         filename: (req, file, callback) => {
-          const sanitizedName = req.body.nombre
-            .replace(/\s+/g, '-')
-            .replace(/[^a-zA-Z0-9\-]/g, '')
-            .toLowerCase();
+          const sanitizedName = sanitizarNombreFirmanteParaArchivo({
+            nombre: req.body.nombre,
+            primerApellido: req.body.primerApellido,
+            segundoApellido: req.body.segundoApellido,
+          }) || 'firmante';
           const uniqueFilename = `${sanitizedName}-firma${path.extname(file.originalname)}`;
           callback(null, uniqueFilename);
         },

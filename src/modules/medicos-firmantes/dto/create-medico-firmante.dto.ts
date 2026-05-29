@@ -28,6 +28,14 @@ export class CreateMedicoFirmanteDto {
   @IsNotEmpty({ message: 'El nombre no puede estar vacío' })
   nombre: string;
 
+  @IsString({ message: 'El primer apellido debe ser un string' })
+  @IsNotEmpty({ message: 'El primer apellido no puede estar vacío' })
+  primerApellido: string;
+
+  @IsOptional()
+  @IsString({ message: 'El segundo apellido debe ser un string' })
+  segundoApellido?: string;
+
   @IsOptional()
   @IsString({ message: 'El título profesional debe ser un string' })
   // @IsEnum(titulos, { message: 'El título profesional debe ser Dr. o Dra.' })

@@ -13,6 +13,12 @@ export class TecnicoFirmante extends Document {
   nombre: string;
 
   @Prop()
+  primerApellido?: string;
+
+  @Prop()
+  segundoApellido?: string;
+
+  @Prop()
   sexo?: string;
 
   @Prop()
