@@ -129,7 +129,7 @@ describe('NOM-024 GIIS Export CEX (Phase 1C)', () => {
         {
           provide: CatalogsService,
           useValue: {
-            getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
+            getCatalogEntry: jest.fn().mockResolvedValue(null),
           },
         },
         {

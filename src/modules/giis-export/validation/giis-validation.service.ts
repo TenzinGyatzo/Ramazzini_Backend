@@ -175,8 +175,6 @@ export class GiisValidationService {
       const cexCodes = this.cexCatalogResolver.getCodes();
       const cexContextBase = {
         clues,
-        getPaisCatalogKeyFromNacionalidad: (clave: string) =>
-          this.catalogsService.getPaisCatalogKeyFromNacionalidad(clave),
         cexDefaults: {
           tipoPersonal: cexCodes.tipoPersonal.medicoGeneral,
           servicioAtencion: cexCodes.servicioAtencion,

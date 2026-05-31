@@ -30,6 +30,7 @@ export class MedicoFirmante extends Document {
   entidadResidencia?: string;
   municipioResidencia?: string;
   localidadResidencia?: string;
+  paisResidencia?: number;
   paisNacimiento?: number;
   fechaNacimiento: Date;
 }

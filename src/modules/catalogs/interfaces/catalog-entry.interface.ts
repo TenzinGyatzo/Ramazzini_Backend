@@ -82,7 +82,6 @@ export enum CatalogType {
   MUNICIPIOS = 'municipios',
   LOCALIDADES = 'localidades',
   CODIGOS_POSTALES = 'codigos_postales',
-  NACIONALIDADES = 'cat_nacionalidades',
   FORMACION_ACADEMICA = 'formacion_academica',
   ESCOLARIDAD = 'escolaridad',
 

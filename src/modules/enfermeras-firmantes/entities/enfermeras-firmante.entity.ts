@@ -22,6 +22,7 @@ export class EnfermeraFirmante extends Document {
   entidadResidencia?: string;
   municipioResidencia?: string;
   localidadResidencia?: string;
+  paisResidencia?: number;
   paisNacimiento: number;
   fechaNacimiento: Date;
 }

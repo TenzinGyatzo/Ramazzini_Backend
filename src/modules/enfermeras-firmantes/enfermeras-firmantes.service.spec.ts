@@ -59,6 +59,7 @@ describe('EnfermerasFirmantesService', () => {
 
   const siresDemographics = {
     paisNacimiento: defaultPaisNacimiento,
+    paisResidencia: defaultPaisNacimiento,
     sexo: 'Femenino',
     entidadNacimiento: '09',
     entidadResidencia: '09',
@@ -88,6 +89,10 @@ describe('EnfermerasFirmantesService', () => {
     } as any;
     mockCatalogsService = {
       validateINEGI: jest.fn().mockResolvedValue(true),
+      validateGIISPais: jest.fn().mockReturnValue({
+        valid: true,
+        catalogLoaded: true,
+      }),
     } as any;
     mockGeographyValidator = {
       validateGeography: jest.fn().mockResolvedValue({ valid: true, errors: [] }),
@@ -290,6 +295,7 @@ describe('EnfermerasFirmantesService', () => {
             idUser: mxUserId,
             curp: validCURP,
             paisNacimiento: defaultPaisNacimiento,
+            paisResidencia: defaultPaisNacimiento,
             sexo: 'Femenino',
             entidadNacimiento: '09',
             entidadResidencia: '09',
@@ -449,6 +455,23 @@ describe('EnfermerasFirmantesService', () => {
           paisNacimiento: defaultPaisNacimiento,
           sexo: 'Femenino',
           entidadNacimiento: '09',
+          fechaNacimiento: siresDemographics.fechaNacimiento,
+        };
+
+        await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
+      });
+
+      it('should require paisResidencia for SIRES_NOM024', async () => {
+        const dto = {
+          nombre: 'Enf. María López',
+          idUser: siresUserId,
+          curp: validCURP,
+          paisNacimiento: defaultPaisNacimiento,
+          sexo: 'Femenino',
+          entidadNacimiento: '09',
+          entidadResidencia: '09',
+          municipioResidencia: '001',
+          localidadResidencia: '0001',
           fechaNacimiento: siresDemographics.fechaNacimiento,
         };
 

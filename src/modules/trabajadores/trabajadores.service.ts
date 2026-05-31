@@ -30,6 +30,12 @@ import { RegulatoryErrorCode } from 'src/utils/regulatory-error-codes';
 import { validateFechaNacimiento } from '../expedientes/validators/date-validators';
 import { CatalogsService } from '../catalogs/catalogs.service';
 import { GeographyValidator } from '../catalogs/validators/geography.validator';
+import {
+  isEntidadResidenciaEspecial,
+  LOCALIDADES_RESIDENCIA_ESPECIALES,
+  MUNICIPIOS_RESIDENCIA_ESPECIALES,
+  validateResidenciaGeoGiisCoherence,
+} from 'src/utils/giis-residencia-geo.util';
 import { Antidoping } from '../expedientes/schemas/antidoping.schema';
 import { AptitudPuesto } from '../expedientes/schemas/aptitud-puesto.schema';
 import { Audiometria } from '../expedientes/schemas/audiometria.schema';
@@ -248,24 +254,21 @@ export class TrabajadoresService {
       }
     }
 
-    // 2. Validate nacionalidad (required for SIRES)
-    if (!dto.nacionalidad || dto.nacionalidad.trim() === '') {
+    // 2. Validate paisNacimiento (required for SIRES)
+    if (dto.paisNacimiento == null || Number.isNaN(Number(dto.paisNacimiento))) {
       throw createRegulatoryError({
         errorCode: RegulatoryErrorCode.REGIMEN_FIELD_REQUIRED,
-        details: { fieldName: 'nacionalidad' },
+        details: { fieldName: 'paisNacimiento' },
         regime: policy.regime,
       });
     } else {
-      const nacionalidad = dto.nacionalidad.trim().toUpperCase();
-      // Allow edge case code: NND (No disponible)
-      if (nacionalidad !== 'NND') {
-        const isValid =
-          await this.catalogsService.validateNacionalidad(nacionalidad);
-        if (!isValid) {
-          errors.push(
-            `Nacionalidad inválida: ${nacionalidad}. Debe ser código RENAPO válido (ej: MEX, USA, NND)`,
-          );
-        }
+      const paisResult = this.catalogsService.validateGIISPais(
+        dto.paisNacimiento,
+      );
+      if (paisResult.catalogLoaded && !paisResult.valid) {
+        errors.push(
+          `País de nacimiento inválido: ${dto.paisNacimiento}. Debe ser CATALOG_KEY válido de cat_pais (ej: 142=México, 248=NO ESPECIFICADO)`,
+        );
       }
     }
 
@@ -278,21 +281,20 @@ export class TrabajadoresService {
       });
     } else {
       const entidadRes = dto.entidadResidencia.trim().toUpperCase();
-      // Allow edge case codes: NE (Extranjero), 00 (No disponible)
-      if (entidadRes !== 'NE' && entidadRes !== '00') {
+      if (!isEntidadResidenciaEspecial(entidadRes)) {
         const isValid = await this.catalogsService.validateINEGI(
           'estado',
           entidadRes,
         );
         if (!isValid) {
           errors.push(
-            `Entidad de residencia inválida: ${entidadRes}. Debe ser código INEGI válido (01-32, NE, o 00)`,
+            `Entidad de residencia inválida: ${entidadRes}. Debe ser código INEGI/GIIS válido (01-32, NE, 00, 88 o 99)`,
           );
         }
       }
     }
 
-    // 4. Validate municipioResidencia (required for SIRES, allows "000" as sentinel)
+    // 4. Validate municipioResidencia (required for SIRES, allows GIIS/INEGI sentinels)
     if (!dto.municipioResidencia || dto.municipioResidencia.trim() === '') {
       throw createRegulatoryError({
         errorCode: RegulatoryErrorCode.REGIMEN_FIELD_REQUIRED,
@@ -303,12 +305,12 @@ export class TrabajadoresService {
       const municipioRes = dto.municipioResidencia.trim();
       const entidadRes = dto.entidadResidencia?.trim().toUpperCase() || '';
 
-      // Allow sentinel value "000" for "No disponible"
       if (
-        municipioRes !== '000' &&
+        !MUNICIPIOS_RESIDENCIA_ESPECIALES.includes(
+          municipioRes as (typeof MUNICIPIOS_RESIDENCIA_ESPECIALES)[number],
+        ) &&
         entidadRes &&
-        entidadRes !== 'NE' &&
-        entidadRes !== '00'
+        !isEntidadResidenciaEspecial(entidadRes)
       ) {
         // Hierarchical validation: municipio must belong to estado
         const isValid = await this.catalogsService.validateINEGI(
@@ -336,14 +338,16 @@ export class TrabajadoresService {
       const municipioRes = dto.municipioResidencia?.trim() || '';
       const entidadRes = dto.entidadResidencia?.trim().toUpperCase() || '';
 
-      // Allow sentinel value "0000" for "No disponible"
       if (
-        localidadRes !== '0000' &&
+        !LOCALIDADES_RESIDENCIA_ESPECIALES.includes(
+          localidadRes as (typeof LOCALIDADES_RESIDENCIA_ESPECIALES)[number],
+        ) &&
         municipioRes &&
-        municipioRes !== '000' &&
+        !MUNICIPIOS_RESIDENCIA_ESPECIALES.includes(
+          municipioRes as (typeof MUNICIPIOS_RESIDENCIA_ESPECIALES)[number],
+        ) &&
         entidadRes &&
-        entidadRes !== 'NE' &&
-        entidadRes !== '00'
+        !isEntidadResidenciaEspecial(entidadRes)
       ) {
         // Hierarchical validation: localidad must belong to municipio (within estado)
         const parentKey = `${entidadRes}-${municipioRes}`;
@@ -359,6 +363,33 @@ export class TrabajadoresService {
         }
       }
     }
+
+    // 6. Validate paisResidencia (required for SIRES)
+    if (dto.paisResidencia == null || Number.isNaN(Number(dto.paisResidencia))) {
+      throw createRegulatoryError({
+        errorCode: RegulatoryErrorCode.REGIMEN_FIELD_REQUIRED,
+        details: { fieldName: 'paisResidencia' },
+        regime: policy.regime,
+      });
+    } else {
+      const paisResResult = this.catalogsService.validateGIISPais(
+        dto.paisResidencia,
+      );
+      if (paisResResult.catalogLoaded && !paisResResult.valid) {
+        errors.push(
+          `País de residencia inválido: ${dto.paisResidencia}. Debe ser CATALOG_KEY válido de cat_pais (ej: 142=México, 248=NO ESPECIFICADO)`,
+        );
+      }
+    }
+
+    errors.push(
+      ...validateResidenciaGeoGiisCoherence({
+        paisResidencia: dto.paisResidencia,
+        entidadResidencia: dto.entidadResidencia?.trim().toUpperCase(),
+        municipioResidencia: dto.municipioResidencia?.trim(),
+        localidadResidencia: dto.localidadResidencia?.trim(),
+      }),
+    );
 
     if (errors.length > 0) {
       throw new BadRequestException(errors.join('; '));
@@ -519,11 +550,6 @@ export class TrabajadoresService {
     }
     if (normalizedDto.entidadNacimiento) {
       normalizedDto.entidadNacimiento = normalizedDto.entidadNacimiento
-        .trim()
-        .toUpperCase();
-    }
-    if (normalizedDto.nacionalidad) {
-      normalizedDto.nacionalidad = normalizedDto.nacionalidad
         .trim()
         .toUpperCase();
     }
@@ -1752,11 +1778,6 @@ export class TrabajadoresService {
         .trim()
         .toUpperCase();
     }
-    if (normalizedDto.nacionalidad) {
-      normalizedDto.nacionalidad = normalizedDto.nacionalidad
-        .trim()
-        .toUpperCase();
-    }
     if (normalizedDto.entidadResidencia) {
       normalizedDto.entidadResidencia = normalizedDto.entidadResidencia
         .trim()
@@ -2631,10 +2652,38 @@ export class TrabajadoresService {
   }
 
   /**
+   * Normaliza columnas del Excel a nombres de campo del modelo.
+   */
+  private mapExcelGeoFields(worker: Record<string, unknown>): void {
+    const paisColumnAliases = [
+      'País de nacimiento',
+      'Pais de nacimiento',
+      'paisNacimiento',
+    ];
+    for (const alias of paisColumnAliases) {
+      if (worker[alias] != null && String(worker[alias]).trim() !== '') {
+        worker.paisNacimiento = worker[alias];
+        break;
+      }
+    }
+
+    if (
+      worker.paisNacimiento != null &&
+      String(worker.paisNacimiento).trim() !== ''
+    ) {
+      const parsed = Number(worker.paisNacimiento);
+      if (!Number.isNaN(parsed)) {
+        worker.paisNacimiento = parsed;
+      }
+    }
+  }
+
+  /**
    * Método para limpiar y normalizar datos antes de la validación
    * Maneja casos especiales como espacios en blanco, valores nulos, etc.
    */
   private cleanWorkerData(worker: any): any {
+    this.mapExcelGeoFields(worker);
     const cleaned = { ...worker };
 
     // 🔍 CORRECCIÓN: Guardar valores originales ANTES de cualquier limpieza

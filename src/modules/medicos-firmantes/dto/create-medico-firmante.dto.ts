@@ -125,6 +125,13 @@ export class CreateMedicoFirmanteDto {
   })
   localidadResidencia?: string;
 
+  @IsOptional()
+  @IsNumber({}, { message: 'El país de residencia debe ser un número' })
+  @Transform(({ value }) =>
+    value === '' || value == null ? undefined : Number(value),
+  )
+  paisResidencia?: number;
+
   // NOM-024: CURP for healthcare professionals
   // Required for MX providers, optional for non-MX (validation in service layer)
   @IsOptional()

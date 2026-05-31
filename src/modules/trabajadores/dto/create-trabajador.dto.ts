@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsDate,
@@ -7,6 +7,7 @@ import {
   IsInt,
   IsMongoId,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   Matches,
@@ -227,17 +228,16 @@ export class CreateTrabajadorDto {
 
   @ApiProperty({
     description:
-      'Nacionalidad (código RENAPO 3 letras, ej: MEX, USA, NND para No disponible). Obligatorio para proveedores MX.',
-    example: 'MEX',
+      'País de nacimiento (CATALOG_KEY de cat_pais, ej. 142=México, 248=NO ESPECIFICADO). Obligatorio para proveedores MX.',
+    example: 142,
     required: false,
   })
   @IsOptional()
-  @IsString({ message: 'La nacionalidad debe ser un string' })
-  @Matches(/^$|^[A-Z]{3}$/, {
-    message:
-      'Nacionalidad debe ser código RENAPO válido (3 letras mayúsculas, ej: MEX, USA, NND)',
-  })
-  nacionalidad?: string;
+  @IsNumber({}, { message: 'El país de nacimiento debe ser un número' })
+  @Transform(({ value }) =>
+    value === '' || value == null ? undefined : Number(value),
+  )
+  paisNacimiento?: number;
 
   @ApiProperty({
     description:
@@ -280,6 +280,19 @@ export class CreateTrabajadorDto {
       'Localidad de residencia debe ser código INEGI válido (4 dígitos, ej: 0001)',
   })
   localidadResidencia?: string;
+
+  @ApiProperty({
+    description:
+      'País de residencia (CATALOG_KEY de cat_pais, ej. 142=México, 248=NO ESPECIFICADO). Obligatorio para proveedores MX.',
+    example: 142,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber({}, { message: 'El país de residencia debe ser un número' })
+  @Transform(({ value }) =>
+    value === '' || value == null ? undefined : Number(value),
+  )
+  paisResidencia?: number;
 
   // Agentes de Riesgo
   @IsOptional()

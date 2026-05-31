@@ -181,29 +181,6 @@ export class CatalogsController {
     );
   }
 
-  @Get('nacionalidades/search')
-  async searchNacionalidades(
-    @Query('q') query: string,
-    @Query('limit') limit?: number,
-  ) {
-    if (!query || query.trim() === '') {
-      throw new BadRequestException('Query parameter "q" is required');
-    }
-    const searchLimit = limit
-      ? Math.min(Math.max(1, parseInt(limit.toString())), 100)
-      : 50;
-    return this.catalogsService.searchNacionalidades(query.trim(), searchLimit);
-  }
-
-  @Get('nacionalidades/:code')
-  async getNacionalidadByCode(@Param('code') code: string) {
-    const entry = this.catalogsService.getNacionalidadByCode(code);
-    if (!entry) {
-      throw new NotFoundException(`Nacionalidad with code ${code} not found`);
-    }
-    return entry;
-  }
-
   @Get('paises/search')
   async searchPaises(
     @Query('q') query: string,

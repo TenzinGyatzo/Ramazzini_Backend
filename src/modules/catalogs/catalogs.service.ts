@@ -11,6 +11,10 @@ import {
   CPEntry,
 } from './interfaces/catalog-entry.interface';
 import { normalizeCatalogDescription } from './utils/catalog-description.util';
+import {
+  sortEstadosByCode,
+  sortMunicipiosByCode,
+} from './utils/geo-catalog-sort.util';
 import { parseTipoPersonalCeList } from '../../utils/cie10-diagnostico-sis.util';
 
 /**
@@ -59,7 +63,6 @@ export class CatalogsService implements OnModuleInit {
     [CatalogType.MUNICIPIOS]: 'municipios.csv',
     [CatalogType.LOCALIDADES]: 'localidades.csv',
     [CatalogType.CODIGOS_POSTALES]: 'codigos_postales.csv',
-    [CatalogType.NACIONALIDADES]: 'cat_nacionalidades.csv',
     [CatalogType.FORMACION_ACADEMICA]: 'formacion_academica.csv',
     [CatalogType.ESCOLARIDAD]: 'escolaridad.csv',
     // GIIS-B019 Catalogs (3) - Optional
@@ -86,7 +89,6 @@ export class CatalogsService implements OnModuleInit {
     CatalogType.MUNICIPIOS,
     CatalogType.LOCALIDADES,
     CatalogType.CODIGOS_POSTALES,
-    CatalogType.NACIONALIDADES,
     CatalogType.FORMACION_ACADEMICA,
     CatalogType.ESCOLARIDAD,
   ];
@@ -401,65 +403,6 @@ export class CatalogsService implements OnModuleInit {
             municipioCode: locMunKey,
             localidadCode: locCatKey,
           } as INEGIEntry;
-
-        case CatalogType.NACIONALIDADES:
-          // Para NOM-024, el código debe ser de 3 letras (MEX, USA, NND)
-          // Priorizar 'clave nacionalidad' que es el código RENAPO de 3 letras
-          const claveNacionalidad =
-            record['clave nacionalidad'] ||
-            record['clave_nacionalidad'] ||
-            record.claveNacionalidad;
-          const codigoPais =
-            record['codigo pais'] ||
-            record['codigo_pais'] ||
-            record.codigoPais ||
-            record.codigo ||
-            record.code;
-
-          // Determinar el código RENAPO a usar (debe ser de 3 caracteres según NOM-024)
-          let renapoCode: string;
-
-          if (claveNacionalidad) {
-            // Si existe clave nacionalidad, usarla (es el código RENAPO correcto)
-            renapoCode = String(claveNacionalidad).trim().toUpperCase();
-          } else if (codigoPais) {
-            const codigoStr = String(codigoPais).trim().toUpperCase();
-            // Si codigo pais tiene exactamente 3 caracteres, usarlo
-            if (codigoStr.length === 3) {
-              renapoCode = codigoStr;
-            } else {
-              // Si es numérico largo (como "223"), no podemos usarlo directamente
-              // Para compatibilidad, intentar mapear códigos comunes conocidos
-              // Por ahora, usar 'NND' como fallback seguro
-              this.logger.warn(
-                `Nacionalidad con código numérico largo (${codigoStr}) sin clave nacionalidad. Usando como código directamente, pero puede no cumplir NOM-024.`,
-              );
-              renapoCode = codigoStr;
-            }
-          } else {
-            // Si no hay ningún código, usar NND (No disponible) como fallback
-            renapoCode = 'NND';
-          }
-
-          const catalogKeyPaisRaw =
-            record['catalog_key_pais'] ?? record.catalogKeyPais;
-          const catalogKeyPais =
-            catalogKeyPaisRaw != null
-              ? parseInt(String(catalogKeyPaisRaw), 10)
-              : undefined;
-
-          return {
-            code: renapoCode,
-            description:
-              record.pais || record.descripcion || record.description,
-            source: 'RENAPO',
-            version: record.version,
-            claveNacionalidad: claveNacionalidad,
-            codigoPais: codigoPais,
-            catalogKeyPais: Number.isNaN(catalogKeyPais)
-              ? undefined
-              : catalogKeyPais,
-          };
 
         case CatalogType.CODIGOS_POSTALES: {
           const cEstado = record.c_estado
@@ -827,19 +770,6 @@ export class CatalogsService implements OnModuleInit {
     }
   }
 
-  /**
-   * Validate nationality code
-   */
-  async validateNacionalidad(code: string): Promise<boolean> {
-    const cache = this.catalogCaches.get(CatalogType.NACIONALIDADES);
-    if (!cache) {
-      this.logger.warn('Nacionalidades catalog not loaded');
-      return false;
-    }
-
-    return cache.has(code);
-  }
-
   // ===========================================================================
   // GIIS-B019 CATALOG VALIDATION METHODS (Optional)
   // ===========================================================================
@@ -905,33 +835,6 @@ export class CatalogsService implements OnModuleInit {
    */
   validateGIISPais(code: number | string): GIISValidationResult {
     return this.validateGIISCatalog(CatalogType.PAIS, code, 'País');
-  }
-
-  /** CATALOG_KEY for "NO ESPECIFICADO" in cat_pais (fallback when nacionalidad has no mapping). */
-  static readonly PAIS_NO_ESPECIFICADO = 248;
-
-  /**
-   * Get cat_pais CATALOG_KEY from nacionalidad clave (3-letter, e.g. MEX, USA).
-   * Used for paisNacPaciente in CEX. Returns 248 (NO ESPECIFICADO) if not found.
-   */
-  getPaisCatalogKeyFromNacionalidad(clave: string): number {
-    if (!clave || typeof clave !== 'string') {
-      return CatalogsService.PAIS_NO_ESPECIFICADO;
-    }
-    const cache = this.catalogCaches.get(CatalogType.NACIONALIDADES);
-    if (!cache) {
-      return CatalogsService.PAIS_NO_ESPECIFICADO;
-    }
-    const code = clave.trim().toUpperCase();
-    const entry = cache.get(code);
-    const key =
-      entry && (entry as any).catalogKeyPais != null
-        ? Number((entry as any).catalogKeyPais)
-        : null;
-    if (key != null && !Number.isNaN(key)) {
-      return key;
-    }
-    return CatalogsService.PAIS_NO_ESPECIFICADO;
   }
 
   // ===========================================================================
@@ -1168,9 +1071,7 @@ export class CatalogsService implements OnModuleInit {
    * Get all entidades federativas (states)
    */
   getEstados(): CatalogEntry[] {
-    return Array.from(this.estadoCache.values()).sort((a, b) =>
-      a.description.localeCompare(b.description),
-    );
+    return sortEstadosByCode(Array.from(this.estadoCache.values()));
   }
 
   /**
@@ -1186,8 +1087,27 @@ export class CatalogsService implements OnModuleInit {
     if (!municipioMap) {
       return [];
     }
-    return Array.from(municipioMap.values()).sort((a, b) =>
-      a.description.localeCompare(b.description),
+    return sortMunicipiosByCode(Array.from(municipioMap.values()));
+  }
+
+  /**
+   * Clave numérica para ordenar localidades por código INEGI (0001, 0002, …).
+   */
+  private getLocalidadSortKey(entry: CatalogEntry): number {
+    const inegi = entry as INEGIEntry;
+    const raw =
+      inegi.localidadCode ??
+      String(entry.code ?? '')
+        .split('-')
+        .pop() ??
+      '';
+    const num = parseInt(String(raw).trim(), 10);
+    return Number.isNaN(num) ? Number.MAX_SAFE_INTEGER : num;
+  }
+
+  private sortLocalidadesByCode(entries: CatalogEntry[]): CatalogEntry[] {
+    return [...entries].sort(
+      (a, b) => this.getLocalidadSortKey(a) - this.getLocalidadSortKey(b),
     );
   }
 
@@ -1219,18 +1139,17 @@ export class CatalogsService implements OnModuleInit {
 
     const entries = Array.from(localidadMap.values());
 
+    let filtered = entries;
     if (query && query.trim() !== '') {
       const lowerQuery = query.toLowerCase();
-      return entries
-        .filter(
-          (e) =>
-            e.code.toLowerCase().includes(lowerQuery) ||
-            e.description.toLowerCase().includes(lowerQuery),
-        )
-        .slice(0, 50);
+      filtered = entries.filter(
+        (e) =>
+          e.code.toLowerCase().includes(lowerQuery) ||
+          e.description.toLowerCase().includes(lowerQuery),
+      );
     }
 
-    return entries.sort((a, b) => a.description.localeCompare(b.description));
+    return this.sortLocalidadesByCode(filtered).slice(0, query?.trim() ? 50 : undefined);
   }
 
   /**
@@ -1315,7 +1234,7 @@ export class CatalogsService implements OnModuleInit {
       }
     }
 
-    return results.sort((a, b) => a.description.localeCompare(b.description));
+    return sortEstadosByCode(results);
   }
 
   /**
@@ -1362,49 +1281,7 @@ export class CatalogsService implements OnModuleInit {
       }
     }
 
-    return results.sort((a, b) => a.description.localeCompare(b.description));
-  }
-
-  /**
-   * Search nacionalidades by query string (code or description)
-   */
-  searchNacionalidades(query: string, limit: number = 50): CatalogEntry[] {
-    const cache = this.catalogCaches.get(CatalogType.NACIONALIDADES);
-    if (!cache) {
-      return [];
-    }
-
-    if (!query || query.trim() === '') {
-      return [];
-    }
-
-    const lowerQuery = query.toLowerCase();
-    const results: CatalogEntry[] = [];
-
-    for (const entry of cache.values()) {
-      const code = String(entry.code || '').toLowerCase();
-      const description = String(entry.description || '').toLowerCase();
-
-      if (code.includes(lowerQuery) || description.includes(lowerQuery)) {
-        results.push(entry);
-        if (results.length >= limit) {
-          break;
-        }
-      }
-    }
-
-    return results.sort((a, b) => a.description.localeCompare(b.description));
-  }
-
-  /**
-   * Get nacionalidad by code
-   */
-  getNacionalidadByCode(code: string): CatalogEntry | null {
-    const cache = this.catalogCaches.get(CatalogType.NACIONALIDADES);
-    if (!cache) {
-      return null;
-    }
-    return cache.get(code) || null;
+    return sortMunicipiosByCode(results);
   }
 
   // ===========================================================================

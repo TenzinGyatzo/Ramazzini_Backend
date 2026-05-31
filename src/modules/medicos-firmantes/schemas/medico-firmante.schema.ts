@@ -72,6 +72,10 @@ export class MedicoFirmante extends Document {
   })
   localidadResidencia?: string;
 
+  // NOM-024 GIIS: País de residencia (CATALOG_KEY de cat_pais)
+  @Prop()
+  paisResidencia?: number;
+
   @Prop()
   paisNacimiento?: number;
 

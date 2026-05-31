@@ -11,9 +11,16 @@ import {
 import { validateCurpByPolicy } from './curp-policy-validator.util';
 import { buildCurpDemographicsForFirmante } from './curp-firmante-demographics.util';
 import { validateCurpPersonNameCapture } from './curp-name-capture-validation.util';
+import {
+  isEntidadResidenciaEspecial,
+  LOCALIDADES_RESIDENCIA_ESPECIALES,
+  MUNICIPIOS_RESIDENCIA_ESPECIALES,
+  validateResidenciaGeoGiisCoherence,
+} from './giis-residencia-geo.util';
 
 export interface FirmanteRegulatoryData extends CurpDemographicData {
   paisNacimiento?: number;
+  paisResidencia?: number;
   curp?: string;
   entidadResidencia?: string;
   municipioResidencia?: string;
@@ -26,6 +33,7 @@ export function buildFirmanteRegulatoryPayload(
 ): FirmanteRegulatoryData {
   return {
     paisNacimiento: data.paisNacimiento as number | undefined,
+    paisResidencia: data.paisResidencia as number | undefined,
     entidadNacimiento: data.entidadNacimiento as string | undefined,
     entidadResidencia: data.entidadResidencia as string | undefined,
     municipioResidencia: data.municipioResidencia as string | undefined,
@@ -111,11 +119,11 @@ export async function validateFirmanteRegulatoryFields(
     }
 
     const entidadRes = data.entidadResidencia.trim().toUpperCase();
-    if (entidadRes !== 'NE' && entidadRes !== '00') {
+    if (!isEntidadResidenciaEspecial(entidadRes)) {
       const isValid = await catalogsService.validateINEGI('estado', entidadRes);
       if (!isValid) {
         errors.push(
-          `Entidad de residencia inválida: ${entidadRes}. Debe ser código INEGI válido (01-32, NE, o 00)`,
+          `Entidad de residencia inválida: ${entidadRes}. Debe ser código INEGI/GIIS válido (01-32, NE, 00, 88 o 99)`,
         );
       }
     }
@@ -130,10 +138,11 @@ export async function validateFirmanteRegulatoryFields(
 
     const municipioRes = data.municipioResidencia.trim();
     if (
-      municipioRes !== '000' &&
+      !MUNICIPIOS_RESIDENCIA_ESPECIALES.includes(
+        municipioRes as (typeof MUNICIPIOS_RESIDENCIA_ESPECIALES)[number],
+      ) &&
       entidadRes &&
-      entidadRes !== 'NE' &&
-      entidadRes !== '00'
+      !isEntidadResidenciaEspecial(entidadRes)
     ) {
       const isValid = await catalogsService.validateINEGI(
         'municipio',
@@ -157,12 +166,15 @@ export async function validateFirmanteRegulatoryFields(
 
     const localidadRes = data.localidadResidencia.trim();
     if (
-      localidadRes !== '0000' &&
+      !LOCALIDADES_RESIDENCIA_ESPECIALES.includes(
+        localidadRes as (typeof LOCALIDADES_RESIDENCIA_ESPECIALES)[number],
+      ) &&
       municipioRes &&
-      municipioRes !== '000' &&
+      !MUNICIPIOS_RESIDENCIA_ESPECIALES.includes(
+        municipioRes as (typeof MUNICIPIOS_RESIDENCIA_ESPECIALES)[number],
+      ) &&
       entidadRes &&
-      entidadRes !== 'NE' &&
-      entidadRes !== '00'
+      !isEntidadResidenciaEspecial(entidadRes)
     ) {
       const parentKey = `${entidadRes}-${municipioRes}`;
       const isValid = await catalogsService.validateINEGI(
@@ -176,6 +188,30 @@ export async function validateFirmanteRegulatoryFields(
         );
       }
     }
+
+    if (data.paisResidencia == null || Number.isNaN(Number(data.paisResidencia))) {
+      throw createRegulatoryError({
+        errorCode: RegulatoryErrorCode.REGIMEN_FIELD_REQUIRED,
+        details: { fieldName: 'paisResidencia' },
+        regime: policy.regime,
+      });
+    }
+
+    const paisResResult = catalogsService.validateGIISPais(data.paisResidencia);
+    if (paisResResult.catalogLoaded && !paisResResult.valid) {
+      errors.push(
+        `País de residencia inválido: ${data.paisResidencia}. Debe ser CATALOG_KEY válido de cat_pais (ej: 142=México, 248=NO ESPECIFICADO)`,
+      );
+    }
+
+    errors.push(
+      ...validateResidenciaGeoGiisCoherence({
+        paisResidencia: data.paisResidencia,
+        entidadResidencia: entidadRes,
+        municipioResidencia: municipioRes,
+        localidadResidencia: localidadRes,
+      }),
+    );
   } else if (data.entidadNacimiento && data.entidadNacimiento.trim() !== '') {
     const entidadNac = data.entidadNacimiento.trim().toUpperCase();
     if (entidadNac !== 'NE' && entidadNac !== '00') {

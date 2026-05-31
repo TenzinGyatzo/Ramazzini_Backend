@@ -54,7 +54,7 @@ export function normalizeCentroTrabajoData(
 export function normalizeTrabajadorData(
   dto: CreateTrabajadorDto | UpdateTrabajadorDto,
 ) {
-  return {
+  const normalizedDto: Record<string, unknown> = {
     ...dto,
     // NOM-024: Names normalized to uppercase
     primerApellido: dto.primerApellido?.trim().toUpperCase(),
@@ -80,6 +80,34 @@ export function normalizeTrabajadorData(
     createdBy: dto.createdBy?.trim(),
     updatedBy: dto.updatedBy?.trim(),
   };
+
+  if (
+    'paisNacimiento' in dto &&
+    dto.paisNacimiento != null &&
+    String(dto.paisNacimiento) !== ''
+  ) {
+    const val = dto.paisNacimiento;
+    normalizedDto.paisNacimiento =
+      typeof val === 'number' ? val : Number(val);
+    if (Number.isNaN(normalizedDto.paisNacimiento as number)) {
+      delete normalizedDto.paisNacimiento;
+    }
+  }
+
+  if (
+    'paisResidencia' in dto &&
+    dto.paisResidencia != null &&
+    String(dto.paisResidencia) !== ''
+  ) {
+    const val = dto.paisResidencia;
+    normalizedDto.paisResidencia =
+      typeof val === 'number' ? val : Number(val);
+    if (Number.isNaN(normalizedDto.paisResidencia as number)) {
+      delete normalizedDto.paisResidencia;
+    }
+  }
+
+  return normalizedDto as CreateTrabajadorDto | UpdateTrabajadorDto;
 }
 
 export function normalizeProveedorSaludData(
@@ -302,6 +330,18 @@ export function normalizeMedicoFirmanteData(
       delete normalizedDto.paisNacimiento;
   }
 
+  // País de residencia (CATALOG_KEY de cat_pais): parsear a número si viene como string
+  if (
+    'paisResidencia' in dto &&
+    dto.paisResidencia != null &&
+    String(dto.paisResidencia) !== ''
+  ) {
+    const val = dto.paisResidencia;
+    normalizedDto.paisResidencia = typeof val === 'number' ? val : Number(val);
+    if (Number.isNaN(normalizedDto.paisResidencia))
+      delete normalizedDto.paisResidencia;
+  }
+
   if ('fechaNacimiento' in dto && dto.fechaNacimiento) {
     normalizedDto.fechaNacimiento = new Date(dto.fechaNacimiento);
     if (Number.isNaN(normalizedDto.fechaNacimiento.getTime())) {
@@ -392,6 +432,18 @@ export function normalizeEnfermeraFirmanteData(
     normalizedDto.paisNacimiento = typeof val === 'number' ? val : Number(val);
     if (Number.isNaN(normalizedDto.paisNacimiento))
       delete normalizedDto.paisNacimiento;
+  }
+
+  // País de residencia (CATALOG_KEY de cat_pais): parsear a número si viene como string
+  if (
+    'paisResidencia' in dto &&
+    dto.paisResidencia != null &&
+    String(dto.paisResidencia) !== ''
+  ) {
+    const val = dto.paisResidencia;
+    normalizedDto.paisResidencia = typeof val === 'number' ? val : Number(val);
+    if (Number.isNaN(normalizedDto.paisResidencia))
+      delete normalizedDto.paisResidencia;
   }
 
   if ('fechaNacimiento' in dto && dto.fechaNacimiento) {

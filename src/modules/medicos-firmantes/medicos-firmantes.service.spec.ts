@@ -59,6 +59,7 @@ describe('MedicosFirmantesService', () => {
 
   const siresDemographics = {
     paisNacimiento: defaultPaisNacimiento,
+    paisResidencia: defaultPaisNacimiento,
     sexo: 'Masculino',
     entidadNacimiento: '09',
     entidadResidencia: '09',
@@ -95,6 +96,10 @@ describe('MedicosFirmantesService', () => {
     } as any;
     mockCatalogsService = {
       validateINEGI: jest.fn().mockResolvedValue(true),
+      validateGIISPais: jest.fn().mockReturnValue({
+        valid: true,
+        catalogLoaded: true,
+      }),
     } as any;
     mockGeographyValidator = {
       validateGeography: jest.fn().mockResolvedValue({ valid: true, errors: [] }),
@@ -465,6 +470,23 @@ describe('MedicosFirmantesService', () => {
         await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
       });
 
+      it('should require paisResidencia for SIRES_NOM024', async () => {
+        const dto = {
+          nombre: 'Dr. Juan Pérez',
+          idUser: siresUserId,
+          curp: validCURP,
+          paisNacimiento: defaultPaisNacimiento,
+          sexo: 'Masculino',
+          entidadNacimiento: '09',
+          entidadResidencia: '09',
+          municipioResidencia: '001',
+          localidadResidencia: '0001',
+          fechaNacimiento: siresDemographics.fechaNacimiento,
+        };
+
+        await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
+      });
+
       it('should accept valid residency fields for SIRES_NOM024', async () => {
         const dto = {
           nombre: 'Dr. Juan Pérez',
@@ -720,6 +742,7 @@ describe('MedicosFirmantesService', () => {
       sexo: 'Masculino',
       entidadNacimiento: '09',
       paisNacimiento: defaultPaisNacimiento,
+      paisResidencia: defaultPaisNacimiento,
       entidadResidencia: '09',
       municipioResidencia: '001',
       localidadResidencia: '0001',

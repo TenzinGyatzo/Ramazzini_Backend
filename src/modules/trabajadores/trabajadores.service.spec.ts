@@ -56,7 +56,10 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
 
     mockCatalogsService = {
       validateINEGI: jest.fn().mockResolvedValue(true),
-      validateNacionalidad: jest.fn().mockResolvedValue(true),
+      validateGIISPais: jest.fn().mockReturnValue({
+        valid: true,
+        catalogLoaded: true,
+      }),
       validateCLUES: jest.fn().mockResolvedValue(true),
       validateCIE10: jest.fn().mockResolvedValue(true),
     };
@@ -147,7 +150,10 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
     it('should validate INEGI codes for MX providers', async () => {
       mockNom024Util.requiresNOM024Compliance.mockResolvedValue(true);
       mockCatalogsService.validateINEGI.mockResolvedValue(true);
-      mockCatalogsService.validateNacionalidad.mockResolvedValue(true);
+      mockCatalogsService.validateGIISPais.mockReturnValue({
+        valid: true,
+        catalogLoaded: true,
+      });
 
       // Test that INEGI validation is called for MX providers
       const requiresCompliance =
@@ -169,21 +175,25 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
       expect(requiresCompliance).toBe(false);
     });
 
-    it('should validate nacionalidad against catalog', async () => {
-      mockCatalogsService.validateNacionalidad.mockResolvedValue(true);
+    it('should validate paisNacimiento against cat_pais', () => {
+      mockCatalogsService.validateGIISPais.mockReturnValue({
+        valid: true,
+        catalogLoaded: true,
+      });
 
-      const isValid = await mockCatalogsService.validateNacionalidad('MEX');
-      expect(isValid).toBe(true);
-      expect(mockCatalogsService.validateNacionalidad).toHaveBeenCalledWith(
-        'MEX',
-      );
+      const result = mockCatalogsService.validateGIISPais(142);
+      expect(result.valid).toBe(true);
+      expect(mockCatalogsService.validateGIISPais).toHaveBeenCalledWith(142);
     });
 
-    it('should reject invalid nacionalidad code', async () => {
-      mockCatalogsService.validateNacionalidad.mockResolvedValue(false);
+    it('should reject invalid paisNacimiento code', () => {
+      mockCatalogsService.validateGIISPais.mockReturnValue({
+        valid: false,
+        catalogLoaded: true,
+      });
 
-      const isValid = await mockCatalogsService.validateNacionalidad('INVALID');
-      expect(isValid).toBe(false);
+      const result = mockCatalogsService.validateGIISPais(99999);
+      expect(result.valid).toBe(false);
     });
 
     it('should validate hierarchical INEGI codes', async () => {
@@ -386,7 +396,10 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
       // Mock proveedor MX
       mockNom024Util.requiresNOM024Compliance.mockResolvedValue(true);
       mockCatalogsService.validateINEGI.mockResolvedValue(true);
-      mockCatalogsService.validateNacionalidad.mockResolvedValue(true);
+      mockCatalogsService.validateGIISPais.mockReturnValue({
+        valid: true,
+        catalogLoaded: true,
+      });
 
       // Mock para getProveedorSaludIdFromCentroTrabajo
       mockCentroTrabajoModel.findById.mockReturnValue({
@@ -426,7 +439,10 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
       // Mock proveedor MX
       mockNom024Util.requiresNOM024Compliance.mockResolvedValue(true);
       mockCatalogsService.validateINEGI.mockResolvedValue(true);
-      mockCatalogsService.validateNacionalidad.mockResolvedValue(true);
+      mockCatalogsService.validateGIISPais.mockReturnValue({
+        valid: true,
+        catalogLoaded: true,
+      });
 
       // Mock para getProveedorSaludIdFromCentroTrabajo
       mockCentroTrabajoModel.findById.mockReturnValue({
@@ -459,7 +475,10 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
       // Mock proveedor MX
       mockNom024Util.requiresNOM024Compliance.mockResolvedValue(true);
       mockCatalogsService.validateINEGI.mockResolvedValue(true);
-      mockCatalogsService.validateNacionalidad.mockResolvedValue(true);
+      mockCatalogsService.validateGIISPais.mockReturnValue({
+        valid: true,
+        catalogLoaded: true,
+      });
 
       // Mock para getProveedorSaludIdFromCentroTrabajo
       mockCentroTrabajoModel.findById.mockReturnValue({
@@ -503,7 +522,10 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
       // Mock proveedor MX
       mockNom024Util.requiresNOM024Compliance.mockResolvedValue(true);
       mockCatalogsService.validateINEGI.mockResolvedValue(true);
-      mockCatalogsService.validateNacionalidad.mockResolvedValue(true);
+      mockCatalogsService.validateGIISPais.mockReturnValue({
+        valid: true,
+        catalogLoaded: true,
+      });
 
       // Mock para getProveedorSaludIdFromCentroTrabajo
       mockCentroTrabajoModel.findById.mockReturnValue({
@@ -789,7 +811,10 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
           createSiresPolicy(),
         );
         mockCatalogsService.validateINEGI.mockResolvedValue(true);
-        mockCatalogsService.validateNacionalidad.mockResolvedValue(true);
+        mockCatalogsService.validateGIISPais.mockReturnValue({
+        valid: true,
+        catalogLoaded: true,
+      });
       });
 
       it('should require entidadNacimiento for SIRES_NOM024', async () => {
@@ -832,7 +857,7 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
         );
       });
 
-      it('should require nacionalidad for SIRES_NOM024', async () => {
+      it('should require paisNacimiento for SIRES_NOM024', async () => {
         const mockTrabajadorModel = service['trabajadorModel'];
         mockTrabajadorModel.save = jest.fn().mockResolvedValue({
           _id: 'new-id',
@@ -851,7 +876,7 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
           createdBy: '507f1f77bcf86cd799439012',
           updatedBy: '507f1f77bcf86cd799439012',
           entidadNacimiento: '25',
-          // No nacionalidad provided
+          // No paisNacimiento provided
         };
 
         // Mock validateGeographyHierarchy and validateCURPForMX to pass
@@ -869,7 +894,48 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
           BadRequestException,
         );
         await expect(service.create(dto as any)).rejects.toThrow(
-          'Nacionalidad es obligatoria',
+          'País de nacimiento es obligatorio',
+        );
+      });
+
+      it('should require paisResidencia for SIRES_NOM024', async () => {
+        const mockTrabajadorModel = service['trabajadorModel'];
+        mockTrabajadorModel.save = jest.fn().mockResolvedValue({
+          _id: 'new-id',
+        });
+
+        const dto = {
+          primerApellido: 'García',
+          nombre: 'Juan',
+          fechaNacimiento: new Date('1990-01-01'),
+          sexo: 'Masculino',
+          escolaridad: 'Licenciatura',
+          puesto: 'Desarrollador',
+          estadoCivil: 'Soltero/a',
+          estadoLaboral: 'Activo',
+          idCentroTrabajo: centroTrabajoId,
+          createdBy: '507f1f77bcf86cd799439012',
+          updatedBy: '507f1f77bcf86cd799439012',
+          entidadNacimiento: '25',
+          paisNacimiento: 142,
+          entidadResidencia: '25',
+          municipioResidencia: '001',
+          localidadResidencia: '0001',
+          // No paisResidencia provided
+        };
+
+        jest
+          .spyOn(service as any, 'validateGeographyHierarchy')
+          .mockResolvedValue(undefined);
+        jest
+          .spyOn(service as any, 'validateCURPForMX')
+          .mockResolvedValue(undefined);
+        jest
+          .spyOn(service as any, 'validateNOM024NameFormat')
+          .mockResolvedValue(undefined);
+
+        await expect(service.create(dto as any)).rejects.toThrow(
+          BadRequestException,
         );
       });
     });
@@ -944,7 +1010,7 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
           createdBy: '507f1f77bcf86cd799439012',
           updatedBy: '507f1f77bcf86cd799439012',
           entidadNacimiento: '25',
-          nacionalidad: 'MX',
+          paisNacimiento: 142,
           // No curp provided
         };
 

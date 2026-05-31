@@ -229,7 +229,8 @@ function getFieldDisplayName(fieldName?: string): string {
     entidadResidencia: 'Entidad de residencia',
     municipioResidencia: 'Municipio de residencia',
     localidadResidencia: 'Localidad de residencia',
-    nacionalidad: 'Nacionalidad',
+    paisNacimiento: 'País de nacimiento',
+    paisResidencia: 'País de residencia',
   };
 
   return fieldNames[fieldName] || fieldName;

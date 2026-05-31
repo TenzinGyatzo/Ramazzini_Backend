@@ -58,6 +58,10 @@ export class EnfermeraFirmante extends Document {
   })
   localidadResidencia?: string;
 
+  // NOM-024 GIIS: País de residencia (CATALOG_KEY de cat_pais)
+  @Prop()
+  paisResidencia?: number;
+
   // NOM-024 GIIS: País de nacimiento (CATALOG_KEY de cat_pais)
   @Prop({ required: true })
   paisNacimiento: number;

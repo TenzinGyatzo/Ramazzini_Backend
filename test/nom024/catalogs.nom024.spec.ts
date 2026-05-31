@@ -34,11 +34,6 @@ describe('NOM-024 Catalog Service (Task 1, 12, 14, 19)', () => {
       file: 'municipios.csv',
       name: 'Municipios',
     },
-    {
-      type: CatalogType.NACIONALIDADES,
-      file: 'cat_nacionalidades.csv',
-      name: 'Nacionalidades',
-    },
   ];
 
 
@@ -382,10 +377,10 @@ describe('NOM-024 Catalog Service (Task 1, 12, 14, 19)', () => {
     });
   });
 
-  describe('Nacionalidad Validation (Task 4)', () => {
-    it('should validate nationality codes', async () => {
-      const result = await service.validateNacionalidad('MEX');
-      expect(typeof result).toBe('boolean');
+  describe('País (cat_pais) Validation', () => {
+    it('should validate pais catalog keys', () => {
+      const result = service.validateGIISPais(142);
+      expect(typeof result.valid).toBe('boolean');
     });
   });
 

@@ -116,7 +116,7 @@ describe('NOM-024 GIIS Batch (Phase 1A)', () => {
         {
           provide: CatalogsService,
           useValue: {
-            getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
+            getCatalogEntry: jest.fn().mockResolvedValue(null),
           },
         },
         {
@@ -222,7 +222,7 @@ describe('NOM-024 GIIS Batch Phase 6 — automatic encryption', () => {
         {
           provide: CatalogsService,
           useValue: {
-            getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
+            getCatalogEntry: jest.fn().mockResolvedValue(null),
           },
         },
         {

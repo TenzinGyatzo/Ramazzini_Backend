@@ -26,8 +26,6 @@ import {
 
 export interface CexMapperContext {
   clues: string;
-  /** Resolve cat_pais CATALOG_KEY from nacionalidad clave (3-letter). If not provided (e.g. tests), 142 is used for paisNacPaciente. */
-  getPaisCatalogKeyFromNacionalidad?: (clave: string) => number | null;
   /** Defaults from CexCatalogResolver when prestador is absent */
   cexDefaults?: {
     tipoPersonal: number;
@@ -84,6 +82,7 @@ export interface TrabajadorLike {
   fechaNacimiento?: Date;
   sexo?: string;
   entidadNacimiento?: string;
+  paisNacimiento?: number;
   [key: string]: unknown;
 }
 
@@ -111,7 +110,7 @@ function toCexVital(value: number | undefined | null): number {
   return value;
 }
 const DEFAULT_PAIS_MEXICO = 142;
-/** cat_pais "NO ESPECIFICADO" when nacionalidad has no mapping */
+/** cat_pais "NO ESPECIFICADO" when paisNacimiento is absent */
 const PAIS_NO_ESPECIFICADO = 248;
 const CURP_GENERICA = 'XXXX999999XXXXXX99';
 const DEFAULT_PROGRAMA_SMYMG = 0;
@@ -296,14 +295,11 @@ export function mapNotaMedicaToCexRow(
         ? 1
         : 0;
 
-  const nacionalidadClave = (trabajador?.nacionalidad as string)?.trim?.();
-  const getPais = context.getPaisCatalogKeyFromNacionalidad;
   const paisNacPaciente =
-    nacionalidadClave && getPais
-      ? (getPais(nacionalidadClave) ?? PAIS_NO_ESPECIFICADO)
-      : getPais
-        ? PAIS_NO_ESPECIFICADO
-        : DEFAULT_PAIS_MEXICO;
+    trabajador?.paisNacimiento != null &&
+    Number.isFinite(Number(trabajador.paisNacimiento))
+      ? Number(trabajador.paisNacimiento)
+      : PAIS_NO_ESPECIFICADO;
 
   const paisNacimientoPrestador =
     prestador?.paisNacimiento != null &&

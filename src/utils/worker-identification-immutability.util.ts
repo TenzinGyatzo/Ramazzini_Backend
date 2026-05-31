@@ -13,7 +13,7 @@ export const WORKER_IMMUTABLE_IDENTIFICATION_FIELDS = [
   'fechaNacimiento',
   'sexo',
   'entidadNacimiento',
-  'nacionalidad',
+  'paisNacimiento',
 ] as const;
 
 export const WORKER_CURP_CONFORMATION_FIELDS = [
@@ -28,6 +28,10 @@ export const WORKER_CURP_CONFORMATION_FIELDS = [
 export type WorkerImmutableIdentificationField =
   (typeof WORKER_IMMUTABLE_IDENTIFICATION_FIELDS)[number];
 
+export const PAIS_NACIMIENTO_MEXICO = 142;
+
+const MEXICAN_ENTIDAD_NACIMIENTO_PATTERN = /^(0[1-9]|[12][0-9]|3[0-2])$/;
+
 /** Snapshot mínimo del trabajador para validar inmutabilidad (compatible con documentos Mongoose). */
 export interface WorkerIdentificationCurrent {
   curp?: string;
@@ -37,28 +41,70 @@ export interface WorkerIdentificationCurrent {
   fechaNacimiento?: Date | string;
   sexo?: string;
   entidadNacimiento?: string;
-  nacionalidad?: string;
+  paisNacimiento?: number;
   toObject?: () => Record<string, unknown>;
+}
+
+export function isMexicanEntidadNacimiento(code: string | undefined): boolean {
+  if (!code) return false;
+  return MEXICAN_ENTIDAD_NACIMIENTO_PATTERN.test(code.trim().toUpperCase());
+}
+
+function hasStoredPaisNacimiento(paisNacimiento: unknown): boolean {
+  return paisNacimiento !== null && paisNacimiento !== undefined && paisNacimiento !== '';
+}
+
+/**
+ * paisNacimiento solo es inmutable si hay valor almacenado, CURP real,
+ * país 142 (México) y entidad de nacimiento estatal MX (01-32).
+ */
+export function isPaisNacimientoImmutable(
+  current: Pick<
+    WorkerIdentificationCurrent,
+    'curp' | 'paisNacimiento' | 'entidadNacimiento'
+  >,
+): boolean {
+  if (isGenericCURP(current.curp ?? '')) {
+    return false;
+  }
+
+  if (!hasStoredPaisNacimiento(current.paisNacimiento)) {
+    return false;
+  }
+
+  if (Number(current.paisNacimiento) !== PAIS_NACIMIENTO_MEXICO) {
+    return false;
+  }
+
+  return isMexicanEntidadNacimiento(current.entidadNacimiento);
 }
 
 /**
  * Campos de identificación que no pueden modificarse en update, según CURP almacenada.
  * Si la CURP almacenada es genérica, se eximen curp y campos de conformación CURP.
+ * paisNacimiento solo se incluye si cumple isPaisNacimientoImmutable.
  */
 export function getWorkerImmutableIdentificationFields(
-  current: Pick<WorkerIdentificationCurrent, 'curp'>,
+  current: Pick<
+    WorkerIdentificationCurrent,
+    'curp' | 'paisNacimiento' | 'entidadNacimiento'
+  >,
 ): readonly WorkerImmutableIdentificationField[] {
-  const all = [...WORKER_IMMUTABLE_IDENTIFICATION_FIELDS];
+  let fields = [...WORKER_IMMUTABLE_IDENTIFICATION_FIELDS];
 
   if (isGenericCURP(current.curp ?? '')) {
     const exempt = new Set<string>([
       'curp',
       ...WORKER_CURP_CONFORMATION_FIELDS,
     ]);
-    return all.filter((f) => !exempt.has(f)) as WorkerImmutableIdentificationField[];
+    fields = fields.filter((f) => !exempt.has(f));
   }
 
-  return all;
+  if (!isPaisNacimientoImmutable(current)) {
+    fields = fields.filter((f) => f !== 'paisNacimiento');
+  }
+
+  return fields as WorkerImmutableIdentificationField[];
 }
 
 function normalizeOptionalString(value: unknown): string {
@@ -70,6 +116,13 @@ function normalizeOptionalString(value: unknown): string {
 
 function normalizeUpperString(value: unknown): string {
   return normalizeOptionalString(value).toUpperCase();
+}
+
+function normalizePaisNacimiento(value: unknown): string {
+  if (value === null || value === undefined || value === '') {
+    return '';
+  }
+  return String(value);
 }
 
 function normalizeFechaNacimiento(value: unknown): string {
@@ -97,8 +150,9 @@ function getNormalizedFieldValue(
     case 'primerApellido':
     case 'segundoApellido':
     case 'entidadNacimiento':
-    case 'nacionalidad':
       return normalizeUpperString(raw);
+    case 'paisNacimiento':
+      return normalizePaisNacimiento(raw);
     case 'sexo':
       return normalizeOptionalString(raw);
     default:

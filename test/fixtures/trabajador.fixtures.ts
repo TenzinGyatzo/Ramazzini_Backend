@@ -21,7 +21,7 @@ export const validMXTrabajador = {
   nss: '12345678901',
   // NOM-024 fields (Task 4)
   entidadNacimiento: '09', // CDMX
-  nacionalidad: 'MEX',
+  paisNacimiento: 142,
   // Address
   calle: 'INSURGENTES SUR',
   numero: '1234',

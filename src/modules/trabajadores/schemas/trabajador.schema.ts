@@ -93,12 +93,9 @@ export class Trabajador extends Document {
   })
   entidadNacimiento?: string;
 
-  // Nacionalidad (RENAPO nationality code, 3 chars): e.g., MEX, USA, NND (No disponible)
-  @Prop({
-    required: false,
-    match: /^$|^[A-Z]{3}$/,
-  })
-  nacionalidad?: string;
+  // NOM-024 GIIS: País de nacimiento (CATALOG_KEY de cat_pais)
+  @Prop()
+  paisNacimiento?: number;
 
   // Entidad de residencia (INEGI state code, 2 chars): 01-32, NE (Extranjero), 00 (No disponible)
   @Prop({
@@ -120,6 +117,10 @@ export class Trabajador extends Document {
     match: /^$|^[0-9]{4}$/,
   })
   localidadResidencia?: string;
+
+  // NOM-024 GIIS: País de residencia (CATALOG_KEY de cat_pais)
+  @Prop()
+  paisResidencia?: number;
 
   @Prop({ required: false, default: [] })
   agentesRiesgoActuales: string[];

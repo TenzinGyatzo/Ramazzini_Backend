@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { CatalogsService } from '../catalogs.service';
+import {
+  ENTIDADES_RESIDENCIA_ESPECIALES,
+  LOCALIDADES_RESIDENCIA_ESPECIALES,
+  MUNICIPIOS_RESIDENCIA_ESPECIALES,
+  normalizeEntidadResidencia,
+} from '../../../utils/giis-residencia-geo.util';
 
 /**
  * Payload for geography validation
@@ -60,25 +66,30 @@ export class GeographyValidator {
   }
 
   /**
-   * Check if entity code is a sentinel value (NE, 00)
+   * Check if entity code is a sentinel value (NE, 00, 88, 99)
    */
   private isEntidadSentinel(code: string): boolean {
-    const normalized = code.trim().toUpperCase();
-    return normalized === 'NE' || normalized === '00';
+    return ENTIDADES_RESIDENCIA_ESPECIALES.includes(
+      normalizeEntidadResidencia(code) as (typeof ENTIDADES_RESIDENCIA_ESPECIALES)[number],
+    );
   }
 
   /**
-   * Check if municipality code is a sentinel value (000)
+   * Check if municipality code is a sentinel value (000, 997, 998, 999)
    */
   private isMunicipioSentinel(code: string): boolean {
-    return code.trim() === '000';
+    return MUNICIPIOS_RESIDENCIA_ESPECIALES.includes(
+      code.trim() as (typeof MUNICIPIOS_RESIDENCIA_ESPECIALES)[number],
+    );
   }
 
   /**
-   * Check if locality code is a sentinel value (0000)
+   * Check if locality code is a sentinel value (0000, 9997, 9998, 9999)
    */
   private isLocalidadSentinel(code: string): boolean {
-    return code.trim() === '0000';
+    return LOCALIDADES_RESIDENCIA_ESPECIALES.includes(
+      code.trim() as (typeof LOCALIDADES_RESIDENCIA_ESPECIALES)[number],
+    );
   }
 
   /**

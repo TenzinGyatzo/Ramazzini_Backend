@@ -136,7 +136,7 @@ describe('NOM-024 GIIS Export API (Phase 1E)', () => {
         {
           provide: CatalogsService,
           useValue: {
-            getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
+            getCatalogEntry: jest.fn().mockResolvedValue(null),
           },
         },
         {
@@ -295,7 +295,7 @@ describe('GIIS Export gate SIRES', () => {
         {
           provide: CatalogsService,
           useValue: {
-            getPaisCatalogKeyFromNacionalidad: jest.fn().mockReturnValue(142),
+            getCatalogEntry: jest.fn().mockResolvedValue(null),
           },
         },
         {
