@@ -6,6 +6,8 @@ export interface CatalogEntry {
   description: string;
   source?: string;
   version?: string;
+  /** Original CSV row for round-trip writes (admin module). */
+  _csvRow?: Record<string, string | number | undefined>;
   [key: string]: any; // Allow additional fields for catalog-specific data
 }
 
@@ -82,7 +84,6 @@ export enum CatalogType {
   MUNICIPIOS = 'municipios',
   LOCALIDADES = 'localidades',
   CODIGOS_POSTALES = 'codigos_postales',
-  FORMACION_ACADEMICA = 'formacion_academica',
   ESCOLARIDAD = 'escolaridad',
 
   // GIIS catalogs - Optional

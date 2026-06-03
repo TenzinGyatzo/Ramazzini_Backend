@@ -15,7 +15,13 @@ import {
   sortEstadosByCode,
   sortMunicipiosByCode,
 } from './utils/geo-catalog-sort.util';
-import { parseTipoPersonalCeList } from '../../utils/cie10-diagnostico-sis.util';
+import {
+  BASE_CATALOG_TYPES,
+  CATALOG_FILES,
+  CATALOG_NORMALIZED_DIR,
+  OPTIONAL_CATALOG_TYPES,
+} from './constants/catalog-files.constant';
+import { mapRecordToEntry } from './utils/catalog-record.mapper';
 
 /**
  * Validation result for GIIS catalog validation
@@ -33,7 +39,7 @@ export interface GIISValidationResult {
  * Provides validation and search methods for catalog entries.
  *
  * Supports two categories of catalogs:
- * - BASE (9): Required catalogs that MUST be present for full functionality
+ * - BASE (8): Required catalogs that MUST be present for full functionality
  * - GIIS (3): Optional catalogs (GIIS-B019) that are not publicly available from DGIS
  *
  * GIIS catalogs are loaded opportunistically. If missing, validation methods return
@@ -54,44 +60,11 @@ export class CatalogsService implements OnModuleInit {
   // Track which GIIS catalogs have emitted a warning (to avoid log spam)
   private giisWarningEmitted = new Set<CatalogType>();
 
-  // Catalog file mappings
-  private readonly catalogFiles: Partial<Record<CatalogType, string>> = {
-    // Base catalogs (9)
-    [CatalogType.CIE10]: 'diagnosticos_sis.csv',
-    [CatalogType.CLUES]: 'establecimiento_de_salud_sis.csv',
-    [CatalogType.ENTIDADES_FEDERATIVAS]: 'enitades_federativas.csv',
-    [CatalogType.MUNICIPIOS]: 'municipios.csv',
-    [CatalogType.LOCALIDADES]: 'localidades.csv',
-    [CatalogType.CODIGOS_POSTALES]: 'codigos_postales.csv',
-    [CatalogType.FORMACION_ACADEMICA]: 'formacion_academica.csv',
-    [CatalogType.ESCOLARIDAD]: 'escolaridad.csv',
-    // GIIS-B019 Catalogs (3) - Optional
-    [CatalogType.TIPO_PERSONAL]: 'cat_tipo_personal.csv',
-    [CatalogType.AFILIACION]: 'cat_afiliacion.csv',
-    [CatalogType.PAIS]: 'cat_pais.csv',
-    [CatalogType.SERVICIOS_ATENCION_CE]:
-      'servicios_atencion_por_tipo_personal_sis_ce.csv',
-  };
+  private readonly catalogFiles = CATALOG_FILES;
+  private readonly optionalCatalogs = OPTIONAL_CATALOG_TYPES;
+  private readonly baseCatalogs = BASE_CATALOG_TYPES;
 
-  // Define which catalogs are optional (GIIS)
-  private readonly optionalCatalogs: CatalogType[] = [
-    CatalogType.TIPO_PERSONAL,
-    CatalogType.AFILIACION,
-    CatalogType.PAIS,
-    CatalogType.SERVICIOS_ATENCION_CE,
-  ];
-
-  // Base catalogs (required)
-  private readonly baseCatalogs: CatalogType[] = [
-    CatalogType.CIE10,
-    CatalogType.CLUES,
-    CatalogType.ENTIDADES_FEDERATIVAS,
-    CatalogType.MUNICIPIOS,
-    CatalogType.LOCALIDADES,
-    CatalogType.CODIGOS_POSTALES,
-    CatalogType.FORMACION_ACADEMICA,
-    CatalogType.ESCOLARIDAD,
-  ];
+  private readonly reloadLocks = new Map<CatalogType, Promise<void>>();
 
   async onModuleInit() {
     this.logger.log('Initializing catalog service...');
@@ -103,7 +76,7 @@ export class CatalogsService implements OnModuleInit {
    * Load all catalogs from CSV files
    */
   private async loadAllCatalogs(): Promise<void> {
-    const catalogsPath = join(process.cwd(), 'catalogs', 'normalized');
+    const catalogsPath = join(process.cwd(), CATALOG_NORMALIZED_DIR);
 
     const loadPromises = Object.entries(this.catalogFiles)
       .filter(([, filename]) => filename) // Filter out undefined entries
@@ -135,6 +108,43 @@ export class CatalogsService implements OnModuleInit {
   }
 
   /**
+   * Reload a single catalog from disk into memory (thread-safe per catalog type).
+   */
+  async reloadCatalog(catalogType: CatalogType): Promise<void> {
+    const prev = this.reloadLocks.get(catalogType) ?? Promise.resolve();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    this.reloadLocks.set(
+      catalogType,
+      prev.then(() => gate),
+    );
+    await prev;
+    try {
+      if (catalogType === CatalogType.ENTIDADES_FEDERATIVAS) {
+        this.estadoCache.clear();
+      } else if (catalogType === CatalogType.MUNICIPIOS) {
+        this.municipioCache.clear();
+      } else if (catalogType === CatalogType.LOCALIDADES) {
+        this.localidadCache.clear();
+      }
+      this.catalogCaches.delete(catalogType);
+      const filename = this.catalogFiles[catalogType];
+      if (!filename) {
+        throw new Error(`No file mapping for ${catalogType}`);
+      }
+      const filePath = join(process.cwd(), CATALOG_NORMALIZED_DIR, filename);
+      await this.loadCatalog(catalogType, filePath);
+    } finally {
+      release();
+      if (this.reloadLocks.get(catalogType) === gate) {
+        this.reloadLocks.delete(catalogType);
+      }
+    }
+  }
+
+  /**
    * Load a single catalog from CSV file
    */
   private async loadCatalog(
@@ -153,7 +163,7 @@ export class CatalogsService implements OnModuleInit {
       const records: any[] = await this.parseCSV(filePath);
 
       for (const record of records) {
-        const entry = this.mapRecordToEntry(catalogType, record);
+        const entry = mapRecordToEntry(catalogType, record);
         if (entry && entry.code) {
           cache.set(entry.code, entry);
         }
@@ -218,265 +228,6 @@ export class CatalogsService implements OnModuleInit {
           reject(error);
         });
     });
-  }
-
-  /**
-   * Map CSV record to CatalogEntry based on catalog type
-   */
-  private mapRecordToEntry(
-    catalogType: CatalogType,
-    record: any,
-  ): CatalogEntry | null {
-    try {
-      switch (catalogType) {
-        case CatalogType.ENTIDADES_FEDERATIVAS:
-          return {
-            code: record.CATALOG_KEY || record.codigo || record.code,
-            description:
-              record.ENTIDAD_FEDERATIVA ||
-              record.descripcion ||
-              record.description,
-            source: 'INEGI',
-            version: record.version,
-            abreviatura: record.ABREVIATURA || record.abreviatura,
-          };
-
-        case CatalogType.CIE10:
-          // Store raw values for LINF/LSUP (format: "010A", "028D", "NO", etc.)
-          const linfRaw = record.LINF
-            ? String(record.LINF).trim().toUpperCase()
-            : undefined;
-          const lsupRaw = record.LSUP
-            ? String(record.LSUP).trim().toUpperCase()
-            : undefined;
-
-          // Try to parse as number if it's a plain number, otherwise leave undefined
-          let linf: number | undefined;
-          let lsup: number | undefined;
-
-          if (linfRaw && linfRaw !== 'NO') {
-            const linfNum = parseInt(linfRaw, 10);
-            if (!isNaN(linfNum) && linfRaw.match(/^\d+$/)) {
-              // Only use parsed number if it's a plain number (no letters)
-              linf = linfNum;
-            }
-          }
-
-          if (lsupRaw && lsupRaw !== 'NO') {
-            const lsupNum = parseInt(lsupRaw, 10);
-            if (!isNaN(lsupNum) && lsupRaw.match(/^\d+$/)) {
-              // Only use parsed number if it's a plain number (no letters)
-              lsup = lsupNum;
-            }
-          }
-
-          const letraRaw =
-            record.LETRA ?? record.Letra ?? record.letra ?? undefined;
-          const letra =
-            letraRaw !== undefined &&
-            letraRaw !== null &&
-            String(letraRaw).trim() !== ''
-              ? String(letraRaw).trim().toUpperCase()
-              : undefined;
-
-          const tipoPersonal1VezCe = parseTipoPersonalCeList(
-            record.TIPO_PERSONAL_1VEZ_CE,
-          );
-          const tipoPersonalSubsecCe = parseTipoPersonalCeList(
-            record.TIPO_PERSONAL_SUBSEC_CE,
-          );
-          const diaCronicos =
-            String(record.DIA_CRONICOS ?? '')
-              .trim()
-              .toUpperCase() === 'SI';
-          const diaCaInfantil =
-            String(record.DIA_CAINFANTIL ?? '')
-              .trim()
-              .toUpperCase() === 'SI';
-
-          return {
-            code: record.CATALOG_KEY || record.codigo || record.code,
-            description:
-              record.NOMBRE || record.descripcion || record.description,
-            source: 'CIE-10',
-            version: record.version,
-            catalogKey: record.CATALOG_KEY,
-            nombre: record.NOMBRE,
-            lsex: record.LSEX,
-            linf,
-            lsup,
-            linfRaw,
-            lsupRaw,
-            letra,
-            tipoPersonal1VezCe,
-            tipoPersonalSubsecCe,
-            diaCronicos,
-            diaCaInfantil,
-          } as CIE10Entry;
-
-        case CatalogType.CLUES: {
-          const rawClues =
-            record.clues || record.CLUES || record.codigo || record.code;
-          const code = rawClues ? String(rawClues).trim().toUpperCase() : '';
-          const description =
-            record.nombre_unidad ||
-            record['NOMBRE DE LA INSTITUCION'] ||
-            record.nombre ||
-            record.descripcion ||
-            record.description;
-          let estatus: string | undefined;
-          if (
-            record.en_operacion !== undefined &&
-            record.en_operacion !== null
-          ) {
-            estatus =
-              record.en_operacion == 1 || record.en_operacion === '1'
-                ? 'EN OPERACION'
-                : 'NO EN OPERACION';
-          } else {
-            estatus = record['ESTATUS DE OPERACION'];
-          }
-          return {
-            code,
-            description,
-            source: 'CLUES',
-            version: record.version,
-            clues: code,
-            nombreInstitucion:
-              record.nombre_unidad || record['NOMBRE DE LA INSTITUCION'],
-            entidad:
-              record.id_entidad_federativa ||
-              record.ENTIDAD ||
-              record['CLAVE DE LA ENTIDAD'],
-            municipio: record.MUNICIPIO,
-            localidad: record.LOCALIDAD,
-            estatus,
-          } as CLUESEntry;
-        }
-
-        case CatalogType.MUNICIPIOS:
-          const efeKey =
-            record.EFE_KEY ||
-            record['CLAVE DE LA ENTIDAD'] ||
-            record.estadoCode;
-          const catKey = record.CATALOG_KEY || record.codigo || record.code;
-          const munEntry = {
-            // Usar combinación estado-municipio como código único
-            code: efeKey && catKey ? `${efeKey}-${catKey}` : catKey,
-            description:
-              record.MUNICIPIO || record.descripcion || record.description,
-            source: 'INEGI',
-            version: record.version,
-            estadoCode: efeKey,
-            municipioCode: catKey,
-          } as INEGIEntry;
-
-          // Debug log para registros sin estadoCode
-          if (!munEntry.estadoCode) {
-            this.logger.warn(
-              `Municipio sin estadoCode: ${JSON.stringify(record)}`,
-            );
-          }
-          return munEntry;
-
-        case CatalogType.LOCALIDADES:
-          const locEfeKey =
-            record.EFE_KEY ||
-            record['CLAVE DE LA ENTIDAD'] ||
-            record.estadoCode;
-          const locMunKey =
-            record.MUN_KEY ||
-            record['CLAVE DEL MUNICIPIO'] ||
-            record.municipioCode;
-          const locCatKey = record.CATALOG_KEY || record.codigo || record.code;
-          return {
-            // Usar combinación completa como código único
-            code:
-              locEfeKey && locMunKey && locCatKey
-                ? `${locEfeKey}-${locMunKey}-${locCatKey}`
-                : locCatKey,
-            description:
-              record.LOCALIDAD || record.descripcion || record.description,
-            source: 'INEGI',
-            version: record.version,
-            estadoCode: locEfeKey,
-            municipioCode: locMunKey,
-            localidadCode: locCatKey,
-          } as INEGIEntry;
-
-        case CatalogType.CODIGOS_POSTALES: {
-          const cEstado = record.c_estado
-            ? String(record.c_estado).padStart(2, '0')
-            : undefined;
-          const cMunicipio = record.c_mnpio
-            ? String(record.c_mnpio).padStart(3, '0')
-            : undefined;
-          return {
-            // Usamos una combinación de CP y asentamiento para asegurar unicidad
-            code: `${record.d_codigo}-${record.id_asenta_cpcons}`,
-            description: `${record.d_codigo} - ${record.d_asenta}, ${record.D_mnpio}, ${record.d_estado}`,
-            cp: record.d_codigo,
-            asentamiento: record.d_asenta,
-            municipio: record.D_mnpio?.toUpperCase() || '',
-            estado: record.d_estado?.toUpperCase() || '',
-            ciudad: record.d_ciudad || undefined,
-            tipoAsentamiento: record.d_tipo_asenta || undefined,
-            cEstado,
-            cMunicipio,
-            source: 'SEPOMEX',
-            version: record.version,
-          } as CPEntry;
-        }
-
-        case CatalogType.ESCOLARIDAD:
-          return {
-            code: String(
-              record.CATALOG_KEY ?? record.codigo ?? record.code ?? '',
-            ),
-            description:
-              record.ESCOLARIDAD || record.descripcion || record.description,
-            source: 'ESCOLARIDAD',
-            version: record.version,
-          };
-
-        case CatalogType.TIPO_PERSONAL:
-          return {
-            code: String(record.CATALOG_KEY ?? record.codigo ?? record.code),
-            description:
-              record.TIPO_PERSONAL || record.descripcion || record.description,
-            source: 'GIIS',
-            version: record.version,
-          };
-
-        default:
-          // Generic mapping for other catalogs (including GIIS catalogs)
-          const code =
-            record.codigo || record.code || record.CATALOG_KEY || record.CODIGO;
-          const description =
-            record.descripcion ||
-            record.description ||
-            record.DESCRIPCION ||
-            record.NOMBRE ||
-            record['DESCRIPCIÓN CORTA'];
-
-          if (!code || !description) {
-            return null;
-          }
-
-          return {
-            code: String(code),
-            description: String(description),
-            source: record.source,
-            version: record.version,
-            ...record, // Include all other fields
-          };
-      }
-    } catch (error) {
-      this.logger.warn(
-        `Error mapping record for ${catalogType}: ${error.message}`,
-      );
-      return null;
-    }
   }
 
   /**
@@ -927,7 +678,7 @@ export class CatalogsService implements OnModuleInit {
 
     return {
       baseLoaded,
-      baseTotal: 9,
+      baseTotal: this.baseCatalogs.length,
       giisLoaded,
       giisTotal: this.optionalCatalogs.length,
       loadedCatalogs,
@@ -982,6 +733,76 @@ export class CatalogsService implements OnModuleInit {
     }
 
     return results;
+  }
+
+  /**
+   * Paginated admin listing from in-memory cache.
+   */
+  listCatalogPaginated(
+    catalog: CatalogType,
+    page: number = 1,
+    limit: number = 50,
+    q?: string,
+    filters?: { estadoCode?: string; municipioCode?: string },
+  ): {
+    items: CatalogEntry[];
+    total: number;
+    page: number;
+    limit: number;
+  } {
+    const cache = this.catalogCaches.get(catalog);
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(Math.max(1, limit), 100);
+    if (!cache) {
+      return { items: [], total: 0, page: safePage, limit: safeLimit };
+    }
+    let entries = Array.from(cache.values());
+    const lowerQ = q?.trim().toLowerCase();
+    if (lowerQ) {
+      entries = entries.filter(
+        (e) =>
+          e.code.toLowerCase().includes(lowerQ) ||
+          (e.description || '').toLowerCase().includes(lowerQ),
+      );
+    }
+    if (filters?.estadoCode) {
+      const ec = filters.estadoCode.padStart(2, '0');
+      entries = entries.filter((e) => {
+        const geo = e as INEGIEntry;
+        return (
+          geo.estadoCode?.toString().padStart(2, '0') === ec ||
+          e.code.startsWith(`${ec}-`)
+        );
+      });
+    }
+    if (filters?.municipioCode && catalog === CatalogType.LOCALIDADES) {
+      const mc = filters.municipioCode.padStart(3, '0');
+      entries = entries.filter((e) => {
+        const geo = e as INEGIEntry;
+        return geo.municipioCode?.toString().padStart(3, '0') === mc;
+      });
+    }
+    entries.sort((a, b) => {
+      const numA = Number(a.code);
+      const numB = Number(b.code);
+      if (!Number.isNaN(numA) && !Number.isNaN(numB)) return numA - numB;
+      return (a.description || '').localeCompare(b.description || '');
+    });
+    const total = entries.length;
+    const skip = (safePage - 1) * safeLimit;
+    const items = entries.slice(skip, skip + safeLimit).map((e) => {
+      const { _csvRow, ...rest } = e;
+      return rest as CatalogEntry;
+    });
+    return { items, total, page: safePage, limit: safeLimit };
+  }
+
+  getCacheRowCount(catalog: CatalogType): number {
+    return this.catalogCaches.get(catalog)?.size ?? 0;
+  }
+
+  isCatalogLoaded(catalog: CatalogType): boolean {
+    return this.catalogCaches.has(catalog);
   }
 
   /**

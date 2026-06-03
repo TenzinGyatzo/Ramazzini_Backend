@@ -226,7 +226,6 @@ El sistema incluye catálogos normalizados en formato CSV en `catalogs/normalize
 - `establecimiento_de_salud_sis.csv` - CLUES
 - `cat_nacionalidades.csv` - Nacionalidades (RENAPO)
 - `cat_religiones.csv` - Religiones
-- `formacion_academica.csv` - Formación académica
 - `lenguas_indigenas.csv` - Lenguas indígenas
 
 **Nota:** Actualmente estos catálogos existen como archivos CSV pero no están integrados en el backend como servicios/validaciones activas.

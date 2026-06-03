@@ -8,14 +8,14 @@ El servicio maneja dos categorías de catálogos:
 
 | Categoría | Cantidad | Comportamiento |
 |-----------|----------|----------------|
-| **Base** | 10 | Requeridos - errores si faltan |
+| **Base** | 8 | Requeridos - errores si faltan |
 | **GIIS** | 8 | Opcionales - warnings si faltan, validación bypassed |
 
 ### Estadísticas de Carga
 
 Al iniciar, el servicio muestra:
 ```
-Base catalogs loaded: X/10
+Base catalogs loaded: X/8
 GIIS optional catalogs loaded: Y/8
 ```
 
@@ -94,7 +94,7 @@ const stats = this.catalogsService.getCatalogStats();
 // { baseLoaded: 10, baseTotal: 10, giisLoaded: 2, giisTotal: 8, loadedCatalogs: [...] }
 ```
 
-## Catálogos Base (10) - Requeridos
+## Catálogos Base (8) - Requeridos
 
 | Catálogo | Archivo | Fuente |
 |----------|---------|--------|
@@ -104,10 +104,7 @@ const stats = this.catalogsService.getCatalogStats();
 | Municipios | municipios.csv | INEGI |
 | Localidades | localidades.csv | INEGI |
 | Códigos Postales | codigos_postales.csv | INEGI |
-| Nacionalidades | cat_nacionalidades.csv | RENAPO |
-| Religiones | cat_religiones.csv | INEGI |
-| Lenguas Indígenas | lenguas_indigenas.csv | INALI |
-| Formación Académica | formacion_academica.csv | SEP |
+| Escolaridad | escolaridad.csv | GIIS / SEP |
 
 ## Catálogos GIIS (8) - Opcionales
 
@@ -154,6 +151,10 @@ if (!result.valid && result.catalogLoaded) {
   throw new BadRequestException(`Sitio de ocurrencia inválido: ${sitioCode}`);
 }
 ```
+
+## Administración (CSV en servidor)
+
+Ver [ADMIN_CATALOGOS.md](./ADMIN_CATALOGOS.md) para la API y la UI de gestión (`/admin/catalogos`).
 
 ## Documentación Relacionada
 

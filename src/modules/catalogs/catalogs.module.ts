@@ -1,8 +1,12 @@
-import { Module, Global } from '@nestjs/common';
+import { Module, Global, forwardRef } from '@nestjs/common';
 import { CatalogsService } from './catalogs.service';
 import { CatalogsController } from './catalogs.controller';
+import { CatalogsAdminController } from './catalogs-admin.controller';
+import { CatalogCsvStoreService } from './catalog-csv.store.service';
 import { GeographyValidator } from './validators/geography.validator';
 import { CexCatalogResolver } from './cex-catalog.resolver';
+import { UsersModule } from '../users/users.module';
+import { AuditModule } from '../audit/audit.module';
 
 /**
  * Catalogs Module
@@ -12,8 +16,17 @@ import { CexCatalogResolver } from './cex-catalog.resolver';
  */
 @Global()
 @Module({
-  controllers: [CatalogsController],
-  providers: [CatalogsService, GeographyValidator, CexCatalogResolver],
+  imports: [
+    forwardRef(() => UsersModule),
+    forwardRef(() => AuditModule),
+  ],
+  controllers: [CatalogsController, CatalogsAdminController],
+  providers: [
+    CatalogsService,
+    CatalogCsvStoreService,
+    GeographyValidator,
+    CexCatalogResolver,
+  ],
   exports: [CatalogsService, GeographyValidator, CexCatalogResolver],
 })
 export class CatalogsModule {}

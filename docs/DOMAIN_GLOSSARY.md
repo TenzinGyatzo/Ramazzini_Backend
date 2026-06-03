@@ -351,7 +351,6 @@ Este documento define los términos del dominio utilizados en el repositorio y s
 - `establecimiento_de_salud_sis.csv` - CLUES
 - `cat_nacionalidades.csv` - Nacionalidades
 - `cat_religiones.csv` - Religiones
-- `formacion_academica.csv` - Formación académica
 - `lenguas_indigenas.csv` - Lenguas indígenas
 
 **Equivalencia NOM-024:** Los catálogos son "Master Data" obligatorios. No se permite texto libre cuando existe catálogo.

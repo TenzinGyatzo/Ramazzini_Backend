@@ -39,6 +39,7 @@
     "class-validator": "^0.14.1",
     "crypto": "^1.0.1",
     "csv-parse": "^6.1.0",
+    "csv-stringify": "^6.7.0",
     "date-fns": "^4.1.0",
     "iconv-lite": "^0.7.2",
     "jsonwebtoken": "^9.0.2",
