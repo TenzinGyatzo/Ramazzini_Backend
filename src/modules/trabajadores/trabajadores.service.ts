@@ -594,7 +594,7 @@ export class TrabajadoresService {
 
   async findWorkersWithHistoriaDataByCenter(centroId: string): Promise<any[]> {
     const LISTADO_TRABAJADOR_FIELDS =
-      '_id primerApellido segundoApellido nombre fechaNacimiento sexo escolaridad puesto fechaIngreso telefono contactoEmergenciaNombre contactoEmergenciaTelefono estadoCivil numeroEmpleado nss curp agentesRiesgoActuales estadoLaboral idCentroTrabajo createdBy updatedBy fechaTransferencia createdAt updatedAt';
+      '_id primerApellido segundoApellido nombre fechaNacimiento sexo escolaridad puesto fechaIngreso telefono contactoEmergenciaNombre contactoEmergenciaTelefono estadoCivil numeroEmpleado nss curp agentesRiesgoActuales estadoLaboral idCentroTrabajo createdBy updatedBy fechaTransferencia createdAt updatedAt folio';
 
     const trabajadores = await this.trabajadorModel
       .find({ idCentroTrabajo: centroId })
