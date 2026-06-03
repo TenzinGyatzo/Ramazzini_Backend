@@ -38,6 +38,14 @@ describe('nota-medica-embarazo.validator', () => {
       expect(aplicaRelacionTemporalEmbarazo('Masculino', edad)).toBe(false);
     });
 
+    it('no aplica para intersexual', () => {
+      const edad = calcularEdadEmbarazo(
+        hombre25.fechaNacimiento,
+        fechaConsulta,
+      );
+      expect(aplicaRelacionTemporalEmbarazo('Intersexual', edad)).toBe(false);
+    });
+
     it('no aplica para mujer menor de 9 años', () => {
       const edad = calcularEdadEmbarazo(mujer8.fechaNacimiento, fechaConsulta);
       expect(aplicaRelacionTemporalEmbarazo('Femenino', edad)).toBe(false);

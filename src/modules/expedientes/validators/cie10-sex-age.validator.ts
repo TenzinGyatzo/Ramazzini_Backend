@@ -12,6 +12,7 @@ import {
   getCIE10Restriction,
   getPrefixFromCode,
 } from '../../../utils/cie10-restrictions.util';
+import { mapSexoToGiisBiologico } from '../../../utils/sexo-mapper.util';
 
 export interface CIE10ValidationIssue {
   field: string;
@@ -34,33 +35,21 @@ export interface CIE10ValidationResult {
   issues: CIE10ValidationIssue[];
 }
 
+type SexoValidacion = 'MUJER' | 'HOMBRE' | 'INTERSEXUAL';
+
 /**
- * Normaliza el sexo del trabajador a formato de validación
- * Convierte "Masculino"/"Femenino" a "HOMBRE"/"MUJER"
+ * Normaliza el sexo del trabajador a formato de validación.
+ * Intersexual (GIIS 3): no aplica restricciones LSEX del catálogo manual.
  */
-function normalizeSexo(sexo: string): 'MUJER' | 'HOMBRE' | null {
+function normalizeSexo(sexo: string): SexoValidacion | null {
   if (!sexo) {
     return null;
   }
 
-  const normalized = sexo.trim().toLowerCase();
-
-  if (
-    normalized === 'masculino' ||
-    normalized === 'hombre' ||
-    normalized === 'm' ||
-    normalized === 'h'
-  ) {
-    return 'HOMBRE';
-  }
-
-  if (
-    normalized === 'femenino' ||
-    normalized === 'mujer' ||
-    normalized === 'f'
-  ) {
-    return 'MUJER';
-  }
+  const giis = mapSexoToGiisBiologico(sexo);
+  if (giis === 1) return 'HOMBRE';
+  if (giis === 2) return 'MUJER';
+  if (giis === 3) return 'INTERSEXUAL';
 
   return null;
 }
@@ -118,6 +107,10 @@ function validateSingleCIE10Code(
 
   if (!sexoTrabajador) {
     // Sexo no reconocido, no validar (fallback)
+    return null;
+  }
+
+  if (sexoTrabajador === 'INTERSEXUAL') {
     return null;
   }
 

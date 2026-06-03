@@ -1,4 +1,8 @@
-import { validateCURPCrossCheck, Discrepancy } from './curp-validator.util';
+import {
+  validateCURPFormat,
+  validateCURPCrossCheck,
+  Discrepancy,
+} from './curp-validator.util';
 
 describe('validateCURPCrossCheck (A1)', () => {
   const mockData = {
@@ -423,5 +427,33 @@ describe('validateCURPCrossCheck (A1)', () => {
     const result = validateCURPCrossCheck(curp, data);
     expect(result.isValid).toBe(true);
     expect(result.discrepancies).toHaveLength(0);
+  });
+
+  it('debe aceptar CURP con X en posición 11 (sexo no binario RENAPO)', () => {
+    expect(validateCURPFormat('GALJ900515XDFRPN08')).toBe(true);
+  });
+
+  it('no debe cruzar sexo CURP cuando trabajador es Intersexual (CURP con H)', () => {
+    const dataIntersexual = { ...mockData, sexo: 'Intersexual' };
+    const result = validateCURPCrossCheck(curpGarciaLopezJuan, dataIntersexual);
+    expect(
+      result.discrepancies.filter((d) => d.field === 'sexo'),
+    ).toHaveLength(0);
+  });
+
+  it('no debe cruzar sexo CURP cuando trabajador es Intersexual (CURP con M)', () => {
+    const curpMujer = 'SABC560626MDFLRN09';
+    const data = {
+      fechaNacimiento: '1956-06-26',
+      sexo: 'Intersexual',
+      entidadNacimiento: '09',
+      nombre: 'Concepción',
+      primerApellido: 'Salgado',
+      segundoApellido: 'Briseño',
+    };
+    const result = validateCURPCrossCheck(curpMujer, data);
+    expect(
+      result.discrepancies.filter((d) => d.field === 'sexo'),
+    ).toHaveLength(0);
   });
 });

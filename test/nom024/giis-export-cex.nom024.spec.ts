@@ -255,6 +255,30 @@ describe('CEX mapper unit', () => {
     expect(row.tipoPersonal).toBe(2);
   });
 
+  it('should map sexoCURP and sexoBiologico to 3 for Intersexual trabajador', () => {
+    const consulta = {
+      fechaNotaMedica: new Date('2025-01-15'),
+      codigoCIE10Principal: 'Z00',
+      relacionTemporal: 0,
+    };
+    const trabajador = {
+      curp: 'PEGJ850102XDFRNN08',
+      nombre: 'JUAN',
+      primerApellido: 'PEREZ',
+      segundoApellido: 'GONZALEZ',
+      fechaNacimiento: new Date('1985-01-02'),
+      sexo: 'Intersexual',
+      entidadNacimiento: '09',
+    };
+    const row = mapNotaMedicaToCexRow(
+      consulta,
+      cexContextBase,
+      trabajador,
+    );
+    expect(row.sexoCURP).toBe(3);
+    expect(row.sexoBiologico).toBe(3);
+  });
+
   it('should use servicioAtencion from prestador when provided', () => {
     const consulta = {
       fechaNotaMedica: new Date('2025-01-15'),

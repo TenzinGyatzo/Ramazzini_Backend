@@ -59,7 +59,7 @@ export function mapSexoToNumeric(sexo: string): 1 | 2 | null {
 /**
  * Maps numeric code to sexo string (reverse mapping)
  * @param codigo - Numeric code (1, 2, or 3)
- * @returns "Masculino" for 1, "Femenino" for 2, null for others
+ * @returns "Masculino" for 1, "Femenino" for 2, "Intersexual" for 3, null for others
  */
 export function mapNumericToSexo(codigo: number): string | null {
   switch (codigo) {
@@ -68,8 +68,7 @@ export function mapNumericToSexo(codigo: number): string | null {
     case 2:
       return 'Femenino';
     case 3:
-      // Intersexual - not currently in schema but may be added in future
-      return null;
+      return 'Intersexual';
     default:
       return null;
   }

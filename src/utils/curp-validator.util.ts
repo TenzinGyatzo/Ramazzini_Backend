@@ -9,6 +9,7 @@ import {
   deriveCurpNameSegments,
   getExpectedHomoclavePattern,
 } from './curp-name-segments.util';
+import { mapSexoToGiisBiologico } from './sexo-mapper.util';
 
 /**
  * Discrepancy information for CURP cross-check validation
@@ -51,8 +52,8 @@ export function validateCURPFormat(curp: string): boolean {
     return true;
   }
 
-  // Standard RENAPO format: [A-Z]{4}\d{6}[HM][A-Z]{5}[0-9A-Z]\d
-  const renapoPattern = /^[A-Z]{4}\d{6}[HM][A-Z]{5}[0-9A-Z]\d$/;
+  // Standard RENAPO format: [A-Z]{4}\d{6}[HMX][A-Z]{5}[0-9A-Z]\d (X desde 2024)
+  const renapoPattern = /^[A-Z]{4}\d{6}[HMX][A-Z]{5}[0-9A-Z]\d$/;
 
   return renapoPattern.test(normalizedCurp);
 }
@@ -174,7 +175,7 @@ export function validateCURP(curp: string): {
   // Validate format first
   if (!validateCURPFormat(normalizedCurp)) {
     errors.push(
-      'CURP debe tener exactamente 18 caracteres con el formato: 4 letras, 6 dígitos, 1 letra (H/M), 5 letras, 1 alfanumérico, 1 dígito',
+      'CURP debe tener exactamente 18 caracteres con el formato: 4 letras, 6 dígitos, 1 letra (H/M/X), 5 letras, 1 alfanumérico, 1 dígito',
     );
     return {
       isValid: false,
@@ -492,14 +493,17 @@ export function validateCURPCrossCheck(
     });
   }
 
-  // 2. Validación BLOQUEANTE: Sexo
-  const sexoEsperado = normalizeSexoToCURPCode(data.sexo);
-  if (sexoEsperado && curpSexo !== sexoEsperado) {
-    discrepancies.push({
-      field: 'sexo',
-      expected: sexoEsperado,
-      gotFromCurp: curpSexo,
-    });
+  // 2. Validación BLOQUEANTE: Sexo (omitir si trabajador es Intersexual: CURP puede ser H/M/X)
+  const omitirCruceSexo = mapSexoToGiisBiologico(data.sexo) === 3;
+  if (!omitirCruceSexo) {
+    const sexoEsperado = normalizeSexoToCURPCode(data.sexo);
+    if (sexoEsperado && curpSexo !== sexoEsperado) {
+      discrepancies.push({
+        field: 'sexo',
+        expected: sexoEsperado,
+        gotFromCurp: curpSexo,
+      });
+    }
   }
 
   // 3. Validación BLOQUEANTE: Entidad de nacimiento (solo si está presente)

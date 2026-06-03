@@ -14,8 +14,9 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { TRABAJADOR_SEXOS } from '../constants/trabajador-sexo.constants';
 
-const sexos = ['Masculino', 'Femenino'];
+const sexos = [...TRABAJADOR_SEXOS];
 
 const nivelesEscolaridad = [
   'Primaria',
@@ -81,7 +82,9 @@ export class CreateTrabajadorDto {
   })
   @IsString({ message: 'El sexo debe ser un string' })
   @IsNotEmpty({ message: 'El sexo no puede estar vacío' })
-  @IsEnum(sexos, { message: 'El sexo debe ser Masculino o Femenino' })
+  @IsEnum(sexos, {
+    message: 'El sexo debe ser Masculino, Femenino o Intersexual',
+  })
   sexo: string;
 
   @ApiProperty({
@@ -196,18 +199,18 @@ export class CreateTrabajadorDto {
 
   @ApiProperty({
     description:
-      'CURP según formato RENAPO (18 caracteres). Obligatorio para proveedores MX, opcional para otros países. Formato: [A-Z]{4}\\d{6}[HM][A-Z]{5}[0-9A-Z]\\d',
+      'CURP según formato RENAPO (18 caracteres). Obligatorio para proveedores MX, opcional para otros países. Formato: [A-Z]{4}\\d{6}[HMX][A-Z]{5}[0-9A-Z]\\d',
     example: 'ROAJ850102HDFLRN08',
     required: false,
   })
   @IsOptional()
   @IsString({ message: 'El identificador CURP debe ser un string' })
-  // RENAPO format: [A-Z]{4}\d{6}[HM][A-Z]{5}[0-9A-Z]\d (18 chars, uppercase)
+  // RENAPO format: [A-Z]{4}\d{6}[HMX][A-Z]{5}[0-9A-Z]\d (18 chars, uppercase)
   // Also allows generic CURP: XXXX999999XXXXXX99 (for unknown/foreign patients)
   // Allow empty for non-MX providers, but enforce strict format when provided
-  @Matches(/^$|^([A-Z]{4}\d{6}[HM][A-Z]{5}[0-9A-Z]\d|XXXX999999XXXXXX99)$/, {
+  @Matches(/^$|^([A-Z]{4}\d{6}[HMX][A-Z]{5}[0-9A-Z]\d|XXXX999999XXXXXX99)$/, {
     message:
-      'CURP debe tener exactamente 18 caracteres en formato RENAPO: 4 letras, 6 dígitos, H o M, 5 letras, 1 alfanumérico, 1 dígito. Ejemplo: ROAJ850102HDFLRN08. También se permite CURP genérica: XXXX999999XXXXXX99',
+      'CURP debe tener exactamente 18 caracteres en formato RENAPO: 4 letras, 6 dígitos, H, M o X, 5 letras, 1 alfanumérico, 1 dígito. Ejemplo: ROAJ850102HDFLRN08. También se permite CURP genérica: XXXX999999XXXXXX99',
   })
   curp?: string;
 

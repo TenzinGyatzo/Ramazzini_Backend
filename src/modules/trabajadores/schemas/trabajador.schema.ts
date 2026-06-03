@@ -2,8 +2,9 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
 import { CentroTrabajo } from 'src/modules/centros-trabajo/entities/centros-trabajo.entity';
 import { User } from 'src/modules/users/entities/user.entity';
+import { TRABAJADOR_SEXOS } from '../constants/trabajador-sexo.constants';
 
-const sexos = ['Masculino', 'Femenino'];
+const sexos = [...TRABAJADOR_SEXOS];
 
 const nivelesEscolaridad = [
   'Primaria',
@@ -77,10 +78,10 @@ export class Trabajador extends Document {
 
   @Prop({
     required: false,
-    // RENAPO format: [A-Z]{4}\d{6}[HM][A-Z]{5}[0-9A-Z]\d (18 chars, uppercase)
+    // RENAPO format: [A-Z]{4}\d{6}[HMX][A-Z]{5}[0-9A-Z]\d (X desde 2024, no binario)
     // Also allows generic CURP: XXXX999999XXXXXX99 (for unknown/foreign patients)
     // Allow empty string for non-MX providers, but enforce strict format when provided
-    match: /^$|^([A-Z]{4}\d{6}[HM][A-Z]{5}[0-9A-Z]\d|XXXX999999XXXXXX99)$/,
+    match: /^$|^([A-Z]{4}\d{6}[HMX][A-Z]{5}[0-9A-Z]\d|XXXX999999XXXXXX99)$/,
     unique: false,
   })
   curp: string;

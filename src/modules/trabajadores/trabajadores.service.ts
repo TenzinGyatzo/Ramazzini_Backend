@@ -2506,6 +2506,11 @@ export class TrabajadoresService {
         femenino: 'Femenino',
         mujer: 'Femenino',
         hembra: 'Femenino',
+        intersexual: 'Intersexual',
+        'no binario': 'Intersexual',
+        'no-binario': 'Intersexual',
+        nobinario: 'Intersexual',
+        '3': 'Intersexual',
       };
 
       if (sexoMappings[inputLower]) return sexoMappings[inputLower];
@@ -2737,7 +2742,7 @@ export class TrabajadoresService {
     // ✅ ELIMINADO: No se procesa el estado laboral del Excel
 
     // Normalizar enumeraciones - solo loguear si hay cambios reales
-    const sexos = ['Masculino', 'Femenino'];
+    const sexos = ['Masculino', 'Femenino', 'Intersexual'];
     if (cleaned.sexo) {
       const originalSexo = cleaned.sexo;
       const normalizedSexo = this.normalizeEnumValue(cleaned.sexo, sexos);
@@ -2990,7 +2995,7 @@ export class TrabajadoresService {
     }
 
     // Validar campos de enumeración (ya normalizados en cleanWorkerData)
-    const sexos = ['Masculino', 'Femenino'];
+    const sexos = ['Masculino', 'Femenino', 'Intersexual'];
     if (!cleanedData.sexo || !sexos.includes(cleanedData.sexo)) {
       errors.push(`El sexo debe ser uno de: ${sexos.join(', ')}`);
     }
