@@ -10,7 +10,6 @@ export const CATALOG_FILES: Partial<Record<CatalogType, string>> = {
   [CatalogType.MUNICIPIOS]: 'municipios.csv',
   [CatalogType.LOCALIDADES]: 'localidades.csv',
   [CatalogType.CODIGOS_POSTALES]: 'codigos_postales.csv',
-  [CatalogType.ESCOLARIDAD]: 'escolaridad.csv',
   [CatalogType.TIPO_PERSONAL]: 'cat_tipo_personal.csv',
   [CatalogType.AFILIACION]: 'cat_afiliacion.csv',
   [CatalogType.PAIS]: 'cat_pais.csv',
@@ -32,7 +31,6 @@ export const BASE_CATALOG_TYPES: CatalogType[] = [
   CatalogType.MUNICIPIOS,
   CatalogType.LOCALIDADES,
   CatalogType.CODIGOS_POSTALES,
-  CatalogType.ESCOLARIDAD,
 ];
 
 export const ALL_CATALOG_TYPES: CatalogType[] = [

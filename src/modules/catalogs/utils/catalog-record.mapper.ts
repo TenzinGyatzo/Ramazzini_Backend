@@ -229,7 +229,6 @@ export function mapRecordToEntry(
         } as INEGIEntry;
       }
 
-      case CatalogType.ESCOLARIDAD:
       case CatalogType.TIPO_PERSONAL:
       case CatalogType.SERVICIOS_ATENCION_CE:
       case CatalogType.AFILIACION:
@@ -389,7 +388,6 @@ export function applyEntryToCsvRow(
       break;
     }
 
-    case CatalogType.ESCOLARIDAD:
     case CatalogType.TIPO_PERSONAL:
     case CatalogType.SERVICIOS_ATENCION_CE:
     case CatalogType.AFILIACION:

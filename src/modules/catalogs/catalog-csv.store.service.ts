@@ -397,8 +397,6 @@ export class CatalogCsvStoreService {
         return ['EFE_KEY', 'CATALOG_KEY', 'MUNICIPIO'];
       case CatalogType.LOCALIDADES:
         return ['EFE_KEY', 'MUN_KEY', 'CATALOG_KEY', 'LOCALIDAD'];
-      case CatalogType.ESCOLARIDAD:
-        return ['CATALOG_KEY', 'ESCOLARIDAD'];
       case CatalogType.TIPO_PERSONAL:
         return ['CATALOG_KEY', 'TIPO_PERSONAL'];
       case CatalogType.SERVICIOS_ATENCION_CE:

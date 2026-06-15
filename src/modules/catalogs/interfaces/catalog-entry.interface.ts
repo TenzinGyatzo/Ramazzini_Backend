@@ -77,14 +77,13 @@ export interface CPEntry extends CatalogEntry {
  * Catalog type identifiers
  */
 export enum CatalogType {
-  // Base catalogs (9) - Required
+  // Base catalogs (6) - Required
   CIE10 = 'diagnosticos',
   CLUES = 'establecimientos_salud',
   ENTIDADES_FEDERATIVAS = 'enitades_federativas',
   MUNICIPIOS = 'municipios',
   LOCALIDADES = 'localidades',
   CODIGOS_POSTALES = 'codigos_postales',
-  ESCOLARIDAD = 'escolaridad',
 
   // GIIS catalogs - Optional
   TIPO_PERSONAL = 'cat_tipo_personal',

@@ -39,7 +39,7 @@ export interface GIISValidationResult {
  * Provides validation and search methods for catalog entries.
  *
  * Supports two categories of catalogs:
- * - BASE (8): Required catalogs that MUST be present for full functionality
+ * - BASE (6): Required catalogs that MUST be present for full functionality
  * - GIIS (3): Optional catalogs (GIIS-B019) that are not publicly available from DGIS
  *
  * GIIS catalogs are loaded opportunistically. If missing, validation methods return
