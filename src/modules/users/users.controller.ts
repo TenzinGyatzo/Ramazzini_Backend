@@ -16,18 +16,16 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { InviteUserDto } from './dto/invite-user.dto';
 import { UpdatePermissionsDto } from './dto/update-permissions.dto';
 import { UpdateAssignmentsDto } from './dto/update-assignments.dto';
 import { ApiTags } from '@nestjs/swagger';
 import { UserDocument } from './schemas/user.schema';
 import { generateJWT } from 'src/utils/jwt';
 import { Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
 import { EmailsService } from '../emails/emails.service';
-
-interface JwtPayload {
-  id: string;
-}
+import { Public } from 'src/utils/decorators/public.decorator';
+import { getUserIdFromRequest } from 'src/utils/auth-helpers';
 
 @Controller('auth/users')
 @ApiTags('Usuarios')
@@ -37,34 +35,11 @@ export class UsersController {
     private readonly emailsService: EmailsService,
   ) {}
 
+  @Public()
   @Post('register')
   async register(@Body() createUserDto: CreateUserDto, @Res() res: Response) {
-    const { username, email, phone, country, password } = createUserDto;
-
-    // Validar extensión del username
-    const MIN_USERNAME_LENGTH = 5;
-    if (username.trim().length < MIN_USERNAME_LENGTH) {
-      throw new BadRequestException(
-        `El username debe tener al menos ${MIN_USERNAME_LENGTH} caracteres`,
-      );
-    }
-
-    // Evitar registros duplicados
-    const userExists = await this.usersService.findByEmail(email);
-    if (userExists) {
-      throw new ConflictException(`${email} ya está registrado en Ramazzini`);
-    }
-
-    // Validar extensión del password
-    const MIN_PASSWORD_LENGTH = 8;
-    if (password.trim().length < MIN_PASSWORD_LENGTH) {
-      throw new BadRequestException(
-        `El password debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`,
-      );
-    }
-
-    // Si todo está bien, registra el usuario
-    const user = await this.usersService.register(createUserDto);
+    const user =
+      await this.usersService.registerOnboardingPrincipal(createUserDto);
 
     this.emailsService.sendEmailVerification({
       username: user.username,
@@ -72,7 +47,6 @@ export class UsersController {
       token: user.token,
     });
 
-    // Respuesta al cliente
     res.json({
       msg: 'El usuario se creó correctamente, revisa el email',
       user: {
@@ -84,6 +58,33 @@ export class UsersController {
     return user;
   }
 
+  @Post('invite')
+  async inviteUser(
+    @Body() inviteUserDto: InviteUserDto,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const actorUserId = getUserIdFromRequest(req);
+    const user = await this.usersService.inviteUser(actorUserId, inviteUserDto);
+
+    this.emailsService.sendEmailVerification({
+      username: user.username,
+      email: user.email,
+      token: user.token,
+    });
+
+    res.json({
+      msg: 'El usuario se creó correctamente, revisa el email',
+      user: {
+        username: user.username,
+        email: user.email,
+      },
+    });
+
+    return user;
+  }
+
+  @Public()
   @Get('verify/:token')
   async verifyAccount(@Req() req: Request, @Res() res: Response) {
     const { token } = req.params;
@@ -105,6 +106,7 @@ export class UsersController {
     }
   }
 
+  @Public()
   @Post('login')
   async login(
     @Body() loginData: { email: string; password: string },
@@ -147,6 +149,7 @@ export class UsersController {
     }
   }
 
+  @Public()
   @Post('forgot-password')
   async forgotPassword(@Body() body: { email: string }, @Res() res: Response) {
     const { email } = body;
@@ -175,6 +178,7 @@ export class UsersController {
     }
   }
 
+  @Public()
   @Get('forgot-password/:token')
   async verifyPasswordResetToken(
     @Param('token') token: string,
@@ -191,6 +195,7 @@ export class UsersController {
     res.json({ msg: 'Token válido' });
   }
 
+  @Public()
   @Post('forgot-password/:token')
   async updatePassword(
     @Param('token') token: string,
@@ -219,15 +224,18 @@ export class UsersController {
   @Get('get-users/:idProveedorSalud')
   async getUsersByProveedorId(
     @Param('idProveedorSalud') idProveedorSalud: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
-    try {
-      const users =
-        await this.usersService.findByProveedorSaludId(idProveedorSalud);
-      res.json(users);
-    } catch (error) {
-      console.log(error);
-    }
+    const actorUserId = getUserIdFromRequest(req);
+    await this.usersService.assertActorCanAccessProveedor(
+      actorUserId,
+      idProveedorSalud,
+    );
+
+    const users =
+      await this.usersService.findByProveedorSaludId(idProveedorSalud);
+    res.json(users);
   }
 
   @Delete('delete-user/:email')
@@ -240,82 +248,71 @@ export class UsersController {
     }
   }
 
-  // Endpoints para estadísticas de productividad
   @Get('productividad/todos')
   async getAllProductivityStats(
+    @Req() req: Request,
     @Res() res: Response,
     @Query('fechaInicio') fechaInicio?: string,
-    @Query('fechaFin') fechaFin?: string
+    @Query('fechaFin') fechaFin?: string,
   ) {
-    try {
-      const stats = await this.usersService.getAllProductivityStats(
-        fechaInicio, 
-        fechaFin
-      );
-      res.json(stats);
-    } catch (error) {
-      console.log(error);
-      res.status(500).json({ message: 'Error al obtener estadísticas de productividad de todos los usuarios' });
-    }
+    const actorUserId = getUserIdFromRequest(req);
+    await this.usersService.assertActorIsPlatformAdministrador(actorUserId);
+
+    const stats = await this.usersService.getAllProductivityStats(
+      fechaInicio,
+      fechaFin,
+    );
+    res.json(stats);
   }
 
   @Get('productividad/:idProveedorSalud')
   async getProductivityStatsByProveedor(
     @Param('idProveedorSalud') idProveedorSalud: string,
+    @Req() req: Request,
     @Res() res: Response,
     @Query('fechaInicio') fechaInicio?: string,
-    @Query('fechaFin') fechaFin?: string
+    @Query('fechaFin') fechaFin?: string,
   ) {
-    try {
-      const stats = await this.usersService.getProductivityStatsByProveedor(
-        idProveedorSalud, 
-        fechaInicio, 
-        fechaFin
-      );
-      res.json(stats);
-    } catch (error) {
-      console.log(error);
-      res.status(500).json({ message: 'Error al obtener estadísticas de productividad' });
-    }
+    const actorUserId = getUserIdFromRequest(req);
+    await this.usersService.assertActorCanAccessProveedor(
+      actorUserId,
+      idProveedorSalud,
+    );
+
+    const stats = await this.usersService.getProductivityStatsByProveedor(
+      idProveedorSalud,
+      fechaInicio,
+      fechaFin,
+    );
+    res.json(stats);
   }
 
   @Get('estadisticas/:userId')
   async getUserDetailedStats(
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
     @Query('fechaInicio') fechaInicio?: string,
-    @Query('fechaFin') fechaFin?: string
+    @Query('fechaFin') fechaFin?: string,
   ) {
-    try {
-      const stats = await this.usersService.getUserDetailedStats(userId, fechaInicio, fechaFin);
-      res.json(stats);
-    } catch (error) {
-      console.log(error);
-      res.status(500).json({ message: 'Error al obtener estadísticas del usuario' });
-    }
+    const actorUserId = getUserIdFromRequest(req);
+    await this.usersService.assertActorCanManageTargetUser(actorUserId, userId);
+
+    const stats = await this.usersService.getUserDetailedStats(
+      userId,
+      fechaInicio,
+      fechaFin,
+    );
+    res.json(stats);
   }
 
-  // Área Privada - Requiere un JWT
+  // Área Privada - JWT validado por JwtAuthGuard global
   @Get('user')
   async authMiddleware(@Req() req: Request, @Res() res: Response) {
-    if (
-      !req.headers.authorization ||
-      !req.headers.authorization.startsWith('Bearer ')
-    ) {
-      console.log('No Authorization header found');
-      throw new UnauthorizedException('Unauthorized');
-    }
-
     try {
-      const token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET) as JwtPayload;
-
-      if (!decoded.id) {
-        throw new BadRequestException('El ID proporcionado no es válido');
-      }
-
+      const userId = getUserIdFromRequest(req);
       const user = await this.usersService.findById(
-        decoded.id,
+        userId,
         '-password -token -__v',
       );
       if (!user) {
@@ -331,55 +328,61 @@ export class UsersController {
   async updateUserPermissions(
     @Param('userId') userId: string,
     @Body() updatePermissionsDto: UpdatePermissionsDto,
-    @Res() res: Response
+    @Req() req: Request,
+    @Res() res: Response,
   ) {
-    try {
-      const user = await this.usersService.updateUserPermissions(userId, updatePermissionsDto);
-      if (!user) {
-        return res.status(404).json({ msg: 'Usuario no encontrado' });
-      }
-      res.json({ msg: 'Permisos actualizados correctamente', user });
-    } catch (error) {
-      console.error('Error al actualizar permisos:', error);
-      res.status(500).json({ msg: 'Error interno del servidor' });
+    const actorUserId = getUserIdFromRequest(req);
+    await this.usersService.assertActorCanManageTargetUser(actorUserId, userId);
+
+    const user = await this.usersService.updateUserPermissions(
+      userId,
+      updatePermissionsDto,
+    );
+    if (!user) {
+      return res.status(404).json({ msg: 'Usuario no encontrado' });
     }
+    res.json({ msg: 'Permisos actualizados correctamente', user });
   }
 
   @Patch('estado-cuenta/:userId')
   async toggleAccountStatus(
     @Param('userId') userId: string,
     @Body() body: { cuentaActiva: boolean },
-    @Res() res: Response
+    @Req() req: Request,
+    @Res() res: Response,
   ) {
-    try {
-      const user = await this.usersService.toggleAccountStatus(userId, body.cuentaActiva);
-      if (!user) {
-        return res.status(404).json({ msg: 'Usuario no encontrado' });
-      }
-      const estado = body.cuentaActiva ? 'reactivada' : 'suspendida';
-      res.json({ msg: `Cuenta ${estado} correctamente`, user });
-    } catch (error) {
-      console.error('Error al cambiar estado de cuenta:', error);
-      res.status(500).json({ msg: 'Error interno del servidor' });
+    const actorUserId = getUserIdFromRequest(req);
+    await this.usersService.assertActorCanManageTargetUser(actorUserId, userId);
+
+    const user = await this.usersService.toggleAccountStatus(
+      userId,
+      body.cuentaActiva,
+    );
+    if (!user) {
+      return res.status(404).json({ msg: 'Usuario no encontrado' });
     }
+    const estado = body.cuentaActiva ? 'reactivada' : 'suspendida';
+    res.json({ msg: `Cuenta ${estado} correctamente`, user });
   }
 
   @Patch('asignaciones/:userId')
   async updateUserAssignments(
     @Param('userId') userId: string,
     @Body() updateAssignmentsDto: UpdateAssignmentsDto,
-    @Res() res: Response
+    @Req() req: Request,
+    @Res() res: Response,
   ) {
-    try {
-      const user = await this.usersService.updateUserAssignments(userId, updateAssignmentsDto);
-      if (!user) {
-        return res.status(404).json({ msg: 'Usuario no encontrado' });
-      }
-      res.json({ msg: 'Asignaciones actualizadas correctamente', user });
-    } catch (error) {
-      console.error('Error al actualizar asignaciones:', error);
-      res.status(500).json({ msg: 'Error interno del servidor' });
+    const actorUserId = getUserIdFromRequest(req);
+    await this.usersService.assertActorCanManageTargetUser(actorUserId, userId);
+
+    const user = await this.usersService.updateUserAssignments(
+      userId,
+      updateAssignmentsDto,
+    );
+    if (!user) {
+      return res.status(404).json({ msg: 'Usuario no encontrado' });
     }
+    res.json({ msg: 'Asignaciones actualizadas correctamente', user });
   }
 
   @Get('asignaciones/:userId/centros-trabajo')

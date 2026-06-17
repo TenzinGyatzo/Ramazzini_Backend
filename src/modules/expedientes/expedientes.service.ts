@@ -1,5 +1,5 @@
 // Servicios para gestionar la data que se almacena en la base de datos
-import { Injectable, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Antidoping } from './schemas/antidoping.schema';
@@ -332,8 +332,16 @@ export class ExpedientesService {
     return result;
   }  
 
-  async removeDocument(documentType: string, id: string): Promise<boolean> {
-    // console.log(`[DEBUG] Inicio de removeDocument - documentType: ${documentType}, id: ${id}`);
+  async removeDocument(
+    documentType: string,
+    id: string,
+    actorUserId: string,
+  ): Promise<boolean> {
+    if (!actorUserId) {
+      throw new UnauthorizedException(
+        'Se requiere un usuario autenticado para eliminar documentos',
+      );
+    }
     const model = this.models[documentType];
     if (!model) {
       throw new BadRequestException(`Tipo de documento ${documentType} no soportado`);

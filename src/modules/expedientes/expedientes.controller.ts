@@ -11,7 +11,9 @@ import {
   ValidationPipe,
   UseInterceptors,
   UploadedFile,
+  Req,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ExpedientesService } from './expedientes.service';
 import { isValidObjectId } from 'mongoose';
 import { CreateAntidopingDto } from './dto/create-antidoping.dto';
@@ -61,6 +63,8 @@ import { diskStorage } from 'multer';
 import path from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { convertirFechaISOaDDMMYYYY } from '../../utils/dates';
+
+type AuthenticatedRequest = Request & { userId: string };
 
 @Controller('api/expedientes/:trabajadorId/documentos')
 export class ExpedientesController {
@@ -342,6 +346,7 @@ export class ExpedientesController {
   async removeDocument(
     @Param('documentType') documentType: string,
     @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!isValidObjectId(id)) {
       throw new BadRequestException('El ID proporcionado no es válido');
@@ -350,6 +355,7 @@ export class ExpedientesController {
     const deletedDocument = await this.expedientesService.removeDocument(
       documentType,
       id,
+      req.userId,
     );
 
     if (!deletedDocument) {

@@ -22,6 +22,7 @@ import { BadRequestException } from '@nestjs/common';
 import { isValidObjectId } from 'mongoose';
 import { isAfter, addDays } from 'date-fns';
 import * as fs from 'fs';
+import { Public } from 'src/utils/decorators/public.decorator';
 
 @Controller('proveedores-salud')
 export class ProveedoresSaludController {
@@ -29,6 +30,7 @@ export class ProveedoresSaludController {
     private readonly proveedoresSaludService: ProveedoresSaludService,
   ) {}
 
+  @Public()
   @Post('crear-proveedor-salud')
   @UseInterceptors(
     FileInterceptor('logotipoEmpresa', {

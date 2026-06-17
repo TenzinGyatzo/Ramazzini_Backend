@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Post, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { DocumentMergerService } from './document-merger.service';
 
@@ -8,9 +8,13 @@ export class DocumentMergerController {
 
   @Post('merge')
   async mergePdf(
-    @Body('filePaths') filePaths: string[],
+    @Body('filePaths') filePaths: unknown,
     @Res() res: Response,
   ): Promise<void> {
+    if (!Array.isArray(filePaths) || filePaths.some((p) => typeof p !== 'string')) {
+      throw new BadRequestException('filePaths debe ser un arreglo de rutas relativas');
+    }
+
     const mergedPdf = await this.DocumentMergerService.mergeFiles(filePaths);
     res.set({
       'Content-Type': 'application/pdf',

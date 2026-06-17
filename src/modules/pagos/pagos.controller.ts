@@ -3,6 +3,7 @@ import { Body, Controller, Get, Param, Post, Put, Query, Headers, Delete } from 
 import { PagosService } from './pagos.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
+import { Public } from 'src/utils/decorators/public.decorator';
 
 @Controller('pagos')
 export class PagosController {
@@ -59,6 +60,7 @@ export class PagosController {
   } */
  
 
+    @Public()
     @Post('webhook-mercadopago')
     async recibirInformacionPago(
       @Body() body: any,

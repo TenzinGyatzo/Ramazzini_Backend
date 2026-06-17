@@ -1,10 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { UserDocument } from '../users/schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
+import { InviteUserDto } from './dto/invite-user.dto';
 import { UpdateAssignmentsDto } from './dto/update-assignments.dto';
 import { CentrosTrabajoService } from '../centros-trabajo/centros-trabajo.service';
+import { isInvitableRole } from './constants/invitable-roles';
+import { canManageTenantUsers, isPlatformAdministrador } from 'src/utils/user-role-helpers';
+
+const MIN_USERNAME_LENGTH = 5;
+const MIN_PASSWORD_LENGTH = 8;
 
 @Injectable()
 export class UsersService {
@@ -27,6 +39,94 @@ export class UsersService {
     return await user.save();
   }
 
+  async registerOnboardingPrincipal(
+    createUserDto: CreateUserDto,
+  ): Promise<UserDocument> {
+    if (createUserDto.role !== 'Principal') {
+      throw new ForbiddenException(
+        'El registro público solo permite crear el usuario Principal inicial del proveedor. Use el endpoint de invitación para otros roles.',
+      );
+    }
+
+    await this.validateRegistrationFields(createUserDto);
+
+    const proveedor = await this.proveedorSaludModel
+      .findById(createUserDto.idProveedorSalud)
+      .exec();
+    if (!proveedor) {
+      throw new NotFoundException('El proveedor de salud no existe');
+    }
+
+    const existingUsers = await this.userModel
+      .countDocuments({ idProveedorSalud: createUserDto.idProveedorSalud })
+      .exec();
+    if (existingUsers > 0) {
+      throw new ConflictException(
+        'Este proveedor de salud ya tiene usuarios registrados',
+      );
+    }
+
+    return this.register(createUserDto);
+  }
+
+  async inviteUser(
+    actorUserId: string,
+    inviteUserDto: InviteUserDto,
+  ): Promise<UserDocument> {
+    const actor = await this.findById(actorUserId);
+    if (!actor) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (!canManageTenantUsers(actor.role)) {
+      throw new ForbiddenException(
+        'No tienes permisos para invitar usuarios a este proveedor de salud',
+      );
+    }
+
+    if (inviteUserDto.role === 'Principal') {
+      throw new BadRequestException(
+        'No se puede invitar un usuario con rol Principal',
+      );
+    }
+
+    if (!isInvitableRole(inviteUserDto.role)) {
+      throw new BadRequestException('El rol indicado no es válido para invitación');
+    }
+
+    await this.validateRegistrationFields(inviteUserDto);
+
+    const createUserDto: CreateUserDto = {
+      ...inviteUserDto,
+      idProveedorSalud: String(actor.idProveedorSalud),
+    };
+
+    return this.register(createUserDto);
+  }
+
+  private async validateRegistrationFields(dto: {
+    username: string;
+    email: string;
+    password: string;
+  }): Promise<void> {
+    if (dto.username.trim().length < MIN_USERNAME_LENGTH) {
+      throw new BadRequestException(
+        `El username debe tener al menos ${MIN_USERNAME_LENGTH} caracteres`,
+      );
+    }
+
+    const userExists = await this.findByEmail(dto.email);
+    if (userExists) {
+      throw new ConflictException(`${dto.email} ya está registrado en Ramazzini`);
+    }
+
+    if (dto.password.trim().length < MIN_PASSWORD_LENGTH) {
+      throw new BadRequestException(
+        `El password debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`,
+      );
+    }
+  }
+
   async findByUsername(username: string): Promise<UserDocument | null> {
     return this.userModel.findOne({ username }).exec();
   }
@@ -45,6 +145,79 @@ export class UsersService {
 
   async findByProveedorSaludId(idProveedorSalud: string): Promise<UserDocument[] | null> {
     return this.userModel.find({ idProveedorSalud }).exec();
+  }
+
+  async assertActorCanManageTargetUser(
+    actorUserId: string,
+    targetUserId: string,
+  ): Promise<{ actor: UserDocument; target: UserDocument }> {
+    const actor = await this.findById(actorUserId);
+    if (!actor) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (!canManageTenantUsers(actor.role)) {
+      throw new ForbiddenException(
+        'No tienes permisos para gestionar usuarios de este proveedor de salud',
+      );
+    }
+
+    const target = await this.findById(targetUserId);
+    if (!target) {
+      throw new NotFoundException('Usuario objetivo no encontrado');
+    }
+
+    if (String(actor.idProveedorSalud) !== String(target.idProveedorSalud)) {
+      throw new ForbiddenException(
+        'No puedes modificar usuarios de otro proveedor de salud',
+      );
+    }
+
+    return { actor, target };
+  }
+
+  async assertActorCanAccessProveedor(
+    actorUserId: string,
+    idProveedorSalud: string,
+  ): Promise<UserDocument> {
+    const actor = await this.findById(actorUserId);
+    if (!actor) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (!canManageTenantUsers(actor.role)) {
+      throw new ForbiddenException(
+        'No tienes permisos para consultar usuarios de este proveedor de salud',
+      );
+    }
+
+    if (
+      actor.role !== 'Administrador' &&
+      String(actor.idProveedorSalud) !== String(idProveedorSalud)
+    ) {
+      throw new ForbiddenException(
+        'No puedes consultar datos de otro proveedor de salud',
+      );
+    }
+
+    return actor;
+  }
+
+  async assertActorIsPlatformAdministrador(
+    actorUserId: string,
+  ): Promise<UserDocument> {
+    const actor = await this.findById(actorUserId);
+    if (!actor) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (!isPlatformAdministrador(actor.role)) {
+      throw new ForbiddenException(
+        'No tienes permisos para consultar productividad global',
+      );
+    }
+
+    return actor;
   }
 
   async removeUserByEmail(email: string): Promise<UserDocument | null> {

@@ -4,14 +4,13 @@ import { Cron } from '@nestjs/schedule';
 import { mt } from 'date-fns/locale';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { EXPEDIENTES_DIR } from 'src/utils/expedientes-dir';
 
 @Injectable()
 export class PdfCleanerService {
   private readonly logger = new Logger(PdfCleanerService.name);
 
-  // Ruta absoluta del directorio raíz de PDFs (ajusta según entorno local o VPS)
-  private readonly basePath = path.resolve('expedientes-medicos'); // En local
-  // En producción podrías usar: path.resolve('/var/www/backend/expedientes-medicos')
+  private readonly basePath = EXPEDIENTES_DIR;
 
   // Tipos válidos de informes generados por Ramazzini
   private readonly tiposValidos = [

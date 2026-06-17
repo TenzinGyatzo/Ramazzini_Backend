@@ -1,12 +1,9 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, Res, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Req } from '@nestjs/common';
 import { InformePersonalizacionService } from './informe-personalizacion.service';
 import { CreateInformePersonalizacionDto, UpdateInformePersonalizacionDto } from './dto/informe-personalizacion.dto';
-import { Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
+import { Request } from 'express';
 
-interface JwtPayload {
-  id: string;
-}
+type AuthenticatedRequest = Request & { userId: string };
 
 @Controller('api/informe-personalizacion')
 export class InformePersonalizacionController {
@@ -14,35 +11,16 @@ export class InformePersonalizacionController {
     private readonly informePersonalizacionService: InformePersonalizacionService,
   ) {}
 
-  // Middleware de autenticación
-  private async authenticateUser(req: Request): Promise<string> {
-    if (
-      !req.headers.authorization ||
-      !req.headers.authorization.startsWith('Bearer ')
-    ) {
-      throw new UnauthorizedException('Token de autorización requerido');
-    }
-
-    try {
-      const token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET) as JwtPayload;
-      return decoded.id;
-    } catch (error) {
-      throw new UnauthorizedException('Token inválido');
-    }
-  }
-
   @Post()
-  async create(@Body() createDto: CreateInformePersonalizacionDto, @Req() req: Request) {
-    const userId = await this.authenticateUser(req);
+  async create(@Body() createDto: CreateInformePersonalizacionDto, @Req() req: AuthenticatedRequest) {
+    const userId = req.userId;
     createDto.createdBy = userId;
     createDto.updatedBy = userId;
     return this.informePersonalizacionService.create(createDto);
   }
 
   @Get('empresa/:idEmpresa')
-  async findByEmpresa(@Param('idEmpresa') idEmpresa: string, @Req() req: Request) {
-    await this.authenticateUser(req);
+  async findByEmpresa(@Param('idEmpresa') idEmpresa: string) {
     return this.informePersonalizacionService.findByEmpresa(idEmpresa);
   }
 
@@ -50,15 +28,12 @@ export class InformePersonalizacionController {
   async findByEmpresaAndCentro(
     @Param('idEmpresa') idEmpresa: string,
     @Param('idCentroTrabajo') idCentroTrabajo: string,
-    @Req() req: Request,
   ) {
-    await this.authenticateUser(req);
     return this.informePersonalizacionService.findByEmpresaAndCentro(idEmpresa, idCentroTrabajo);
   }
 
   @Get('empresa/:idEmpresa/centro')
-  async findByEmpresaOnly(@Param('idEmpresa') idEmpresa: string, @Req() req: Request) {
-    await this.authenticateUser(req);
+  async findByEmpresaOnly(@Param('idEmpresa') idEmpresa: string) {
     return this.informePersonalizacionService.findByEmpresaAndCentro(idEmpresa);
   }
 
@@ -66,9 +41,9 @@ export class InformePersonalizacionController {
   async update(
     @Param('id') id: string,
     @Body() updateDto: UpdateInformePersonalizacionDto,
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
   ) {
-    const userId = await this.authenticateUser(req);
+    const userId = req.userId;
     updateDto.updatedBy = userId;
     return this.informePersonalizacionService.update(id, updateDto);
   }
@@ -77,9 +52,9 @@ export class InformePersonalizacionController {
   async upsertByEmpresa(
     @Param('idEmpresa') idEmpresa: string,
     @Body() updateDto: UpdateInformePersonalizacionDto,
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
   ) {
-    const userId = await this.authenticateUser(req);
+    const userId = req.userId;
     updateDto.updatedBy = userId;
     return this.informePersonalizacionService.upsertByEmpresaAndCentro(
       idEmpresa,
@@ -93,9 +68,9 @@ export class InformePersonalizacionController {
     @Param('idEmpresa') idEmpresa: string,
     @Param('idCentroTrabajo') idCentroTrabajo: string,
     @Body() updateDto: UpdateInformePersonalizacionDto,
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
   ) {
-    const userId = await this.authenticateUser(req);
+    const userId = req.userId;
     updateDto.updatedBy = userId;
     return this.informePersonalizacionService.upsertByEmpresaAndCentro(
       idEmpresa,
@@ -105,8 +80,7 @@ export class InformePersonalizacionController {
   }
 
   @Delete(':id')
-  async delete(@Param('id') id: string, @Req() req: Request) {
-    await this.authenticateUser(req);
+  async delete(@Param('id') id: string) {
     await this.informePersonalizacionService.delete(id);
     return { message: 'Personalización eliminada correctamente' };
   }
