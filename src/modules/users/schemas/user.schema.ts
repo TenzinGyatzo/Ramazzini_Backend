@@ -26,8 +26,11 @@ export class User {
   @Prop({ required: true, enum: ['Principal', 'Administrador', 'Médico', 'Enfermero/a', 'Administrativo', 'Técnico Evaluador'] })
   role: string;
 
-  @Prop({ default: () => Date.now().toString(32) + Math.random().toString(32).substring(2) })
+  @Prop({ default: '' })
   token: string;
+
+  @Prop({ type: Date, default: null })
+  tokenExpiresAt: Date | null;
 
   @Prop({ default: false, })
   verified: boolean

@@ -9,6 +9,8 @@ import {
   Res,
   Req,
   NotFoundException,
+  HttpCode,
+  HttpStatus,
   Param,
   Delete,
   Query,
@@ -19,13 +21,28 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { InviteUserDto } from './dto/invite-user.dto';
 import { UpdatePermissionsDto } from './dto/update-permissions.dto';
 import { UpdateAssignmentsDto } from './dto/update-assignments.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags } from '@nestjs/swagger';
 import { UserDocument } from './schemas/user.schema';
-import { generateJWT } from 'src/utils/jwt';
+import { generateAccessToken } from 'src/utils/jwt';
+import {
+  setAuthCookies,
+  clearAuthCookies,
+  getRefreshTokenFromCookies,
+} from 'src/utils/auth-cookies';
+import { RefreshTokenService } from './refresh-token.service';
 import { Request, Response } from 'express';
 import { EmailsService } from '../emails/emails.service';
 import { Public } from 'src/utils/decorators/public.decorator';
 import { getUserIdFromRequest } from 'src/utils/auth-helpers';
+import {
+  AUTH_FORGOT_PASSWORD,
+  AUTH_LOGIN,
+  AUTH_REFRESH,
+  AUTH_REGISTER,
+  AUTH_TOKEN,
+} from 'src/utils/throttle/throttle-limits';
 
 @Controller('auth/users')
 @ApiTags('Usuarios')
@@ -33,9 +50,11 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly emailsService: EmailsService,
+    private readonly refreshTokenService: RefreshTokenService,
   ) {}
 
   @Public()
+  @Throttle(AUTH_REGISTER)
   @Post('register')
   async register(@Body() createUserDto: CreateUserDto, @Res() res: Response) {
     const user =
@@ -85,28 +104,16 @@ export class UsersController {
   }
 
   @Public()
+  @Throttle(AUTH_TOKEN)
+  @HttpCode(HttpStatus.OK)
   @Get('verify/:token')
-  async verifyAccount(@Req() req: Request, @Res() res: Response) {
-    const { token } = req.params;
-
-    const user = await this.usersService.findByToken(token);
-    if (!user) {
-      const error = new Error('Hubo un error, token no válido');
-      return res.status(401).json({ msg: error.message });
-    }
-
-    // Si el token es válido, confirmar la cuenta
-    try {
-      user.verified = true;
-      user.token = '';
-      await user.save();
-      return res.json({ msg: 'Usuario confirmado correctamente' });
-    } catch (error) {
-      console.log(error);
-    }
+  async verifyAccount(@Param('token') token: string) {
+    await this.usersService.verifyAccountWithToken(token);
+    return { msg: 'Usuario confirmado correctamente' };
   }
 
   @Public()
+  @Throttle(AUTH_LOGIN)
   @Post('login')
   async login(
     @Body() loginData: { email: string; password: string },
@@ -142,83 +149,79 @@ export class UsersController {
     const isPasswordValid = await user.checkPassword(password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Contraseña incorrecta');
-    } else {
-      const token = generateJWT(user._id);
-      res.json({ token });
-      // return token;
     }
+
+    const accessToken = generateAccessToken(user._id.toString());
+    const refreshToken = await this.refreshTokenService.issue(
+      user._id.toString(),
+    );
+    setAuthCookies(res, accessToken, refreshToken);
+    res.json({ msg: 'Inicio de sesión exitoso' });
   }
 
   @Public()
+  @Throttle(AUTH_REFRESH)
+  @Post('refresh')
+  async refresh(@Req() req: Request, @Res() res: Response) {
+    const presentedRefresh = getRefreshTokenFromCookies(req.cookies);
+    const { userId, newRefreshToken } =
+      await this.refreshTokenService.rotate(presentedRefresh ?? '');
+
+    const user = await this.usersService.findById(userId);
+    if (!user || !user.verified || !user.cuentaActiva) {
+      clearAuthCookies(res);
+      throw new UnauthorizedException('Sesión inválida');
+    }
+
+    const accessToken = generateAccessToken(userId);
+    setAuthCookies(res, accessToken, newRefreshToken);
+    res.json({ msg: 'Sesión renovada' });
+  }
+
+  @Post('logout')
+  async logout(@Req() req: Request, @Res() res: Response) {
+    const presentedRefresh = getRefreshTokenFromCookies(req.cookies);
+    await this.refreshTokenService.revoke(presentedRefresh ?? '');
+    clearAuthCookies(res);
+    res.json({ msg: 'Sesión cerrada' });
+  }
+
+  @Public()
+  @Throttle(AUTH_FORGOT_PASSWORD)
+  @HttpCode(HttpStatus.OK)
   @Post('forgot-password')
-  async forgotPassword(@Body() body: { email: string }, @Res() res: Response) {
+  async forgotPassword(@Body() body: { email: string }) {
     const { email } = body;
-    // Comprobar si existe el usuario
-    const user = await this.usersService.findByEmail(email);
+    const result = await this.usersService.issuePasswordResetToken(email);
 
-    if (!user) {
-      const error = new Error('El usuario no existe');
-      return res.status(404).json({ msg: error.message });
-    }
+    this.emailsService.sendEmailPasswordReset({
+      username: result.username,
+      email: result.email,
+      token: result.token,
+    });
 
-    try {
-      user.token =
-        Date.now().toString(32) + Math.random().toString(32).substring(2);
-      const result = await user.save();
-
-      this.emailsService.sendEmailPasswordReset({
-        username: result.username,
-        email: result.email,
-        token: result.token,
-      });
-
-      res.json({ msg: 'Hemos enviado un email con las instrucciones' });
-    } catch (error) {
-      console.log(error);
-    }
+    return { msg: 'Hemos enviado un email con las instrucciones' };
   }
 
   @Public()
+  @Throttle(AUTH_TOKEN)
+  @HttpCode(HttpStatus.OK)
   @Get('forgot-password/:token')
-  async verifyPasswordResetToken(
-    @Param('token') token: string,
-    @Res() res: Response,
-  ) {
-    // Comprobar si existe el usuario
-    const user = await this.usersService.findByToken(token);
-
-    if (!user) {
-      const error = new Error('Hubo un error, token no válido');
-      return res.status(404).json({ msg: error.message });
-    }
-
-    res.json({ msg: 'Token válido' });
+  async verifyPasswordResetToken(@Param('token') token: string) {
+    await this.usersService.validatePasswordResetToken(token);
+    return { msg: 'Token válido' };
   }
 
   @Public()
+  @Throttle(AUTH_TOKEN)
+  @HttpCode(HttpStatus.OK)
   @Post('forgot-password/:token')
   async updatePassword(
     @Param('token') token: string,
-    @Body() body: { password: string },
-    @Res() res: Response,
+    @Body() body: ResetPasswordDto,
   ) {
-    // Comprobar si existe el usuario
-    const user = await this.usersService.findByToken(token);
-
-    if (!user) {
-      const error = new Error('Hubo un error, token no válido');
-      return res.status(404).json({ msg: error.message });
-    }
-
-    const { password } = body;
-    try {
-      user.token = '';
-      user.password = password;
-      await user.save();
-      res.json({ msg: 'Contraseña actualizada correctamente' });
-    } catch (error) {
-      console.log(error);
-    }
+    await this.usersService.resetPasswordWithToken(token, body.password);
+    return { msg: 'Contraseña actualizada correctamente' };
   }
 
   @Get('get-users/:idProveedorSalud')

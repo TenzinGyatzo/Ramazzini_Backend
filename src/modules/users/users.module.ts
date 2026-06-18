@@ -16,6 +16,8 @@ import { AntidopingSchema } from '../expedientes/schemas/antidoping.schema';
 import { NotaMedicaSchema } from '../expedientes/schemas/nota-medica.schema';
 import { DocumentoExternoSchema } from '../expedientes/schemas/documento-externo.schema';
 import { CentrosTrabajoModule } from '../centros-trabajo/centros-trabajo.module';
+import { RefreshSession, RefreshSessionSchema } from './schemas/refresh-session.schema';
+import { RefreshTokenService } from './refresh-token.service';
 
 @Module({
   imports: [
@@ -30,12 +32,13 @@ import { CentrosTrabajoModule } from '../centros-trabajo/centros-trabajo.module'
       { name: 'Antidoping', schema: AntidopingSchema },
       { name: 'NotaMedica', schema: NotaMedicaSchema },
       { name: 'DocumentoExterno', schema: DocumentoExternoSchema },
+      { name: RefreshSession.name, schema: RefreshSessionSchema },
     ]),
     EmailsModule,  // Importa el módulo que exporta el EmailsService
     forwardRef(() => CentrosTrabajoModule),
   ],
   controllers: [UsersController],
-  providers: [UsersService],
-  exports: [UsersService],
+  providers: [UsersService, RefreshTokenService],
+  exports: [UsersService, RefreshTokenService],
 })
 export class UsersModule {}

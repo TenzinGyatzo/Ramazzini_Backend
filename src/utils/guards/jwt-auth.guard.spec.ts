@@ -38,10 +38,10 @@ describe('JwtAuthGuard', () => {
     ]);
   });
 
-  it('rechaza peticiones sin Authorization', () => {
+  it('rechaza peticiones sin token (ni cookie ni Authorization)', () => {
     jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
 
-    const req = { headers: {} };
+    const req = { headers: {}, cookies: {} };
 
     expect(() => guard.canActivate(createContext(req))).toThrow(
       UnauthorizedException,

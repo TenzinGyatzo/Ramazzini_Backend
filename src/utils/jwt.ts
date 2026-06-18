@@ -1,6 +1,14 @@
 import jwt from 'jsonwebtoken';
 
-export function generateJWT(id) {
-    const token = jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
-    return token;
+export const ACCESS_TOKEN_EXPIRES_IN = '12h';
+
+export function generateAccessToken(userId: string): string {
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+    expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+  });
+}
+
+/** @deprecated Use generateAccessToken */
+export function generateJWT(id: string): string {
+  return generateAccessToken(id);
 }

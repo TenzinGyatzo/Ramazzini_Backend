@@ -14,9 +14,14 @@ import { UpdateAssignmentsDto } from './dto/update-assignments.dto';
 import { CentrosTrabajoService } from '../centros-trabajo/centros-trabajo.service';
 import { isInvitableRole } from './constants/invitable-roles';
 import { canManageTenantUsers, isPlatformAdministrador } from 'src/utils/user-role-helpers';
+import {
+  assertTokenValid,
+  clearUserToken,
+  issueUserToken,
+} from 'src/utils/user-token';
+import { validatePasswordPolicy } from 'src/utils/validate-password-policy';
 
 const MIN_USERNAME_LENGTH = 5;
-const MIN_PASSWORD_LENGTH = 8;
 
 @Injectable()
 export class UsersService {
@@ -36,6 +41,7 @@ export class UsersService {
 
   async register(createUserDto: CreateUserDto) {
     const user = new this.userModel(createUserDto);
+    issueUserToken(user, 'verify');
     return await user.save();
   }
 
@@ -120,11 +126,45 @@ export class UsersService {
       throw new ConflictException(`${dto.email} ya está registrado en Ramazzini`);
     }
 
-    if (dto.password.trim().length < MIN_PASSWORD_LENGTH) {
-      throw new BadRequestException(
-        `El password debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`,
-      );
+    validatePasswordPolicy(dto.password);
+  }
+
+  async findByTokenAndValidate(token: string): Promise<UserDocument> {
+    const user = await this.findByToken(token);
+    assertTokenValid(user);
+    return user!;
+  }
+
+  async verifyAccountWithToken(token: string): Promise<UserDocument> {
+    const user = await this.findByTokenAndValidate(token);
+    user.verified = true;
+    clearUserToken(user);
+    return user.save();
+  }
+
+  async issuePasswordResetToken(email: string): Promise<UserDocument> {
+    const user = await this.findByEmail(email);
+    if (!user) {
+      throw new NotFoundException({ msg: 'El usuario no existe' });
     }
+
+    issueUserToken(user, 'reset');
+    return user.save();
+  }
+
+  async resetPasswordWithToken(
+    token: string,
+    password: string,
+  ): Promise<UserDocument> {
+    const user = await this.findByTokenAndValidate(token);
+    validatePasswordPolicy(password);
+    user.password = password;
+    clearUserToken(user);
+    return user.save();
+  }
+
+  async validatePasswordResetToken(token: string): Promise<UserDocument> {
+    return this.findByTokenAndValidate(token);
   }
 
   async findByUsername(username: string): Promise<UserDocument | null> {
