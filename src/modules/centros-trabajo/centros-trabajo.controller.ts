@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, BadRequestException, NotFoundException, InternalServerErrorException, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, BadRequestException, NotFoundException, InternalServerErrorException, Query, UseGuards } from '@nestjs/common';
 import { CentrosTrabajoService } from './centros-trabajo.service';
 import { CreateCentrosTrabajoDto } from './dto/create-centros-trabajo.dto';
 import { UpdateCentrosTrabajoDto } from './dto/update-centros-trabajo.dto';
 import { isValidObjectId } from 'mongoose';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { DeletionPasswordGuard } from 'src/utils/guards/deletion-password.guard';
+import { DeletionCascadeCheck } from 'src/utils/decorators/deletion-cascade-check.decorator';
 
 @Controller('api/:empresaId([0-9a-fA-F]{24})')
 @ApiTags('Centros de Trabajo')
@@ -89,6 +91,8 @@ export class CentrosTrabajoController {
   }
 
   @Delete('/eliminar-centro-trabajo/:centroId')
+  @UseGuards(DeletionPasswordGuard)
+  @DeletionCascadeCheck('centro')
   @ApiOperation({ summary: 'Elimina un centro de trabajo' })
   @ApiResponse({ status: 200, description: 'Centro de Trabajo eliminado exitosamente | El centro de trabajo del ID proporcionado no existe o ya ha sido eliminado' })
   @ApiResponse({ status: 400, description: 'El ID de centro de trabajo proporcionado no es válido' })

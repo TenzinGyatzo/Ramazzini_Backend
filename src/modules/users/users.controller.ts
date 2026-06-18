@@ -15,6 +15,7 @@ import {
   Delete,
   Query,
   Patch,
+  UseGuards,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -22,6 +23,7 @@ import { InviteUserDto } from './dto/invite-user.dto';
 import { UpdatePermissionsDto } from './dto/update-permissions.dto';
 import { UpdateAssignmentsDto } from './dto/update-assignments.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyPasswordDto } from './dto/verify-password.dto';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags } from '@nestjs/swagger';
 import { UserDocument } from './schemas/user.schema';
@@ -42,7 +44,9 @@ import {
   AUTH_REFRESH,
   AUTH_REGISTER,
   AUTH_TOKEN,
+  AUTH_VERIFY_PASSWORD,
 } from 'src/utils/throttle/throttle-limits';
+import { DeletionPasswordGuard } from 'src/utils/guards/deletion-password.guard';
 
 @Controller('auth/users')
 @ApiTags('Usuarios')
@@ -242,13 +246,35 @@ export class UsersController {
   }
 
   @Delete('delete-user/:email')
-  async removeUserByEmail(@Param('email') email: string, @Res() res: Response) {
+  @UseGuards(DeletionPasswordGuard)
+  async removeUserByEmail(
+    @Param('email') email: string,
+    @Res() res: Response,
+  ) {
     try {
       const user = await this.usersService.removeUserByEmail(email);
       res.json(user);
     } catch (error) {
       console.log(error);
+      throw error;
     }
+  }
+
+  @Post('verify-password')
+  @Throttle(AUTH_VERIFY_PASSWORD)
+  @HttpCode(HttpStatus.OK)
+  async verifyPassword(
+    @Req() req: Request,
+    @Body() body: VerifyPasswordDto,
+  ) {
+    const userId = getUserIdFromRequest(req);
+    const user = await this.usersService.findById(userId);
+
+    if (!user || !(await user.checkPassword(body.password))) {
+      throw new UnauthorizedException('Contraseña incorrecta');
+    }
+
+    return { ok: true };
   }
 
   @Get('productividad/todos')

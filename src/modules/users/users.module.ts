@@ -18,6 +18,7 @@ import { DocumentoExternoSchema } from '../expedientes/schemas/documento-externo
 import { CentrosTrabajoModule } from '../centros-trabajo/centros-trabajo.module';
 import { RefreshSession, RefreshSessionSchema } from './schemas/refresh-session.schema';
 import { RefreshTokenService } from './refresh-token.service';
+import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { RefreshTokenService } from './refresh-token.service';
     ]),
     EmailsModule,  // Importa el módulo que exporta el EmailsService
     forwardRef(() => CentrosTrabajoModule),
+    DeletionAuthModule,
   ],
   controllers: [UsersController],
   providers: [UsersService, RefreshTokenService],

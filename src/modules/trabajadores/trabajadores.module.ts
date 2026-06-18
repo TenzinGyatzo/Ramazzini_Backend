@@ -35,6 +35,8 @@ import { FilesModule } from '../files/files.module';
 import { CentroTrabajo, CentroTrabajoSchema } from '../centros-trabajo/schemas/centro-trabajo.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Empresa, EmpresaSchema } from '../empresas/schemas/empresa.schema';
+import { UsersModule } from '../users/users.module';
+import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
 
 @Module({
   imports: [
@@ -72,6 +74,8 @@ import { Empresa, EmpresaSchema } from '../empresas/schemas/empresa.schema';
       { name: Empresa.name, schema: EmpresaSchema },
     ]),
     FilesModule,
+    UsersModule,
+    DeletionAuthModule,
   ],
   controllers: [TrabajadoresController, TransferenciasController],
   providers: [TrabajadoresService],

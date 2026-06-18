@@ -18,3 +18,7 @@ export const AUTH_REFRESH = {
 export const AUTH_TOKEN = {
   default: { limit: 10, ttl: 60_000 },
 };
+
+export const AUTH_VERIFY_PASSWORD = {
+  default: { limit: 10, ttl: 60_000 },
+};

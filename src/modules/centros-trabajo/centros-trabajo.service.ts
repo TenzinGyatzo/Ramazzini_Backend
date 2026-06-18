@@ -71,6 +71,14 @@ export class CentrosTrabajoService {
     return this.centroTrabajoModel.findById(id).exec();
   }
 
+  async countCentrosByEmpresa(empresaId: string): Promise<number> {
+    return this.centroTrabajoModel.countDocuments({ idEmpresa: empresaId }).exec();
+  }
+
+  async countTrabajadoresByCentro(centroId: string): Promise<number> {
+    return this.trabajadorModel.countDocuments({ idCentroTrabajo: centroId }).exec();
+  }
+
   async update(id: string, updateCentrosTrabajoDto: UpdateCentrosTrabajoDto): Promise<CentroTrabajo> {
     const normalizedDto = normalizeCentroTrabajoData(updateCentrosTrabajoDto);
     return await this.centroTrabajoModel.findByIdAndUpdate(id, normalizedDto, { new: true }).exec();

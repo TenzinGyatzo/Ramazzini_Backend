@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, BadRequestException, NotFoundException, UseInterceptors, UploadedFile, Res, InternalServerErrorException, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, BadRequestException, NotFoundException, UseInterceptors, UploadedFile, Res, InternalServerErrorException, Query, Req, UseGuards } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as xlsx from 'xlsx';
 import { TrabajadoresService } from './trabajadores.service';
@@ -8,6 +8,7 @@ import { TransferirTrabajadorDto } from './dto/transferir-trabajador.dto';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { isValidObjectId } from 'mongoose';
 import { Response, Request } from 'express';
+import { DeletionPasswordGuard } from 'src/utils/guards/deletion-password.guard';
 
 type AuthenticatedRequest = Request & { userId: string };
 
@@ -261,6 +262,7 @@ export class TrabajadoresController {
   }
   
   @Delete('/eliminar-trabajador/:id')
+  @UseGuards(DeletionPasswordGuard)
   @ApiOperation({ summary: 'Elimina un trabajador' })
   @ApiResponse({ status: 200, description: 'Trabajador eliminado exitosamente | El trabajador del ID proporcionado no existe o ya ha sido eliminado' })
   @ApiResponse({ status: 400, description: 'El ID de trabajador proporcionado no es válido' })
