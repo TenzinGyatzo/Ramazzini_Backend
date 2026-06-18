@@ -1,5 +1,5 @@
 // Servicios para gestionar la data que se almacena en la base de datos
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Antidoping } from './schemas/antidoping.schema';
@@ -41,7 +41,6 @@ import {
   extractVitalSignsFromDTO,
 } from '../../utils/vital-signs-validator.util';
 import { InformesService } from '../informes/informes.service';
-import { forwardRef, Inject } from '@nestjs/common';
 import { mapSexoToGiisBiologico } from '../../utils/sexo-mapper.util';
 import { calculateAge } from '../../utils/age-calculator.util';
 import {
@@ -1681,10 +1680,14 @@ export class ExpedientesService {
   async removeDocument(
     documentType: string,
     id: string,
-    userId?: string,
+    actorUserId: string,
     razonAnulacion?: string,
   ): Promise<{ deleted: boolean; anulado?: boolean }> {
-    // console.log(`[DEBUG] Inicio de removeDocument - documentType: ${documentType}, id: ${id}`);
+    if (!actorUserId) {
+      throw new UnauthorizedException(
+        'Se requiere un usuario autenticado para eliminar documentos',
+      );
+    }
     const model = this.models[documentType];
     if (!model) {
       throw new BadRequestException(
@@ -1700,7 +1703,7 @@ export class ExpedientesService {
     // Si se proporciona razonAnulacion, significa que se está intentando anular (soft delete)
     // Esto solo aplica para documentos finalizados
     if (razonAnulacion && document.estado === DocumentoEstado.FINALIZADO) {
-      if (!userId) {
+      if (!actorUserId) {
         throw new BadRequestException(
           'Se requiere userId para anular un documento finalizado',
         );
@@ -1710,7 +1713,7 @@ export class ExpedientesService {
       // para mantener consistencia cuando se usa el modal de anulación
       document.estado = DocumentoEstado.ANULADO;
       document.fechaAnulacion = new Date();
-      document.anuladoPor = userId;
+      document.anuladoPor = actorUserId;
       document.razonAnulacion = razonAnulacion;
 
       await document.save();
@@ -1726,7 +1729,7 @@ export class ExpedientesService {
         documentType,
         documentId: document._id.toString(),
         trabajadorId: document.idTrabajador?.toString?.() ?? null,
-        actorId: userId,
+        actorId: actorUserId,
         estadoAnterior: DocumentoEstado.FINALIZADO,
         razonAnulacion,
         fechaAnulacion: document.fechaAnulacion ?? null,

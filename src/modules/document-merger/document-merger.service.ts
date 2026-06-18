@@ -1,35 +1,57 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
-import { PDFDocument, rgb } from 'pdf-lib';
-import * as fs from 'fs';
+import {
+  BadRequestException,
+  Injectable,
+} from '@nestjs/common';
+import { PDFDocument } from 'pdf-lib';
+import * as fs from 'fs/promises';
 import * as path from 'path';
+import { ClinicalFilesService } from '../files/clinical-files.service';
+
+const MAX_FILES_PER_MERGE = 50;
 
 @Injectable()
 export class DocumentMergerService {
+  constructor(private readonly clinicalFilesService: ClinicalFilesService) {}
+
   async mergeFiles(filePaths: string[]): Promise<Buffer> {
+    if (!Array.isArray(filePaths) || filePaths.length === 0) {
+      throw new BadRequestException('Se requiere al menos un archivo para fusionar');
+    }
+
+    if (filePaths.length > MAX_FILES_PER_MERGE) {
+      throw new BadRequestException(
+        `No se pueden fusionar más de ${MAX_FILES_PER_MERGE} archivos a la vez`,
+      );
+    }
+
+    const resolvedPaths = filePaths.map((filePath) =>
+      this.clinicalFilesService.resolveSafePath(filePath),
+    );
+
+    for (const absolutePath of resolvedPaths) {
+      await this.clinicalFilesService.assertFileExists(absolutePath);
+    }
+
     try {
       const mergedPdf = await PDFDocument.create();
 
-      const letterWidth = 612; // Ancho de tamaño carta en puntos
-      const letterHeight = 792; // Altura de tamaño carta en puntos
+      const letterWidth = 612;
+      const letterHeight = 792;
 
-      for (const filePath of filePaths) {
-        const fileExt = path.extname(filePath).toLowerCase();
+      for (const absolutePath of resolvedPaths) {
+        const fileExt = path.extname(absolutePath).toLowerCase();
+        const fileBytes = await fs.readFile(absolutePath);
 
         if (fileExt === '.pdf') {
-          // Load PDF and merge pages
-          const pdfBytes = fs.readFileSync(filePath);
-          const pdf = await PDFDocument.load(pdfBytes);
+          const pdf = await PDFDocument.load(fileBytes);
           const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
           pages.forEach((page) => mergedPdf.addPage(page));
         } else if (['.jpg', '.jpeg', '.png'].includes(fileExt)) {
-          // Add image as a new page
-          const imageBytes = fs.readFileSync(filePath);
           const image =
             fileExt === '.png'
-              ? await mergedPdf.embedPng(imageBytes)
-              : await mergedPdf.embedJpg(imageBytes);
+              ? await mergedPdf.embedPng(fileBytes)
+              : await mergedPdf.embedJpg(fileBytes);
 
-          // Escala la imagen para ajustarla al tamaño carta
           const scale = Math.min(
             letterWidth / image.width,
             letterHeight / image.height,
@@ -39,7 +61,6 @@ export class DocumentMergerService {
 
           const page = mergedPdf.addPage([letterWidth, letterHeight]);
 
-          // Centra la imagen en la página
           const x = (letterWidth - scaledWidth) / 2;
           const y = (letterHeight - scaledHeight) / 2;
 
@@ -50,14 +71,16 @@ export class DocumentMergerService {
             height: scaledHeight,
           });
         } else {
-          throw new BadRequestException('Unsupported file type');
+          throw new BadRequestException('Tipo de archivo no soportado');
         }
       }
 
-      // Save the merged PDF
-      return Buffer.from(await mergedPdf.save()); // Convierte Uint8Array a Buffer
+      return Buffer.from(await mergedPdf.save());
     } catch (error) {
-      throw new BadRequestException('Failed to merge files: ' + error.message);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('No se pudieron fusionar los archivos');
     }
   }
 }

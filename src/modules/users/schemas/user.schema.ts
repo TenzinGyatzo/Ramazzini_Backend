@@ -27,6 +27,7 @@ export class User {
     required: true,
     enum: [
       'Principal',
+      'Administrador',
       'Médico',
       'Enfermero/a',
       'Administrativo',
@@ -35,11 +36,11 @@ export class User {
   })
   role: string;
 
-  @Prop({
-    default: () =>
-      Date.now().toString(32) + Math.random().toString(32).substring(2),
-  })
+  @Prop({ default: '' })
   token: string;
+
+  @Prop({ type: Date, default: null })
+  tokenExpiresAt: Date | null;
 
   @Prop({ default: false })
   verified: boolean;
@@ -66,7 +67,7 @@ export class User {
     },
     default: function () {
       // Permisos por defecto según rol
-      if (this.role === 'Principal') {
+      if (this.role === 'Principal' || this.role === 'Administrador') {
         return {
           gestionarEmpresas: true,
           gestionarCentrosTrabajo: true,

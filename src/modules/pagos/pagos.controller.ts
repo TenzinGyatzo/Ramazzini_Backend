@@ -13,6 +13,7 @@ import {
 import { PagosService } from './pagos.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
+import { Public } from 'src/utils/decorators/public.decorator';
 
 @Controller('pagos')
 export class PagosController {
@@ -74,6 +75,7 @@ export class PagosController {
     return { message: 'Webhook recibido correctamente.' };
   } */
 
+  @Public()
   @Post('webhook-mercadopago')
   async recibirInformacionPago(
     @Body() body: any,
@@ -83,7 +85,6 @@ export class PagosController {
   ) {
     console.log('Webhook de Mercado Pago:', body);
 
-    // Validar el origen de la notificación
     const isValid = await this.validarNotificacion(
       xSignature,
       xRequestId,
@@ -94,8 +95,8 @@ export class PagosController {
       throw new Error('Notificación no válida');
     }
 
-    const eventType = body.type; // subscription_preapproval or authorized_payment
-    const eventId = body.data.id; // ID del recurso asociado al evento
+    const eventType = body.type;
+    const eventId = body.data.id;
 
     try {
       if (eventType === 'subscription_preapproval') {

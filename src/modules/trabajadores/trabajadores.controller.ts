@@ -14,7 +14,7 @@ import {
   InternalServerErrorException,
   Query,
   Req,
-  UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as xlsx from 'xlsx';
@@ -25,34 +25,14 @@ import { TransferirTrabajadorDto } from './dto/transferir-trabajador.dto';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { isValidObjectId } from 'mongoose';
 import { Response, Request } from 'express';
-import jwt from 'jsonwebtoken';
+import { DeletionPasswordGuard } from 'src/utils/guards/deletion-password.guard';
 
-interface JwtPayload {
-  id: string;
-}
+type AuthenticatedRequest = Request & { userId: string };
 
 @Controller('api/:empresaId([0-9a-fA-F]{24})/:centroId([0-9a-fA-F]{24})')
 @ApiTags('Trabajadores')
 export class TrabajadoresController {
   constructor(private readonly trabajadoresService: TrabajadoresService) {}
-
-  // Helper para obtener userId del JWT
-  private async authenticateUser(req: Request): Promise<string> {
-    if (
-      !req.headers.authorization ||
-      !req.headers.authorization.startsWith('Bearer ')
-    ) {
-      throw new UnauthorizedException('Token de autorización requerido');
-    }
-
-    try {
-      const token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET) as JwtPayload;
-      return decoded.id;
-    } catch (error) {
-      throw new UnauthorizedException('Token inválido');
-    }
-  }
 
   @Get('/exportar-trabajadores')
   @ApiOperation({
@@ -64,10 +44,17 @@ export class TrabajadoresController {
     description: 'Archivo de trabajadores exportado exitosamente',
   })
   @ApiResponse({ status: 400, description: 'El ID proporcionado no es válido' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
   async exportarTrabajadores(
+    @Param('empresaId') empresaId: string,
     @Param('centroId') centroId: string,
+    @Req() _req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
+    if (!isValidObjectId(empresaId)) {
+      throw new BadRequestException('El ID de empresa no es válido');
+    }
+
     if (!isValidObjectId(centroId)) {
       throw new BadRequestException('El ID proporcionado no es válido');
     }
@@ -243,7 +230,7 @@ export class TrabajadoresController {
   async getCentrosDisponiblesTransferencia(
     @Param('empresaId') empresaId: string,
     @Param('centroId') centroId: string,
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
     @Query('excluirCentroId') excluirCentroId?: string,
     @Query('idProveedorSalud') idProveedorSalud?: string,
   ) {
@@ -259,7 +246,7 @@ export class TrabajadoresController {
       );
     }
 
-    const userId = await this.authenticateUser(req);
+    const userId = req.userId;
 
     return await this.trabajadoresService.getCentrosDisponiblesParaTransferencia(
       userId,
@@ -338,7 +325,7 @@ export class TrabajadoresController {
   async transferirTrabajador(
     @Param('id') id: string,
     @Body() transferData: TransferirTrabajadorDto,
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!isValidObjectId(id)) {
       throw new BadRequestException(
@@ -352,8 +339,7 @@ export class TrabajadoresController {
       );
     }
 
-    // Obtener userId del JWT
-    const userId = await this.authenticateUser(req);
+    const userId = req.userId;
 
     const trabajadorTransferido =
       await this.trabajadoresService.transferirTrabajador(
@@ -397,6 +383,7 @@ export class TrabajadoresController {
   }
 
   @Delete('/eliminar-trabajador/:id')
+  @UseGuards(DeletionPasswordGuard)
   @ApiOperation({ summary: 'Elimina un trabajador' })
   @ApiResponse({
     status: 200,

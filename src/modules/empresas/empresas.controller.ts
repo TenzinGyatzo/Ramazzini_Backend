@@ -12,6 +12,7 @@ import {
   UploadedFile,
   InternalServerErrorException,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -23,6 +24,8 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { TrabajadoresService } from '../trabajadores/trabajadores.service';
+import { DeletionPasswordGuard } from 'src/utils/guards/deletion-password.guard';
+import { DeletionCascadeCheck } from 'src/utils/decorators/deletion-cascade-check.decorator';
 
 dotenv.config();
 
@@ -206,6 +209,8 @@ export class EmpresasController {
   }
 
   @Delete('/eliminar-empresa/:id')
+  @UseGuards(DeletionPasswordGuard)
+  @DeletionCascadeCheck('empresa')
   @ApiOperation({ summary: 'Elimina una empresa por su ID' })
   @ApiResponse({
     status: 200,

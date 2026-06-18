@@ -11,15 +11,16 @@ import {
   ValidationPipe,
   UseInterceptors,
   UploadedFile,
-  Request,
+  Req,
   UseGuards,
+  Query,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ExpedientesService } from './expedientes.service';
 import { isValidObjectId } from 'mongoose';
 import { CatalogsService } from '../catalogs/catalogs.service';
 import { UsersService } from '../users/users.service';
 import { CatalogType } from '../catalogs/interfaces/catalog-entry.interface';
-import { Query } from '@nestjs/common';
 import { CreateAntidopingDto } from './dto/create-antidoping.dto';
 import { UpdateAntidopingDto } from './dto/update-antidoping.dto';
 import { CreateAptitudDto } from './dto/create-aptitud.dto';
@@ -71,13 +72,10 @@ import { diskStorage } from 'multer';
 import path from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { convertirFechaISOaDDMMYYYY } from '../../utils/dates';
-import jwt from 'jsonwebtoken';
 import { DailyConsentGuard } from '../../utils/guards/daily-consent.guard';
 import { RequireDailyConsent } from '../../utils/decorators/require-daily-consent.decorator';
 
-interface JwtPayload {
-  id: string;
-}
+type AuthenticatedRequest = Request & { userId: string };
 
 @Controller('api/expedientes/:trabajadorId/documentos')
 export class ExpedientesController {
@@ -137,24 +135,6 @@ export class ExpedientesController {
     eventoSeguimientoCardiometabolico: UpdateEventoSeguimientoCardiometabolicoDto,
     informeLongitudinalCardiometabolico: UpdateInformeLongitudinalCardiometabolicoDto,
   };
-
-  // Método privado para autenticar usuario desde el JWT
-  private async authenticateUser(req: any): Promise<string> {
-    if (
-      !req.headers.authorization ||
-      !req.headers.authorization.startsWith('Bearer ')
-    ) {
-      throw new BadRequestException('Token de autorización requerido');
-    }
-
-    try {
-      const token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET) as JwtPayload;
-      return decoded.id;
-    } catch {
-      throw new BadRequestException('Token inválido o expirado');
-    }
-  }
 
   @Post(':documentType/crear')
   @UseGuards(DailyConsentGuard)
@@ -405,7 +385,7 @@ export class ExpedientesController {
     @Param('documentType') documentType: string,
     @Param('id') id: string,
     @Body() body: { motivo?: string },
-    @Request() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!isValidObjectId(id)) {
       throw new BadRequestException('El ID proporcionado no es válido');
@@ -420,12 +400,7 @@ export class ExpedientesController {
       );
     }
 
-    // Decodificar el JWT del header para obtener el userId
-    const userId = await this.authenticateUser(req);
-    if (!userId) {
-      throw new BadRequestException('Usuario no autenticado');
-    }
-
+    const userId = req.userId;
     const user = await this.usersService.findById(userId, 'idProveedorSalud');
     const proveedorSaludId = user?.idProveedorSalud
       ? String(user.idProveedorSalud)
@@ -476,23 +451,17 @@ export class ExpedientesController {
   async removeDocument(
     @Param('documentType') documentType: string,
     @Param('id') id: string,
-    @Body() body?: { razonAnulacion?: string },
-    @Request() req?: any,
+    @Body() body: { razonAnulacion?: string } | undefined,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!isValidObjectId(id)) {
       throw new BadRequestException('El ID proporcionado no es válido');
     }
 
-    // Decodificar el JWT del header para obtener el userId
-    let userId: string | undefined;
-    try {
-      userId = await this.authenticateUser(req);
-    } catch {}
-
     const result = await this.expedientesService.removeDocument(
       documentType,
       id,
-      userId,
+      req.userId,
       body?.razonAnulacion,
     );
 
@@ -591,22 +560,16 @@ export class ExpedientesController {
   @Delete('deteccion/:id')
   async deleteDeteccion(
     @Param('id') id: string,
-    @Body() body?: { razonAnulacion?: string },
-    @Request() req?: any,
+    @Body() body: { razonAnulacion?: string } | undefined,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!isValidObjectId(id)) {
       throw new BadRequestException('El ID proporcionado no es válido');
     }
 
-    // Decodificar el JWT del header para obtener el userId
-    let userId: string | undefined;
-    try {
-      userId = await this.authenticateUser(req);
-    } catch {}
-
     const result = await this.expedientesService.deleteDeteccion(
       id,
-      userId,
+      req.userId,
       body?.razonAnulacion,
     );
 
@@ -624,20 +587,17 @@ export class ExpedientesController {
   }
 
   @Post('deteccion/:id/finalizar')
-  async finalizarDeteccion(@Param('id') id: string, @Request() req: any) {
+  async finalizarDeteccion(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
     if (!isValidObjectId(id)) {
       throw new BadRequestException('El ID proporcionado no es válido');
     }
 
-    // Decodificar el JWT del header para obtener el userId
-    const userId = await this.authenticateUser(req);
-    if (!userId) {
-      throw new BadRequestException('Usuario no autenticado');
-    }
-
     try {
       const finalizedDeteccion =
-        await this.expedientesService.finalizarDeteccion(id, userId);
+        await this.expedientesService.finalizarDeteccion(id, req.userId);
       return {
         message: 'Detección finalizada exitosamente',
         data: finalizedDeteccion,

@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { createTransport } from './emails.config';
 import path from 'path';
 import * as fs from 'fs';
+import { EXPEDIENTES_DIR } from 'src/utils/expedientes-dir';
 import { Cron } from '@nestjs/schedule';
 import * as os from 'os';
 import pidusage from 'pidusage';
@@ -585,7 +586,7 @@ export class EmailsService {
   }
 
   private async getCreatedPdfsSummary(): Promise<string> {
-    const basePath = path.resolve('expedientes-medicos');
+    const basePath = EXPEDIENTES_DIR;
     const tiposValidos = [
       'Antidoping',
       'Aptitud',
@@ -656,7 +657,7 @@ export class EmailsService {
   }
 
   private async getUploadedExternalDocsSummary(): Promise<string> {
-    const basePath = path.resolve('expedientes-medicos');
+    const basePath = EXPEDIENTES_DIR;
     const tiposInternos = [
       'Antidoping',
       'Aptitud',
@@ -732,12 +733,8 @@ export class EmailsService {
     return `📎 Externos: ${totalArchivos} archivos — ${totalMB.toFixed(2)} MB usados`;
   }
 
-  private async getArchivoPdfCreadoMasAntiguo(): Promise<{
-    nombre: string;
-    fullPath: string;
-    fecha: Date;
-  } | null> {
-    const basePath = path.resolve('expedientes-medicos');
+  private async getArchivoPdfCreadoMasAntiguo(): Promise<{ nombre: string; fullPath: string; fecha: Date } | null> {
+    const basePath = EXPEDIENTES_DIR;
     const tiposValidos = [
       'Antidoping',
       'Aptitud',
@@ -787,12 +784,8 @@ export class EmailsService {
     return masAntiguo;
   }
 
-  private async getDocumentoExternoSubidoMasAntiguo(): Promise<{
-    nombre: string;
-    fullPath: string;
-    fecha: Date;
-  } | null> {
-    const basePath = path.resolve('expedientes-medicos');
+  private async getDocumentoExternoSubidoMasAntiguo(): Promise<{ nombre: string; fullPath: string; fecha: Date } | null> {
+    const basePath = EXPEDIENTES_DIR;
     const tiposInternos = [
       'Antidoping',
       'Aptitud',

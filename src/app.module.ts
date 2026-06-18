@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { JwtAuthGuard } from './utils/guards/jwt-auth.guard';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
-import { ServeStaticModule } from '@nestjs/serve-static'; // Importar ServeStaticModule
-import { join } from 'path'; // Importar join para rutas
 import { EmpresasModule } from './modules/empresas/empresas.module';
+import { FilesModule } from './modules/files/files.module';
 import { CentrosTrabajoModule } from './modules/centros-trabajo/centros-trabajo.module';
 import { TrabajadoresModule } from './modules/trabajadores/trabajadores.module';
-import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ExpedientesModule } from './modules/expedientes/expedientes.module';
 import { InformesModule } from './modules/informes/informes.module';
@@ -34,6 +35,16 @@ import { ResultadosClinicosModule } from './modules/resultados-clinicos/resultad
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => [
+        {
+          ttl: configService.get<number>('THROTTLE_TTL_MS', 60_000),
+          limit: configService.get<number>('THROTTLE_LIMIT', 150),
+        },
+      ],
+    }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -45,12 +56,7 @@ import { ResultadosClinicosModule } from './modules/resultados-clinicos/resultad
       dest: './uploads',
     }),
 
-    // Nuevo: Configuración para servir archivos estáticos
-    ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'expedientes-medicos'), // Ruta a la carpeta de PDFs
-      serveRoot: '/expedientes-medicos', // Prefijo en la URL
-    }),
-
+    FilesModule,
     CatalogsModule,
     NOM024ComplianceModule,
     GIISExportModule,
@@ -59,7 +65,6 @@ import { ResultadosClinicosModule } from './modules/resultados-clinicos/resultad
     EmpresasModule,
     CentrosTrabajoModule,
     TrabajadoresModule,
-    AuthModule,
     UsersModule,
     ExpedientesModule,
     InformesModule,
@@ -75,6 +80,16 @@ import { ResultadosClinicosModule } from './modules/resultados-clinicos/resultad
     RiesgosTrabajoModule,
     InformePersonalizacionModule,
     ResultadosClinicosModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
   ],
 })
 export class AppModule {}

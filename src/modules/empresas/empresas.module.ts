@@ -47,6 +47,8 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 import { FilesModule } from '../files/files.module';
 import { CentrosTrabajoModule } from '../centros-trabajo/centros-trabajo.module';
 import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
+import { UsersModule } from '../users/users.module';
+import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
 
 @Module({
   imports: [
@@ -67,6 +69,8 @@ import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
     FilesModule, // Importar FilesModule para poder usar FilesService
     forwardRef(() => CentrosTrabajoModule), // Importar si hay referencias cruzadas
     forwardRef(() => TrabajadoresModule), // Importar si hay referencias cruzadas
+    UsersModule,
+    DeletionAuthModule,
   ],
   controllers: [EmpresasController],
   providers: [EmpresasService],

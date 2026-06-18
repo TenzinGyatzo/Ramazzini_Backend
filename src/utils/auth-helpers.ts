@@ -1,27 +1,34 @@
 import { Request } from 'express';
 import jwt from 'jsonwebtoken';
-import { UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
+import { ACCESS_COOKIE } from './auth-cookies';
 
 interface JwtPayload {
   id: string;
 }
 
-/**
- * Extrae el ID del usuario desde el JWT token en el request
- * @param req - Express Request object
- * @returns userId - ID del usuario autenticado
- * @throws UnauthorizedException si no hay token o es inválido
- */
-export function getUserIdFromRequest(req: Request): string {
-  if (
-    !req.headers.authorization ||
-    !req.headers.authorization.startsWith('Bearer ')
-  ) {
-    throw new UnauthorizedException('Token de autenticación requerido');
+export function getAccessTokenFromRequest(req: Request): string {
+  const cookieToken = req.cookies?.[ACCESS_COOKIE];
+  if (cookieToken) {
+    return cookieToken;
   }
 
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer ')
+  ) {
+    return req.headers.authorization.split(' ')[1];
+  }
+
+  throw new UnauthorizedException('Token de autenticación requerido');
+}
+
+export function getUserIdFromRequest(req: Request): string {
   try {
-    const token = req.headers.authorization.split(' ')[1];
+    const token = getAccessTokenFromRequest(req);
     const decoded = jwt.verify(token, process.env.JWT_SECRET) as JwtPayload;
 
     if (!decoded.id) {
@@ -32,9 +39,12 @@ export function getUserIdFromRequest(req: Request): string {
 
     return decoded.id;
   } catch (error) {
-    if (error instanceof jwt.JsonWebTokenError) {
-      throw new UnauthorizedException('Token inválido');
+    if (
+      error instanceof UnauthorizedException ||
+      error instanceof BadRequestException
+    ) {
+      throw error;
     }
-    throw error;
+    throw new UnauthorizedException('Token inválido o expirado');
   }
 }

@@ -45,6 +45,8 @@ import {
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { FilesModule } from '../files/files.module';
 import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
+import { UsersModule } from '../users/users.module';
+import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
 
 @Module({
   imports: [
@@ -63,6 +65,8 @@ import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
     ]),
     FilesModule,
     forwardRef(() => TrabajadoresModule),
+    UsersModule,
+    DeletionAuthModule,
   ],
   controllers: [CentrosTrabajoController],
   providers: [CentrosTrabajoService],

@@ -22,6 +22,12 @@ import { NotaMedicaSchema } from '../expedientes/schemas/nota-medica.schema';
 import { DocumentoExternoSchema } from '../expedientes/schemas/documento-externo.schema';
 import { CentrosTrabajoModule } from '../centros-trabajo/centros-trabajo.module';
 import { AuditModule } from '../audit/audit.module';
+import {
+  RefreshSession,
+  RefreshSessionSchema,
+} from './schemas/refresh-session.schema';
+import { RefreshTokenService } from './refresh-token.service';
+import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
 
 @Module({
   imports: [
@@ -38,12 +44,14 @@ import { AuditModule } from '../audit/audit.module';
       { name: 'Antidoping', schema: AntidopingSchema },
       { name: 'NotaMedica', schema: NotaMedicaSchema },
       { name: 'DocumentoExterno', schema: DocumentoExternoSchema },
+      { name: RefreshSession.name, schema: RefreshSessionSchema },
     ]),
-    EmailsModule, // Importa el módulo que exporta el EmailsService
+    EmailsModule,
     forwardRef(() => CentrosTrabajoModule),
+    DeletionAuthModule,
   ],
   controllers: [UsersController],
-  providers: [UsersService, LoginLockoutService],
-  exports: [UsersService],
+  providers: [UsersService, LoginLockoutService, RefreshTokenService],
+  exports: [UsersService, RefreshTokenService],
 })
 export class UsersModule {}
