@@ -15,14 +15,24 @@ import {
   Query,
   Req,
   UseGuards,
+  GoneException,
+  ConflictException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as xlsx from 'xlsx';
 import { TrabajadoresService } from './trabajadores.service';
+import { WorkerFusionService } from './worker-fusion.service';
+import { UsersService } from '../users/users.service';
 import { CreateTrabajadorDto } from './dto/create-trabajador.dto';
 import { UpdateTrabajadorDto } from './dto/update-trabajador.dto';
 import { TransferirTrabajadorDto } from './dto/transferir-trabajador.dto';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  FusionarTrabajadoresDto,
+  DescartarDuplicadoDto,
+} from './dto/fusion-trabajadores.dto';
+import { WorkerDuplicateAlertDto } from './dto/worker-duplicate-alert.dto';
+import { assertManageTrabajadores } from './utils/assert-manage-trabajadores.util';
+import { ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { isValidObjectId } from 'mongoose';
 import { Response, Request } from 'express';
 import { DeletionPasswordGuard } from 'src/utils/guards/deletion-password.guard';
@@ -32,7 +42,16 @@ type AuthenticatedRequest = Request & { userId: string };
 @Controller('api/:empresaId([0-9a-fA-F]{24})/:centroId([0-9a-fA-F]{24})')
 @ApiTags('Trabajadores')
 export class TrabajadoresController {
-  constructor(private readonly trabajadoresService: TrabajadoresService) {}
+  constructor(
+    private readonly trabajadoresService: TrabajadoresService,
+    private readonly workerFusionService: WorkerFusionService,
+    private readonly usersService: UsersService,
+  ) {}
+
+  private async assertCanManageTrabajadores(userId: string): Promise<void> {
+    const user = await this.usersService.findById(userId);
+    assertManageTrabajadores(user as any);
+  }
 
   @Get('/exportar-trabajadores')
   @ApiOperation({
@@ -88,10 +107,18 @@ export class TrabajadoresController {
     description:
       'Solicitud Incorrecta *(Muestra violaciones de reglas de validación)*',
   })
-  async create(@Body() createTrabajadorDto: CreateTrabajadorDto) {
-    const trabajador =
+  async create(
+    @Body() createTrabajadorDto: CreateTrabajadorDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    await this.assertCanManageTrabajadores(req.userId);
+    const { trabajador, posibleDuplicado } =
       await this.trabajadoresService.create(createTrabajadorDto);
-    return { message: 'Trabajador registrado', data: trabajador };
+    return {
+      message: 'Trabajador registrado',
+      data: trabajador,
+      posibleDuplicado,
+    };
   }
 
   @Get('/trabajadores')
@@ -128,6 +155,22 @@ export class TrabajadoresController {
     return trabajadores;
   }
 
+  @Get('/trabajadores-count')
+  @ApiOperation({
+    summary: 'Cuenta los trabajadores de un centro de trabajo (sin payload)',
+  })
+  @ApiResponse({ status: 200, description: 'Conteo de trabajadores' })
+  async countWorkersByCenter(
+    @Param('empresaId') empresaId: string,
+    @Param('centroId') centroId: string,
+  ): Promise<{ count: number }> {
+    if (!isValidObjectId(empresaId) || !isValidObjectId(centroId)) {
+      throw new BadRequestException('El ID proporcionado no es válido');
+    }
+    const count = await this.trabajadoresService.countByCenter(centroId);
+    return { count };
+  }
+
   @Get('/trabajadores-con-historia')
   @ApiOperation({
     summary:
@@ -156,10 +199,7 @@ export class TrabajadoresController {
       );
 
     if (!trabajadoresConHistoria || trabajadoresConHistoria.length === 0) {
-      return {
-        message:
-          'No hay trabajadores con historia clínica en este centro de trabajo',
-      };
+      return [];
     }
 
     return trabajadoresConHistoria;
@@ -255,23 +295,133 @@ export class TrabajadoresController {
     );
   }
 
+  @Get('/duplicados-pendientes')
+  @ApiOperation({ summary: 'Lista alertas de duplicados pendientes del centro' })
+  @ApiResponse({ status: 200, description: 'Alertas pendientes', type: [WorkerDuplicateAlertDto] })
+  @ApiResponse({ status: 403, description: 'Sin permiso gestionarTrabajadores' })
+  async getDuplicadosPendientes(
+    @Param('centroId') centroId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!isValidObjectId(centroId)) {
+      throw new BadRequestException('El ID de centro no es válido');
+    }
+    await this.assertCanManageTrabajadores(req.userId);
+    return this.workerFusionService.getPendingAlertsForCentro(centroId);
+  }
+
+  @Get('/trabajadores/fusion-preview')
+  @ApiOperation({ summary: 'Vista previa de fusión manual entre dos trabajadores' })
+  @ApiQuery({ name: 'destinoId', required: true })
+  @ApiQuery({ name: 'fuenteId', required: true })
+  @ApiResponse({ status: 200, description: 'Preview de fusión' })
+  @ApiResponse({ status: 409, description: 'Conflictos detectados' })
+  async getFusionPreview(
+    @Query('destinoId') destinoId: string,
+    @Query('fuenteId') fuenteId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!isValidObjectId(destinoId) || !isValidObjectId(fuenteId)) {
+      throw new BadRequestException('IDs de trabajador no válidos');
+    }
+    await this.assertCanManageTrabajadores(req.userId);
+    return this.workerFusionService.getFusionPreview(destinoId, fuenteId);
+  }
+
+  @Get('/trabajadores/:id/duplicados')
+  @ApiOperation({ summary: 'Candidatos a duplicado para un trabajador' })
+  async getDuplicadosDeTrabajador(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!isValidObjectId(id)) {
+      throw new BadRequestException('El ID proporcionado no es válido');
+    }
+    await this.assertCanManageTrabajadores(req.userId);
+    return this.workerFusionService.findAllDuplicatesInEmpresa(id);
+  }
+
+  @Post('/fusionar-trabajadores')
+  @ApiOperation({ summary: 'Fusión manual de dos registros del mismo trabajador (DGIS)' })
+  @ApiResponse({ status: 200, description: 'Fusión completada' })
+  @ApiResponse({ status: 403, description: 'Sin permiso' })
+  @ApiResponse({ status: 409, description: 'Conflicto numeroEmpleado' })
+  async fusionarTrabajadores(
+    @Param('empresaId') empresaId: string,
+    @Body() body: FusionarTrabajadoresDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!isValidObjectId(empresaId)) {
+      throw new BadRequestException('El ID de empresa no es válido');
+    }
+    await this.assertCanManageTrabajadores(req.userId);
+    try {
+      const result = await this.trabajadoresService.fusionarTrabajadores({
+        trabajadorDestinoId: body.trabajadorDestinoId,
+        trabajadorFuenteId: body.trabajadorFuenteId,
+        userId: req.userId,
+        idEmpresa: empresaId,
+        confirmacion: body.confirmacion,
+        numeroEmpleadoResuelto: body.numeroEmpleadoResuelto,
+        migrarArchivos: body.migrarArchivos,
+      });
+      return { message: 'Trabajadores fusionados exitosamente', data: result };
+    } catch (error) {
+      if (error?.status === 409) throw new ConflictException(error.message);
+      throw error;
+    }
+  }
+
+  @Patch('/duplicados/:alertId/descartar')
+  @ApiOperation({ summary: 'Descartar alerta de duplicado (no es la misma persona)' })
+  async descartarDuplicado(
+    @Param('alertId') alertId: string,
+    @Body() _body: DescartarDuplicadoDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!isValidObjectId(alertId)) {
+      throw new BadRequestException('ID de alerta no válido');
+    }
+    await this.assertCanManageTrabajadores(req.userId);
+    const alert = await this.workerFusionService.descartarAlerta(
+      alertId,
+      req.userId,
+    );
+    return { message: 'Alerta descartada', data: alert };
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtiene un trabajador por su ID' })
   @ApiResponse({ status: 200, description: 'trabajador obtenido exitosamente' })
   @ApiResponse({ status: 400, description: 'El ID proporcionado no es válido' })
   @ApiResponse({ status: 404, description: 'No se encontró el trabajador' })
+  @ApiResponse({ status: 410, description: 'Trabajador fusionado — redirectTo disponible' })
   async findOne(@Param('id') id: string) {
     if (!isValidObjectId(id)) {
       throw new BadRequestException('El ID proporcionado no es válido');
     }
 
-    const trabajador = await this.trabajadoresService.findOne(id);
+    try {
+      const trabajador = await this.trabajadoresService.findOne(id);
 
-    if (!trabajador) {
-      throw new NotFoundException('No se encontró el trabajador');
+      if (trabajador?.fused && trabajador?.redirectTo) {
+        throw new GoneException({
+          message: 'Este trabajador fue fusionado con otro registro',
+          redirectTo: trabajador.redirectTo,
+        });
+      }
+
+      if (!trabajador) {
+        throw new NotFoundException('No se encontró el trabajador');
+      }
+
+      return trabajador;
+    } catch (error) {
+      if (error?.message === 'Trabajador no encontrado') {
+        throw new NotFoundException('No se encontró el trabajador');
+      }
+      throw error;
     }
-
-    return trabajador;
   }
 
   @Patch('/actualizar-trabajador/:id')
@@ -360,7 +510,9 @@ export class TrabajadoresController {
     @UploadedFile() file: Express.Multer.File,
     @Param('centroId') centroId: string,
     @Body('createdBy') createdBy: string,
+    @Req() req: AuthenticatedRequest,
   ) {
+    await this.assertCanManageTrabajadores(req.userId);
     if (!file) {
       throw new BadRequestException('No se proporcionó un archivo');
     }
@@ -394,7 +546,12 @@ export class TrabajadoresController {
     status: 400,
     description: 'El ID de trabajador proporcionado no es válido',
   })
-  async remove(@Param('centroId') centroId: string, @Param('id') id: string) {
+  async remove(
+    @Param('centroId') centroId: string,
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    await this.assertCanManageTrabajadores(req.userId);
     if (!isValidObjectId(centroId)) {
       throw new BadRequestException(
         'El ID de centro de trabajo proporcionado no es válido',

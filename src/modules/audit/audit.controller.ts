@@ -14,6 +14,7 @@ import { getUserIdFromRequest } from '../../utils/auth-helpers';
 import { UsersService } from '../users/users.service';
 import { AuditActionType } from './constants/audit-action-type';
 import { AuditEventClass } from './constants/audit-event-class';
+import { assertAuditAccessRole } from './utils/audit-access-auth.util';
 
 @Controller('api/audit')
 export class AuditController {
@@ -22,9 +23,13 @@ export class AuditController {
     private readonly usersService: UsersService,
   ) {}
 
-  private async getProveedorSaludIdFromRequest(req: Request): Promise<string> {
+  private async assertAuditAccess(req: Request): Promise<string> {
     const userId = getUserIdFromRequest(req);
-    const user = await this.usersService.findById(userId, 'idProveedorSalud');
+    const user = await this.usersService.findById(
+      userId,
+      'role idProveedorSalud',
+    );
+    assertAuditAccessRole(user?.role);
     if (!user?.idProveedorSalud) {
       throw new UnauthorizedException(
         'Usuario sin proveedor de salud asociado para consultar auditoría',
@@ -35,7 +40,7 @@ export class AuditController {
 
   @Get('events')
   async getEvents(@Query() query: QueryAuditEventsDto, @Req() req: Request) {
-    const proveedorSaludId = await this.getProveedorSaludIdFromRequest(req);
+    const proveedorSaludId = await this.assertAuditAccess(req);
     const { items, total } = await this.auditService.findEvents(
       proveedorSaludId,
       query,
@@ -56,7 +61,7 @@ export class AuditController {
     if (!from || !to) {
       throw new BadRequestException('Query from y to son obligatorios');
     }
-    const proveedorSaludId = await this.getProveedorSaludIdFromRequest(req);
+    const proveedorSaludId = await this.assertAuditAccess(req);
     const userId = getUserIdFromRequest(req);
     await this.auditService.record({
       proveedorSaludId,
@@ -92,7 +97,7 @@ export class AuditController {
     if (!from || !to) {
       throw new BadRequestException('Query from y to son obligatorios');
     }
-    const proveedorSaludId = await this.getProveedorSaludIdFromRequest(req);
+    const proveedorSaludId = await this.assertAuditAccess(req);
     return this.auditService.verifyExport(proveedorSaludId, from, to);
   }
 }

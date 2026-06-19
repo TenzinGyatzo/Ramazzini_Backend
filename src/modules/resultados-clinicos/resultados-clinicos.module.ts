@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ResultadosClinicosService } from './resultados-clinicos.service';
 import { ResultadosClinicosController } from './resultados-clinicos.controller';
@@ -10,6 +10,7 @@ import {
   DocumentoExterno,
   DocumentoExternoSchema,
 } from '../expedientes/schemas/documento-externo.schema';
+import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
 
 @Module({
   controllers: [ResultadosClinicosController],
@@ -19,6 +20,7 @@ import {
       { name: ResultadoClinico.name, schema: ResultadoClinicoSchema },
       { name: DocumentoExterno.name, schema: DocumentoExternoSchema },
     ]),
+    forwardRef(() => TrabajadoresModule),
   ],
   exports: [ResultadosClinicosService],
 })

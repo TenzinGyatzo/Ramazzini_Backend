@@ -6,7 +6,6 @@ import {
   Param,
   Query,
   Req,
-  UnauthorizedException,
   BadRequestException,
   HttpCode,
   HttpStatus,
@@ -18,7 +17,6 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Request } from 'express';
-import jwt from 'jsonwebtoken';
 import { ConsentimientoDiarioService } from './consentimiento-diario.service';
 import { CreateConsentimientoDiarioDto } from './dto/create-consentimiento-diario.dto';
 import {
@@ -27,9 +25,7 @@ import {
 } from './dto/consentimiento-response.dto';
 import { isValidObjectId } from 'mongoose';
 
-interface JwtPayload {
-  id: string;
-}
+type AuthenticatedRequest = Request & { userId: string };
 
 /**
  * Controller para Consentimiento Diario
@@ -48,26 +44,6 @@ export class ConsentimientoDiarioController {
   constructor(
     private readonly consentimientoDiarioService: ConsentimientoDiarioService,
   ) {}
-
-  /**
-   * Helper para obtener userId del JWT
-   */
-  private async authenticateUser(req: Request): Promise<string> {
-    if (
-      !req.headers.authorization ||
-      !req.headers.authorization.startsWith('Bearer ')
-    ) {
-      throw new UnauthorizedException('Token de autorización requerido');
-    }
-
-    try {
-      const token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET) as JwtPayload;
-      return decoded.id;
-    } catch (error) {
-      throw new UnauthorizedException('Token inválido');
-    }
-  }
 
   @Get('status/:trabajadorId')
   @ApiOperation({
@@ -98,20 +74,16 @@ export class ConsentimientoDiarioController {
   })
   async getStatus(
     @Param('trabajadorId') trabajadorId: string,
-    @Query('dateKey') dateKey?: string,
-    @Req() req?: Request,
+    @Query('dateKey') dateKey: string | undefined,
+    @Req() req: AuthenticatedRequest,
   ): Promise<ConsentimientoStatusResponseDto> {
-    // Validar trabajadorId
     if (!isValidObjectId(trabajadorId)) {
       throw new BadRequestException('El ID del trabajador no es válido');
     }
 
-    // Autenticación
-    const userId = await this.authenticateUser(req);
-
     return this.consentimientoDiarioService.getStatus(
       trabajadorId,
-      userId,
+      req.userId,
       dateKey,
     );
   }
@@ -151,11 +123,8 @@ export class ConsentimientoDiarioController {
   })
   async create(
     @Body() createDto: CreateConsentimientoDiarioDto,
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
   ): Promise<ConsentimientoCreatedResponseDto> {
-    // Autenticación
-    const userId = await this.authenticateUser(req);
-
-    return this.consentimientoDiarioService.create(createDto, userId);
+    return this.consentimientoDiarioService.create(createDto, req.userId);
   }
 }

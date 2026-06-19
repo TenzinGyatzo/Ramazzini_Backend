@@ -173,3 +173,4 @@ TrabajadorSchema.index({ idCentroTrabajo: 1, fechaTransferencia: 1, createdAt: 1
 TrabajadorSchema.index({ numeroEmpleado: 1 });
 TrabajadorSchema.index({ estadoLaboral: 1 });
 TrabajadorSchema.index({ folio: 1 });
+TrabajadorSchema.index({ curp: 1 });

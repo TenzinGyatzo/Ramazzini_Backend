@@ -9,3 +9,11 @@ export function isPlatformAdministrador(role: string): boolean {
 
 /** @alias canManageTenantUsers */
 export const canInviteUsers = canManageTenantUsers;
+
+export function canChangeRegimenRegulatorio(role: string): boolean {
+  return role === 'Principal';
+}
+
+export function canAccessAuditTrail(role: string): boolean {
+  return role === 'Principal';
+}

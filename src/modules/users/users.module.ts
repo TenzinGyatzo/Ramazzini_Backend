@@ -11,6 +11,7 @@ import {
 import { LoginLockoutService } from './login-lockout.service';
 import { EmailsModule } from '../emails/emails.module';
 import { ProveedorSaludSchema } from '../proveedores-salud/schemas/proveedor-salud.schema';
+import { SessionActivityModule } from './session-activity.module';
 // Importar esquemas de expedientes
 import { HistoriaClinicaSchema } from '../expedientes/schemas/historia-clinica.schema';
 import { AptitudPuestoSchema } from '../expedientes/schemas/aptitud-puesto.schema';
@@ -32,6 +33,7 @@ import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
 @Module({
   imports: [
     forwardRef(() => AuditModule),
+    forwardRef(() => SessionActivityModule),
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: LoginLockout.name, schema: LoginLockoutSchema },

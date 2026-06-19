@@ -1,19 +1,28 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CreateRiesgosTrabajoDto } from './dto/create-riesgos-trabajo.dto';
 import { UpdateRiesgosTrabajoDto } from './dto/update-riesgos-trabajo.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { RiesgoTrabajo } from './schemas/riesgo-trabajo.schema';
+import { WorkerFusionService } from '../trabajadores/worker-fusion.service';
 
 @Injectable()
 export class RiesgosTrabajoService {
   constructor(
     @InjectModel(RiesgoTrabajo.name)
     private RiesgoTrabajoModel: Model<RiesgoTrabajo>,
+    @Inject(forwardRef(() => WorkerFusionService))
+    private workerFusionService: WorkerFusionService,
   ) {}
 
   async create(createRiesgosTrabajoDto: CreateRiesgosTrabajoDto) {
     try {
+      if (createRiesgosTrabajoDto.idTrabajador) {
+        createRiesgosTrabajoDto.idTrabajador =
+          await this.workerFusionService.getCanonicalTrabajadorId(
+            createRiesgosTrabajoDto.idTrabajador,
+          );
+      }
       const riesgoTrabajo = new this.RiesgoTrabajoModel(
         createRiesgosTrabajoDto,
       );
@@ -95,9 +104,7 @@ export class RiesgosTrabajoService {
       if (!deletedRiesgoTrabajo) {
         throw new Error('Riesgo de trabajo no encontrado');
       }
-      return {
-        message: 'Riesgo de trabajo eliminado exitosamente',
-      };
+      return deletedRiesgoTrabajo;
     } catch (error) {
       console.error('Error al eliminar el riesgo de trabajo:', error);
       throw new Error('Error al eliminar el riesgo de trabajo');

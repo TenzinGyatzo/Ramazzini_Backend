@@ -71,6 +71,32 @@ import {
 } from '../expedientes/schemas/informe-longitudinal-cardiometabolico.schema';
 import { RiesgoTrabajo, RiesgoTrabajoSchema } from '../riesgos-trabajo/schemas/riesgo-trabajo.schema';
 import { ResultadoClinico, ResultadoClinicoSchema } from '../resultados-clinicos/schemas/resultado-clinico.schema';
+import { Deteccion, DeteccionSchema } from '../expedientes/schemas/deteccion.schema';
+import {
+  HistoriaOtologica,
+  HistoriaOtologicaSchema,
+} from '../expedientes/schemas/historia-otologica.schema';
+import {
+  PrevioEspirometria,
+  PrevioEspirometriaSchema,
+} from '../expedientes/schemas/previo-espirometria.schema';
+import {
+  SeguimientoProgramadoCardiometabolico,
+  SeguimientoProgramadoCardiometabolicoSchema,
+} from '../expedientes/schemas/seguimiento-programado-cardiometabolico.schema';
+import {
+  ConsentimientoDiario,
+  ConsentimientoDiarioSchema,
+} from '../consentimiento-diario/schemas/consentimiento-diario.schema';
+import {
+  WorkerDuplicateAlert,
+  WorkerDuplicateAlertSchema,
+} from './schemas/worker-duplicate-alert.schema';
+import {
+  WorkerFusionHistory,
+  WorkerFusionHistorySchema,
+} from './schemas/worker-fusion-history.schema';
+import { AuditModule } from '../audit/audit.module';
 import { FilesModule } from '../files/files.module';
 import {
   CentroTrabajo,
@@ -119,6 +145,16 @@ import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
       },
       { name: RiesgoTrabajo.name, schema: RiesgoTrabajoSchema },
       { name: ResultadoClinico.name, schema: ResultadoClinicoSchema },
+      { name: Deteccion.name, schema: DeteccionSchema },
+      { name: HistoriaOtologica.name, schema: HistoriaOtologicaSchema },
+      { name: PrevioEspirometria.name, schema: PrevioEspirometriaSchema },
+      {
+        name: SeguimientoProgramadoCardiometabolico.name,
+        schema: SeguimientoProgramadoCardiometabolicoSchema,
+      },
+      { name: ConsentimientoDiario.name, schema: ConsentimientoDiarioSchema },
+      { name: WorkerDuplicateAlert.name, schema: WorkerDuplicateAlertSchema },
+      { name: WorkerFusionHistory.name, schema: WorkerFusionHistorySchema },
       { name: CentroTrabajo.name, schema: CentroTrabajoSchema },
       { name: User.name, schema: UserSchema },
       { name: Empresa.name, schema: EmpresaSchema },
@@ -126,8 +162,9 @@ import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
     FilesModule,
     NOM024ComplianceModule,
     forwardRef(() => ProveedoresSaludModule),
-    UsersModule,
+    forwardRef(() => UsersModule),
     DeletionAuthModule,
+    forwardRef(() => AuditModule),
   ],
   controllers: [TrabajadoresController, TransferenciasController],
   providers: [TrabajadoresService, WorkerFusionService],

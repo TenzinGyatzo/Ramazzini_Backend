@@ -8,6 +8,7 @@ import { ACCESS_COOKIE } from './auth-cookies';
 
 interface JwtPayload {
   id: string;
+  sid?: string;
 }
 
 export function getAccessTokenFromRequest(req: Request): string {
@@ -46,5 +47,15 @@ export function getUserIdFromRequest(req: Request): string {
       throw error;
     }
     throw new UnauthorizedException('Token inválido o expirado');
+  }
+}
+
+export function getSidFromRequest(req: Request): string | undefined {
+  try {
+    const token = getAccessTokenFromRequest(req);
+    const decoded = jwt.decode(token) as JwtPayload | null;
+    return typeof decoded?.sid === 'string' ? decoded.sid : undefined;
+  } catch {
+    return undefined;
   }
 }

@@ -1,19 +1,22 @@
-import { getModelToken } from '@nestjs/mongoose';
+import { getModelToken, getConnectionToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Model } from 'mongoose';
 import { WorkerFusionService } from './worker-fusion.service';
 import { Trabajador } from './schemas/trabajador.schema';
 import { CentroTrabajo } from '../centros-trabajo/schemas/centro-trabajo.schema';
-import { CreateTrabajadorDto } from './dto/create-trabajador.dto';
+import { WorkerDuplicateAlert } from './schemas/worker-duplicate-alert.schema';
+import { WorkerFusionHistory } from './schemas/worker-fusion-history.schema';
+import { ConsentimientoDiario } from '../consentimiento-diario/schemas/consentimiento-diario.schema';
+import { AuditService } from '../audit/audit.service';
 
 describe('WorkerFusionService', () => {
   let service: WorkerFusionService;
-  let trabajadorModel: Model<Trabajador>;
-  let centroTrabajoModel: Model<CentroTrabajo>;
 
   const mockTrabajadorModel = {
     find: jest.fn(),
+    findOne: jest.fn(),
     findById: jest.fn(),
+    findOneAndUpdate: jest.fn(),
+    aggregate: jest.fn(),
   };
 
   const mockCentroTrabajoModel = {
@@ -21,29 +24,49 @@ describe('WorkerFusionService', () => {
     findById: jest.fn(),
   };
 
+  const mockDuplicateAlertModel = {
+    findOneAndUpdate: jest.fn(),
+    findOne: jest.fn(),
+    find: jest.fn(),
+    exists: jest.fn(),
+    updateMany: jest.fn(),
+  };
+
+  const mockFusionHistoryModel = {
+    findOne: jest.fn(),
+    create: jest.fn(),
+  };
+
+  const mockConsentimientoModel = {
+    find: jest.fn(),
+    exists: jest.fn(),
+    deleteOne: jest.fn(),
+  };
+
+  const mockConnection = {
+    model: jest.fn(),
+    startSession: jest.fn(),
+  };
+
+  const mockAuditService = {
+    record: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WorkerFusionService,
-        {
-          provide: getModelToken(Trabajador.name),
-          useValue: mockTrabajadorModel,
-        },
-        {
-          provide: getModelToken(CentroTrabajo.name),
-          useValue: mockCentroTrabajoModel,
-        },
+        { provide: getModelToken(Trabajador.name), useValue: mockTrabajadorModel },
+        { provide: getModelToken(CentroTrabajo.name), useValue: mockCentroTrabajoModel },
+        { provide: getModelToken(WorkerDuplicateAlert.name), useValue: mockDuplicateAlertModel },
+        { provide: getModelToken(WorkerFusionHistory.name), useValue: mockFusionHistoryModel },
+        { provide: getModelToken(ConsentimientoDiario.name), useValue: mockConsentimientoModel },
+        { provide: getConnectionToken(), useValue: mockConnection },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 
     service = module.get<WorkerFusionService>(WorkerFusionService);
-    trabajadorModel = module.get<Model<Trabajador>>(
-      getModelToken(Trabajador.name),
-    );
-    centroTrabajoModel = module.get<Model<CentroTrabajo>>(
-      getModelToken(CentroTrabajo.name),
-    );
-
     jest.clearAllMocks();
   });
 
@@ -79,23 +102,10 @@ describe('WorkerFusionService', () => {
       const result = await service.getCanonicalTrabajadorId(workerId);
       expect(result).toBe(canonicalId);
     });
-
-    it('should return given id when worker not found', async () => {
-      mockTrabajadorModel.findById.mockReturnValue({
-        select: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(null),
-      });
-
-      const result = await service.getCanonicalTrabajadorId(
-        '507f1f77bcf86cd799439011',
-      );
-      expect(result).toBe('507f1f77bcf86cd799439011');
-    });
   });
 
   describe('findDuplicateInEmpresa', () => {
-    it('should return null when centro has no idEmpresa', async () => {
+    it('returns null when centro has no empresa', async () => {
       mockCentroTrabajoModel.findById.mockReturnValue({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
@@ -103,9 +113,124 @@ describe('WorkerFusionService', () => {
       });
 
       const result = await service.findDuplicateInEmpresa(
-        {} as CreateTrabajadorDto,
-        '507f1f77bcf86cd799439011',
+        { folio: 'ABC123456789012AB', idCentroTrabajo: '507f1f77bcf86cd799439088' } as any,
+        '507f1f77bcf86cd799439088',
       );
+      expect(result).toBeNull();
+    });
+
+    it('returns null when folio is missing and curp is generic', async () => {
+      const result = await service.findDuplicateInEmpresa(
+        { curp: 'XXXX999999XXXXXX99', idCentroTrabajo: '507f1f77bcf86cd799439088' } as any,
+        '507f1f77bcf86cd799439088',
+      );
+      expect(result).toBeNull();
+    });
+
+    it('matches by real CURP with indexed findOne', async () => {
+      const empresaId = '507f1f77bcf86cd799439099';
+      const centroId = '507f1f77bcf86cd799439088';
+      const existingId = '507f1f77bcf86cd799439012';
+      const curp = 'GOML850101HDFNRR09';
+
+      mockCentroTrabajoModel.findById.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue({ idEmpresa: empresaId }),
+      });
+      mockCentroTrabajoModel.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: centroId }]),
+      });
+      mockTrabajadorModel.findOne
+        .mockReturnValueOnce({
+          sort: jest.fn().mockReturnThis(),
+          lean: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue(null),
+        })
+        .mockReturnValueOnce({
+          sort: jest.fn().mockReturnThis(),
+          lean: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue({
+            _id: existingId,
+            nombre: 'Juan',
+            primerApellido: 'Perez',
+            curp,
+            idCentroTrabajo: centroId,
+          }),
+        });
+
+      const result = await service.findDuplicateInEmpresa(
+        { folio: 'UNIQUEFOLIO123456', curp, idCentroTrabajo: centroId } as any,
+        centroId,
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.criterio).toBe('CURP');
+      expect(result?.trabajadorId).toBe(existingId);
+    });
+
+    it('matches by folio with indexed findOne', async () => {
+      const empresaId = '507f1f77bcf86cd799439099';
+      const centroId = '507f1f77bcf86cd799439088';
+      const existingId = '507f1f77bcf86cd799439012';
+      const folio = 'ABC123456789012AB';
+
+      mockCentroTrabajoModel.findById.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue({ idEmpresa: empresaId }),
+      });
+      mockCentroTrabajoModel.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: centroId }]),
+      });
+      mockTrabajadorModel.findOne.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue({
+          _id: existingId,
+          nombre: 'Juan',
+          primerApellido: 'Perez',
+          folio,
+          idCentroTrabajo: centroId,
+        }),
+      });
+
+      const result = await service.findDuplicateInEmpresa(
+        { folio, idCentroTrabajo: centroId } as any,
+        centroId,
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.criterio).toBe('FOLIO');
+      expect(result?.trabajadorId).toBe(existingId);
+      expect(result?.trabajador.folio).toBe(folio);
+    });
+  });
+
+  describe('getFusionRedirect', () => {
+    it('returns destinoId when fusion history exists', async () => {
+      const fuenteId = '507f1f77bcf86cd799439011';
+      const destinoId = '507f1f77bcf86cd799439012';
+      mockFusionHistoryModel.findOne.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue({ destinoId }),
+      });
+
+      const result = await service.getFusionRedirect(fuenteId);
+      expect(result).toBe(destinoId);
+    });
+
+    it('returns null when no fusion history', async () => {
+      mockFusionHistoryModel.findOne.mockReturnValue({
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
+      const result = await service.getFusionRedirect('507f1f77bcf86cd799439011');
       expect(result).toBeNull();
     });
   });

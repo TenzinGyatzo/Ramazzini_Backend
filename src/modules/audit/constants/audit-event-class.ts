@@ -51,4 +51,5 @@ export const ACTION_TYPE_TO_CLASS: Record<
   [AuditActionType.USER_PASSWORD_CHANGED]: AuditEventClass.CLASS_1_HARD_FAIL,
   [AuditActionType.SIGNER_PROFILE_CREATED]: AuditEventClass.CLASS_1_HARD_FAIL,
   [AuditActionType.SIGNER_PROFILE_UPDATED]: AuditEventClass.CLASS_1_HARD_FAIL,
+  [AuditActionType.WORKER_FUSION_MANUAL]: AuditEventClass.CLASS_1_HARD_FAIL,
 };

@@ -17,4 +17,11 @@ describe('jwt', () => {
     expect(decoded.id).toBe('user-abc');
     expect(decoded.exp - decoded.iat).toBe(12 * 60 * 60);
   });
+
+  it('generateAccessToken incluye sid cuando se proporciona', () => {
+    const token = generateAccessToken('user-abc', 'session-uuid');
+    const decoded = jwt.decode(token) as { id: string; sid?: string };
+
+    expect(decoded.sid).toBe('session-uuid');
+  });
 });

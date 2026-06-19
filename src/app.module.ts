@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { JwtAuthGuard } from './utils/guards/jwt-auth.guard';
+import { SessionInactivityGuard } from './utils/guards/session-inactivity.guard';
+import { SessionActivityModule } from './modules/users/session-activity.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
@@ -80,6 +82,7 @@ import { ResultadosClinicosModule } from './modules/resultados-clinicos/resultad
     RiesgosTrabajoModule,
     InformePersonalizacionModule,
     ResultadosClinicosModule,
+    SessionActivityModule,
   ],
   providers: [
     {
@@ -89,6 +92,10 @@ import { ResultadosClinicosModule } from './modules/resultados-clinicos/resultad
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: SessionInactivityGuard,
     },
   ],
 })

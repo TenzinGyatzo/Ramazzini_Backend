@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ProveedoresSaludService } from './proveedores-salud.service';
 import { ProveedoresSaludController } from './proveedores-salud.controller';
@@ -9,9 +9,11 @@ import {
 import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
 import { UserSchema } from '../users/schemas/user.schema';
 import { User } from '../users/entities/user.entity';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
+    forwardRef(() => AuditModule),
     MongooseModule.forFeature([
       { name: ProveedorSalud.name, schema: ProveedorSaludSchema },
       { name: User.name, schema: UserSchema },

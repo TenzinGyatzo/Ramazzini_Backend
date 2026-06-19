@@ -1,0 +1,7 @@
+/** Debe alinearse con VITE_SIRES_SESSION_INACTIVITY_MS en frontend. */
+export const SIRES_SESSION_INACTIVITY_MS =
+  Number(process.env.SIRES_SESSION_INACTIVITY_MS) || 900_000;
+
+export const SESSION_IDLE_ERROR_CODE = 'SESSION_IDLE';
+
+export const SESSION_ACTIVITY_TOUCH_THROTTLE_MS = 60_000;

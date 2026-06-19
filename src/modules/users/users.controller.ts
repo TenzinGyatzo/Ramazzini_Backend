@@ -38,7 +38,7 @@ import { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { EmailsService } from '../emails/emails.service';
 import { Public } from 'src/utils/decorators/public.decorator';
-import { getUserIdFromRequest } from 'src/utils/auth-helpers';
+import { getUserIdFromRequest, getSidFromRequest } from 'src/utils/auth-helpers';
 import {
   AUTH_FORGOT_PASSWORD,
   AUTH_LOGIN,
@@ -52,6 +52,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
 import { LoginLockoutService } from './login-lockout.service';
+import { SessionActivityService } from './session-activity.service';
 
 const LOGIN_FAIL_REASON = {
   USER_NOT_FOUND: 'USER_NOT_FOUND',
@@ -112,6 +113,7 @@ export class UsersController {
     private readonly refreshTokenService: RefreshTokenService,
     private readonly auditService: AuditService,
     private readonly loginLockoutService: LoginLockoutService,
+    private readonly sessionActivityService: SessionActivityService,
   ) {}
 
   private getRequestContext(req: Request) {
@@ -493,14 +495,33 @@ export class UsersController {
 
     await this.loginLockoutService.clearLockout(email);
 
-    const accessToken = generateAccessToken(user._id.toString());
+    const sidToReturn =
+      resolvedContext === 'PRIMARY_LOGIN' ? randomUUID() : (sid ?? null);
+
+    if (resolvedContext === 'PRIMARY_LOGIN' && sidToReturn) {
+      await this.sessionActivityService.createSession(
+        user._id.toString(),
+        sidToReturn,
+      );
+    } else if (isSessionUnlock && sidToReturn) {
+      await this.sessionActivityService.validateSessionOwnership(
+        sidToReturn,
+        user._id.toString(),
+      );
+      await this.sessionActivityService.touchSession(
+        sidToReturn,
+        user._id.toString(),
+      );
+    }
+
+    const accessToken = generateAccessToken(
+      user._id.toString(),
+      sidToReturn ?? undefined,
+    );
     const refreshToken = await this.refreshTokenService.issue(
       user._id.toString(),
     );
     setAuthCookies(res, accessToken, refreshToken);
-
-    const sidToReturn =
-      resolvedContext === 'PRIMARY_LOGIN' ? randomUUID() : (sid ?? null);
 
     await this.auditService
       .record({
@@ -530,6 +551,7 @@ export class UsersController {
   @Throttle(AUTH_REFRESH)
   @Post('refresh')
   async refresh(@Req() req: Request, @Res() res: Response) {
+    const sid = getSidFromRequest(req);
     const presentedRefresh = getRefreshTokenFromCookies(req.cookies);
     const { userId, newRefreshToken } =
       await this.refreshTokenService.rotate(presentedRefresh ?? '');
@@ -540,13 +562,23 @@ export class UsersController {
       throw new UnauthorizedException('Sesión inválida');
     }
 
-    const accessToken = generateAccessToken(userId);
+    const proveedorSaludId =
+      await this.usersService.getIdProveedorSaludByUserId(userId);
+    await this.sessionActivityService.assertAndTouchSession(
+      sid,
+      userId,
+      proveedorSaludId,
+    );
+
+    const accessToken = generateAccessToken(userId, sid);
     setAuthCookies(res, accessToken, newRefreshToken);
     res.json({ msg: 'Sesión renovada' });
   }
 
   @Post('logout')
   async logout(@Req() req: Request, @Res() res: Response) {
+    const sid = getSidFromRequest(req);
+    await this.sessionActivityService.revokeSession(sid);
     const presentedRefresh = getRefreshTokenFromCookies(req.cookies);
     await this.refreshTokenService.revoke(presentedRefresh ?? '');
     clearAuthCookies(res);

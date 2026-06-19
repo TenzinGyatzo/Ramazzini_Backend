@@ -5,6 +5,8 @@ import { ProveedoresSaludService } from './proveedores-salud.service';
 import { ProveedorSalud } from './schemas/proveedor-salud.schema';
 import { NOM024ComplianceUtil } from '../../utils/nom024-compliance.util';
 import { CatalogsService } from '../catalogs/catalogs.service';
+import { RegulatoryPolicyService } from 'src/utils/regulatory-policy.service';
+import { AuditService } from '../audit/audit.service';
 
 describe('ProveedoresSaludService - NOM-024 CLUES Validation', () => {
   let service: ProveedoresSaludService;
@@ -58,8 +60,14 @@ describe('ProveedoresSaludService - NOM-024 CLUES Validation', () => {
           provide: getModelToken(ProveedorSalud.name),
           useValue: createMockModel(),
         },
+        {
+          provide: getModelToken('User'),
+          useValue: createMockModel(),
+        },
         { provide: NOM024ComplianceUtil, useValue: mockNom024Util },
         { provide: CatalogsService, useValue: mockCatalogsService },
+        { provide: RegulatoryPolicyService, useValue: {} },
+        { provide: AuditService, useValue: { record: jest.fn() } },
       ],
     }).compile();
 

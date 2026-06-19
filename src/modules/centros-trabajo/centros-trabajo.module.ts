@@ -65,7 +65,7 @@ import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
     ]),
     FilesModule,
     forwardRef(() => TrabajadoresModule),
-    UsersModule,
+    forwardRef(() => UsersModule),
     DeletionAuthModule,
   ],
   controllers: [CentrosTrabajoController],

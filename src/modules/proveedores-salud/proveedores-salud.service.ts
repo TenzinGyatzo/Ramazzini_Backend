@@ -16,6 +16,10 @@ import { normalizeProveedorSaludData } from 'src/utils/normalization';
 import { NOM024ComplianceUtil } from 'src/utils/nom024-compliance.util';
 import { CatalogsService } from '../catalogs/catalogs.service';
 import { RegulatoryPolicyService } from 'src/utils/regulatory-policy.service';
+import { canChangeRegimenRegulatorio } from 'src/utils/user-role-helpers';
+import { AuditService } from '../audit/audit.service';
+import { AuditActionType } from '../audit/constants/audit-action-type';
+import { AuditEventClass } from '../audit/constants/audit-event-class';
 
 @Injectable()
 export class ProveedoresSaludService {
@@ -29,6 +33,8 @@ export class ProveedoresSaludService {
     private catalogsService: CatalogsService,
     @Inject(forwardRef(() => RegulatoryPolicyService))
     private regulatoryPolicyService: RegulatoryPolicyService,
+    @Inject(forwardRef(() => AuditService))
+    private auditService: AuditService,
   ) {}
 
   /**
@@ -718,10 +724,11 @@ export class ProveedoresSaludService {
       );
     }
 
-    // Opcional: Solo usuarios con rol "Principal" pueden cambiar régimen
-    // if (user.role !== 'Principal') {
-    //   throw new ForbiddenException('Solo el usuario principal puede cambiar el régimen regulatorio');
-    // }
+    if (!canChangeRegimenRegulatorio(user.role)) {
+      throw new ForbiddenException(
+        'Solo el usuario principal puede cambiar el régimen regulatorio',
+      );
+    }
 
     // Obtener proveedor actual
     const proveedor = await this.proveedoresSaludModel
@@ -779,6 +786,21 @@ export class ProveedoresSaludService {
 
     // Limpiar cache NOM024 después del cambio
     this.nom024Util.clearProviderCache(proveedorSaludId);
+
+    await this.auditService.record({
+      proveedorSaludId: proveedorIdStr,
+      actorId: userId,
+      actionType: AuditActionType.ADMIN_CONFIG_SIRES,
+      resourceType: 'PROVEEDOR_SALUD',
+      resourceId: proveedorIdStr,
+      payload: {
+        regimenAnterior: regimenActual,
+        regimenNuevo: regimenNuevo,
+        reason: dto.reason,
+        proveedorSaludId: proveedorIdStr,
+      },
+      eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
+    });
 
     // Obtener la nueva política regulatoria
     const regulatoryPolicy =

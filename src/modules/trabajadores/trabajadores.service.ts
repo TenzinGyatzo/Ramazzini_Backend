@@ -2,9 +2,11 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Trabajador } from './entities/trabajador.entity';
 import { CreateTrabajadorDto } from './dto/create-trabajador.dto';
 import { UpdateTrabajadorDto } from './dto/update-trabajador.dto';
@@ -61,6 +63,7 @@ import { CuestionarioProdromalBreve } from '../expedientes/schemas/cuestionario-
 import { TrastornoLimitePersonalidad } from '../expedientes/schemas/trastorno-limite-personalidad.schema';
 import { generateFolioFromWorkerData } from 'src/utils/folio-generator.util';
 import { WorkerFusionService } from './worker-fusion.service';
+import { CreateTrabajadorResult } from './interfaces/duplicate-match.interface';
 import { EventoSeguimientoCardiometabolico } from '../expedientes/schemas/evento-seguimiento-cardiometabolico.schema';
 import { InformeLongitudinalCardiometabolico } from '../expedientes/schemas/informe-longitudinal-cardiometabolico.schema';
 import {
@@ -118,6 +121,7 @@ export class TrabajadoresService {
     private nom024Util: NOM024ComplianceUtil,
     private catalogsService: CatalogsService,
     private geographyValidator: GeographyValidator,
+    @Inject(forwardRef(() => RegulatoryPolicyService))
     private regulatoryPolicyService: RegulatoryPolicyService,
     private workerFusionService: WorkerFusionService,
   ) {}
@@ -505,7 +509,7 @@ export class TrabajadoresService {
       }
     }
   }
-  async create(createTrabajadorDto: CreateTrabajadorDto): Promise<Trabajador> {
+  async create(createTrabajadorDto: CreateTrabajadorDto): Promise<CreateTrabajadorResult> {
     const normalizedDto = normalizeTrabajadorData(createTrabajadorDto);
 
     // Validar fechaNacimiento (A2)
@@ -569,27 +573,63 @@ export class TrabajadoresService {
     });
     (normalizedDto as any).folio = folio;
 
-    // NOM-024: Fusión de registros - detectar duplicado en misma empresa
-    const duplicate = await this.workerFusionService.findDuplicateInEmpresa(
+    // NOM-024: Detectar posible duplicado (señalización manual — sin fusión automática)
+    const posibleDuplicado = await this.workerFusionService.findDuplicateInEmpresa(
       { ...normalizedDto, folio } as any,
       normalizedDto.idCentroTrabajo,
     );
-    if (duplicate) {
-      (normalizedDto as any).idTrabajadorCanonico = duplicate._id;
-    }
 
     try {
       const createdTrabajador = new this.trabajadorModel(normalizedDto);
       const savedTrabajador = await createdTrabajador.save();
-      return savedTrabajador;
+
+      let posibleDuplicadoResult = posibleDuplicado;
+      if (posibleDuplicado) {
+        const idEmpresa = await this.workerFusionService.getIdEmpresaFromCentro(
+          normalizedDto.idCentroTrabajo,
+        );
+        if (idEmpresa) {
+          const alert = await this.workerFusionService.createDuplicateAlert(
+            savedTrabajador._id.toString(),
+            posibleDuplicado.trabajadorId,
+            posibleDuplicado.criterio,
+            idEmpresa,
+            normalizedDto.createdBy,
+          );
+          if (alert?._id) {
+            posibleDuplicadoResult = {
+              ...posibleDuplicado,
+              alertId: alert._id.toString(),
+            };
+          }
+        }
+      }
+
+      return { trabajador: savedTrabajador, posibleDuplicado: posibleDuplicadoResult };
     } catch (error) {
       console.error('Error al guardar el trabajador:', error);
       throw error;
     }
   }
 
-  async findWorkersByCenter(id: string): Promise<Trabajador[]> {
-    return await this.trabajadorModel.find({ idCentroTrabajo: id }).exec();
+  async countByCenter(id: string): Promise<number> {
+    return this.trabajadorModel.countDocuments({ idCentroTrabajo: id }).exec();
+  }
+
+  async findWorkersByCenter(id: string): Promise<any[]> {
+    const trabajadores = await this.trabajadorModel.find({ idCentroTrabajo: id }).lean().exec();
+    const ids = trabajadores.map((t) => t._id.toString());
+    const alertCounts = await this.workerFusionService.getPendingAlertCountsByWorkerIds(ids);
+
+    return trabajadores.map((t) => {
+      const workerId = t._id.toString();
+      const count = alertCounts.get(workerId) ?? 0;
+      return {
+        ...t,
+        tieneDuplicadoPendiente: count > 0,
+        alertasPendientesCount: count,
+      };
+    });
   }
 
   async findWorkersWithHistoriaDataByCenter(centroId: string): Promise<any[]> {
@@ -612,6 +652,19 @@ export class TrabajadoresService {
       return [];
     }
 
+    const workerIdStrings = trabajadoresIds.map((id) => id.toString());
+    const alertCounts =
+      await this.workerFusionService.getPendingAlertCountsByWorkerIds(workerIdStrings);
+
+    const canonicalIdMap =
+      await this.workerFusionService.resolveCanonicalIdMap(workerIdStrings);
+    const queryIds = [
+      ...new Set([
+        ...workerIdStrings,
+        ...Array.from(canonicalIdMap.values()),
+      ]),
+    ].map((id) => new Types.ObjectId(id));
+
     const tiposRcLista = [
       TipoEstudio.ESPIROMETRIA,
       TipoEstudio.EKG,
@@ -632,7 +685,7 @@ export class TrabajadoresService {
     ] = await Promise.all([
       this.historiaClinicaModel
         .aggregate([
-          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $match: { idTrabajador: { $in: queryIds } } },
           { $sort: { fechaHistoriaClinica: -1 } },
           {
             $group: {
@@ -656,7 +709,7 @@ export class TrabajadoresService {
         .exec(),
       this.aptitudModel
         .aggregate([
-          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $match: { idTrabajador: { $in: queryIds } } },
           { $sort: { fechaAptitudPuesto: -1 } },
           {
             $group: {
@@ -669,7 +722,7 @@ export class TrabajadoresService {
         .exec(),
       this.exploracionFisicaModel
         .aggregate([
-          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $match: { idTrabajador: { $in: queryIds } } },
           { $sort: { fechaExploracionFisica: -1 } },
           {
             $group: {
@@ -684,7 +737,7 @@ export class TrabajadoresService {
         .exec(),
       this.examenVistaModel
         .aggregate([
-          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $match: { idTrabajador: { $in: queryIds } } },
           { $sort: { fechaExamenVista: -1 } },
           {
             $group: {
@@ -700,7 +753,7 @@ export class TrabajadoresService {
         .exec(),
       this.notaMedicaModel
         .aggregate([
-          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $match: { idTrabajador: { $in: queryIds } } },
           { $sort: { fechaNotaMedica: -1 } },
           {
             $group: {
@@ -712,7 +765,7 @@ export class TrabajadoresService {
         .exec(),
       this.audiometriaModel
         .aggregate([
-          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $match: { idTrabajador: { $in: queryIds } } },
           { $sort: { fechaAudiometria: -1 } },
           {
             $group: {
@@ -729,7 +782,7 @@ export class TrabajadoresService {
         .aggregate([
           {
             $match: {
-              idTrabajador: { $in: trabajadoresIds },
+              idTrabajador: { $in: queryIds },
               tipoEstudio: { $in: tiposRcLista },
             },
           },
@@ -745,7 +798,7 @@ export class TrabajadoresService {
         .exec(),
       this.eventoSeguimientoCardiometabolicoModel
         .aggregate([
-          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $match: { idTrabajador: { $in: queryIds } } },
           { $sort: { fechaEventoSeguimientoCardiometabolico: -1 } },
           {
             $group: {
@@ -757,7 +810,7 @@ export class TrabajadoresService {
         .exec(),
       this.informeLongitudinalCardiometabolicoModel
         .aggregate([
-          { $match: { idTrabajador: { $in: trabajadoresIds } } },
+          { $match: { idTrabajador: { $in: queryIds } } },
           { $sort: { fechaInformeLongitudinalCardiometabolico: -1 } },
           {
             $group: {
@@ -833,16 +886,20 @@ export class TrabajadoresService {
 
     const resultado = trabajadores.map((trabajador) => {
       const id = trabajador._id.toString();
+      const lookupId = canonicalIdMap.get(id) ?? id;
 
-      const historia = historiasMap.get(id);
-      const aptitud = aptitudesMap.get(id);
-      const exploracion = exploracionesMap.get(id);
-      const examenVista = examenesVistaMap.get(id);
-      const consulta = consultasMap.get(id);
-      const audiometria = audiometriasMap.get(id);
+      const historia = historiasMap.get(lookupId);
+      const aptitud = aptitudesMap.get(lookupId);
+      const exploracion = exploracionesMap.get(lookupId);
+      const examenVista = examenesVistaMap.get(lookupId);
+      const consulta = consultasMap.get(lookupId);
+      const audiometria = audiometriasMap.get(lookupId);
+      const alertCount = alertCounts.get(id) ?? 0;
 
       return {
         ...trabajador,
+        tieneDuplicadoPendiente: alertCount > 0,
+        alertasPendientesCount: alertCount,
         historiaClinicaResumen: historia
           ? {
               lumbalgias: historia.lumbalgias ?? null,
@@ -914,17 +971,17 @@ export class TrabajadoresService {
             }
           : null,
         resultadosClinicosResumen: {
-          espirometria: resultadosEspirometriaMap.has(id)
-            ? { etiqueta: etiquetaResultadoGlobal(resultadosEspirometriaMap.get(id)?.resultadoGlobal) }
+          espirometria: resultadosEspirometriaMap.has(lookupId)
+            ? { etiqueta: etiquetaResultadoGlobal(resultadosEspirometriaMap.get(lookupId)?.resultadoGlobal) }
             : null,
-          ekg: resultadosEkgMap.has(id)
-            ? { etiqueta: etiquetaResultadoGlobal(resultadosEkgMap.get(id)?.resultadoGlobal) }
+          ekg: resultadosEkgMap.has(lookupId)
+            ? { etiqueta: etiquetaResultadoGlobal(resultadosEkgMap.get(lookupId)?.resultadoGlobal) }
             : null,
-          rayosX: resultadosRayosXMap.has(id)
-            ? { etiqueta: etiquetaResultadoGlobal(resultadosRayosXMap.get(id)?.resultadoGlobal) }
+          rayosX: resultadosRayosXMap.has(lookupId)
+            ? { etiqueta: etiquetaResultadoGlobal(resultadosRayosXMap.get(lookupId)?.resultadoGlobal) }
             : null,
-          analisisLaboratorio: resultadosAnalisisLabMap.has(id)
-            ? { etiqueta: etiquetaResultadoGlobal(resultadosAnalisisLabMap.get(id)?.resultadoGlobal) }
+          analisisLaboratorio: resultadosAnalisisLabMap.has(lookupId)
+            ? { etiqueta: etiquetaResultadoGlobal(resultadosAnalisisLabMap.get(lookupId)?.resultadoGlobal) }
             : null,
         },
       };
@@ -1670,20 +1727,27 @@ export class TrabajadoresService {
   }
 
   async findOne(id: string): Promise<any> {
-    // 1. Obtener al trabajador
-    const trabajador = await this.trabajadorModel.findById(id).lean();
-    if (!trabajador) throw new Error('Trabajador no encontrado');
+    const redirectTo = await this.workerFusionService.getFusionRedirect(id);
+    if (redirectTo) {
+      return { redirectTo, fused: true };
+    }
 
-    // 2. Obtener los riesgos de trabajo
+    const resolvedId = await this.workerFusionService.getCanonicalTrabajadorId(id);
+    const trabajador = await this.trabajadorModel.findById(resolvedId).lean();
+    if (!trabajador) {
+      throw new Error('Trabajador no encontrado');
+    }
+
     const riesgos = await this.riesgoTrabajoModel
-      .find({ idTrabajador: id })
+      .find({ idTrabajador: resolvedId })
       .sort({ fechaRiesgo: -1 })
       .lean();
 
-    // 3. Adjuntar y retornar
     return {
       ...trabajador,
       riesgosTrabajo: riesgos,
+      requestedId: id !== resolvedId ? id : undefined,
+      canonicalId: resolvedId,
     };
   }
 
@@ -3158,11 +3222,11 @@ export class TrabajadoresService {
         // Procesar los datos validados
         const processedWorker = this.processWorkerData(validation.cleanedData);
 
-        const nuevoTrabajador = await this.create(processedWorker);
+        const { trabajador: nuevoTrabajador, posibleDuplicado } =
+          await this.create(processedWorker);
 
-        // ✅ CORRECCIÓN: Incluir tanto el trabajador guardado como los datos procesados con valores originales
         const workerWithOriginals = {
-          ...nuevoTrabajador.toObject(), // Convertir el documento de Mongoose a objeto plano
+          ...nuevoTrabajador.toObject(),
           // Agregar los campos originales para normalizaciones
           sexoOriginal: processedWorker.sexoOriginal,
           escolaridadOriginal: processedWorker.escolaridadOriginal,
@@ -3173,7 +3237,7 @@ export class TrabajadoresService {
           curpOriginal: processedWorker.curpOriginal,
         };
 
-        resultados.push({ success: true, worker: workerWithOriginals });
+        resultados.push({ success: true, worker: workerWithOriginals, posibleDuplicado });
       } catch (error) {
         console.error(
           `[ERROR] ${worker.primerApellido || 'Sin primer apellido'} ${worker.segundoApellido || 'Sin segundo apellido'} ${worker.nombre || 'Sin nombre'}: ${error.message}`,
@@ -3620,6 +3684,13 @@ export class TrabajadoresService {
         if (!result) {
           throw new Error(`No se pudo eliminar el Trabajador con ID: ${id}.`);
         }
+
+        // 5️⃣ Limpiar alertas de duplicado que referencian a este trabajador,
+        // para que el registro que permanece no quede marcado como duplicado.
+        await this.workerFusionService.removeAlertsReferencingWorker(
+          id,
+          session,
+        );
       });
 
       session.endSession();
@@ -3720,5 +3791,36 @@ export class TrabajadoresService {
         `El número de empleado ${numeroEmpleado} ya está registrado`,
       );
     }
+  }
+
+  async fusionarTrabajadores(
+    params: {
+      trabajadorDestinoId: string;
+      trabajadorFuenteId: string;
+      userId: string;
+      idEmpresa: string;
+      confirmacion: boolean;
+      numeroEmpleadoResuelto?: string;
+      migrarArchivos?: boolean;
+      legacyAutoFusion?: boolean;
+    },
+  ) {
+    const proveedorSaludId =
+      await this.getProveedorSaludIdFromCentroTrabajo(
+        (
+          await this.trabajadorModel
+            .findById(params.trabajadorDestinoId)
+            .select('idCentroTrabajo')
+            .lean()
+            .exec()
+        )?.idCentroTrabajo?.toString() ?? '',
+      );
+    if (!proveedorSaludId) {
+      throw new BadRequestException('No se pudo determinar el proveedor de salud');
+    }
+    return this.workerFusionService.fusionarTrabajadores({
+      ...params,
+      proveedorSaludId,
+    });
   }
 }

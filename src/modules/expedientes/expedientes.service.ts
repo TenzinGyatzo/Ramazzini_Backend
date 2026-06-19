@@ -2207,6 +2207,13 @@ export class ExpedientesService {
    * GIIS-B019: Create Detección record
    */
   async createDeteccion(createDto: any): Promise<any> {
+    if (createDto.idTrabajador) {
+      createDto.idTrabajador =
+        await this.workerFusionService.getCanonicalTrabajadorId(
+          createDto.idTrabajador,
+        );
+    }
+
     await this.validateDeteccionRules(createDto, createDto.idTrabajador);
 
     // Try to derive CLUES if not provided

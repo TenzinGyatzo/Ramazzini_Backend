@@ -5,6 +5,7 @@ import { ResultadoClinico, ResultadoGlobal, TipoEstudio, TipoSangre } from './sc
 import { CreateResultadoClinicoDto } from './dto/create-resultado-clinico.dto';
 import { UpdateResultadoClinicoDto } from './dto/update-resultado-clinico.dto';
 import { DocumentoExterno } from '../expedientes/schemas/documento-externo.schema';
+import { WorkerFusionService } from '../trabajadores/worker-fusion.service';
 
 /** Campos de categoría paraguas; solo debe persistir el que corresponda a `tipoEstudio`. */
 const TIPO_ALTERACION_FIELD_KEYS = [
@@ -106,9 +107,16 @@ export class ResultadosClinicosService {
     private resultadoClinicoModel: Model<ResultadoClinico>,
     @InjectModel(DocumentoExterno.name)
     private documentoExternoModel: Model<DocumentoExterno>,
+    private workerFusionService: WorkerFusionService,
   ) {}
 
   async create(createDto: CreateResultadoClinicoDto): Promise<ResultadoClinico> {
+    if (createDto.idTrabajador) {
+      createDto.idTrabajador =
+        await this.workerFusionService.getCanonicalTrabajadorId(
+          createDto.idTrabajador,
+        );
+    }
     if (createDto.tipoEstudio !== TipoEstudio.TIPO_SANGRE && !createDto.resultadoGlobal) {
       throw new BadRequestException('El resultado global es requerido para estudios de gabinete.');
     }
@@ -135,7 +143,9 @@ export class ResultadosClinicosService {
     trabajadorId: string,
     tipoEstudio?: string,
   ): Promise<ResultadoClinico[]> {
-    const query: any = { idTrabajador: trabajadorId };
+    const canonicalId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+    const query: any = { idTrabajador: canonicalId };
 
     if (tipoEstudio) {
       query.tipoEstudio = tipoEstudio;
@@ -147,8 +157,10 @@ export class ResultadosClinicosService {
   async findByTrabajadorGroupedByYear(
     trabajadorId: string,
   ): Promise<Record<number, ResultadoClinico[]>> {
+    const canonicalId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
     const resultados = await this.resultadoClinicoModel
-      .find({ idTrabajador: trabajadorId })
+      .find({ idTrabajador: canonicalId })
       .populate({
         path: 'idDocumentoExterno',
         select: 'nombreDocumento fechaDocumento extension notasDocumento',
