@@ -10,6 +10,7 @@ import {
   normalizeCie10CatalogKey,
   normalizePrimeraVezDiagnostico,
   SexoBiologicoGiis,
+  tieneComorbilidadDiagRegistrada,
 } from '../../../utils/cie10-diagnostico-sis.util';
 import { extractCIE10Code } from '../../../utils/cie10.util';
 import { DiagnosisRule } from '../services/cie10-catalog-lookup.service';
@@ -55,6 +56,8 @@ export interface ValidateDiagnostico23Params {
   tipoPersonalMedicoEspecialista: number;
   lookup: (code: string) => Promise<DiagnosisRule | null>;
   catalogExists: (catalogKey: string) => Promise<boolean>;
+  /** SIRES exige primeraVez 0/1; SIN_REGIMEN permite solo código CIE-10 */
+  requirePrimeraVez?: boolean;
 }
 
 function keysEqual(a: string | null | undefined, b: string | null | undefined): boolean {
@@ -91,10 +94,32 @@ export async function validateCodigoCIEDiagnostico23(
   const issues: Diagnostico23ValidationIssue[] = [];
   const field = params.field;
   const label = field === 'codigoCIEDiagnostico2' ? '2' : '3';
+  const requirePrimeraVez = params.requirePrimeraVez !== false;
   const pv = normalizePrimeraVezDiagnostico(params.primeraVez);
   const raw = params.codigo?.trim() || '';
 
-  if (pv === -1) {
+  if (!requirePrimeraVez) {
+    if (!raw) {
+      return issues;
+    }
+
+    if (
+      field === 'codigoCIEDiagnostico3' &&
+      !tieneComorbilidadDiagRegistrada(
+        params.primeraVezDiagnostico2,
+        params.codigoCIEDiagnostico2,
+      )
+    ) {
+      issues.push({
+        field,
+        code: extractCIE10Code(raw) || raw,
+        reason: 'diag2_requerido',
+        message:
+          'No puede registrar el diagnóstico 3 sin haber registrado antes el diagnóstico 2 (comorbilidad).',
+      });
+      return issues;
+    }
+  } else if (pv === -1) {
     if (raw) {
       issues.push({
         field,
@@ -106,17 +131,8 @@ export async function validateCodigoCIEDiagnostico23(
     return issues;
   }
 
-  if (!raw) {
-    issues.push({
-      field,
-      code: '',
-      reason: 'codigo_requerido',
-      message: `El código CIE-10 diagnóstico ${label} es obligatorio cuando primeraVezDiagnostico${label} está activo (0 o 1).`,
-    });
-    return issues;
-  }
-
   if (
+    requirePrimeraVez &&
     field === 'codigoCIEDiagnostico3' &&
     !isPrimeraVezComorbilidadActiva(params.primeraVezDiagnostico2)
   ) {
@@ -126,6 +142,18 @@ export async function validateCodigoCIEDiagnostico23(
       reason: 'diag2_requerido',
       message:
         'No puede registrar el diagnóstico 3 sin haber registrado antes el diagnóstico 2 (comorbilidad).',
+    });
+    return issues;
+  }
+
+  if (!raw) {
+    issues.push({
+      field,
+      code: '',
+      reason: 'codigo_requerido',
+      message: requirePrimeraVez
+        ? `El código CIE-10 diagnóstico ${label} es obligatorio cuando primeraVezDiagnostico${label} está activo (0 o 1).`
+        : `El código CIE-10 diagnóstico ${label} es obligatorio cuando se registra comorbilidad.`,
     });
     return issues;
   }

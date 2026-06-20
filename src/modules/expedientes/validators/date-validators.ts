@@ -106,13 +106,15 @@ export function validateFechaNacimientoFirmante(
 export function validateFechaDocumento(
   fechaDocumento: Date | string,
   fechaNacimiento?: Date | string | null,
+  options?: { rejectFuture?: boolean },
 ): void {
+  const rejectFuture = options?.rejectFuture !== false;
   const fechaDoc = normalizeDate(fechaDocumento);
   const hoy = new Date();
   hoy.setHours(23, 59, 59, 999); // Permitir hasta fin del día actual
 
   // Validar que no sea futura
-  if (fechaDoc > hoy) {
+  if (rejectFuture && fechaDoc > hoy) {
     throw new BadRequestException({
       code: 'VALIDATION_ERROR',
       ruleId: 'E1',

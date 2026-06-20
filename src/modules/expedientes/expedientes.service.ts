@@ -47,7 +47,7 @@ import {
   CIE10Entry,
   CatalogType,
 } from '../catalogs/interfaces/catalog-entry.interface';
-import { validateFechaDocumento } from './validators/date-validators';
+import { validateDocumentDateE1ForRegime } from './validators/document-date-e1.helper';
 import { validateNoDuplicateCIE10PrincipalAndComplementary } from './validators/diagnosis-duplicate.validator';
 import { validateCodigoCIEDiagnostico1 } from './validators/cie10-diagnostico1.validator';
 import { validateCodigoCIEDiagnostico23 } from './validators/cie10-diagnostico23.validator';
@@ -213,6 +213,8 @@ export class ExpedientesService {
 
     const policy =
       await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
+
+    const requirePrimeraVezDiag23 = policy.regime === 'SIRES_NOM024';
 
     // Validate CIE-10 principal required based on policy
     // IMPORTANTE: Esta validación solo aplica a notas médicas, NO a historias clínicas
@@ -448,6 +450,7 @@ export class ExpedientesService {
         tipoPersonalMedicoEspecialista: cexTp.medicoEspecialista,
         lookup,
         catalogExists,
+        requirePrimeraVez: requirePrimeraVezDiag23,
       });
       for (const issue of diag2Issues) {
         errors.push(issue.message);
@@ -467,6 +470,7 @@ export class ExpedientesService {
         tipoPersonalMedicoEspecialista: cexTp.medicoEspecialista,
         lookup,
         catalogExists,
+        requirePrimeraVez: requirePrimeraVezDiag23,
       });
       for (const issue of diag3Issues) {
         errors.push(issue.message);
@@ -576,25 +580,14 @@ export class ExpedientesService {
       await this.validateVitalSignsForNOM024(createDto, createDto.idTrabajador);
     }
 
-    // Validación E1: fechaDocumento para notaMedica
-    if (
-      documentType === 'notaMedica' &&
-      createDto.fechaNotaMedica &&
-      createDto.idTrabajador
-    ) {
-      const trabajador = await this.trabajadorModel
-        .findById(createDto.idTrabajador)
-        .lean();
-
-      if (trabajador?.fechaNacimiento) {
-        validateFechaDocumento(
-          createDto.fechaNotaMedica,
-          trabajador.fechaNacimiento,
-        );
-      } else {
-        // Si no hay fechaNacimiento, solo validar que no sea futura
-        validateFechaDocumento(createDto.fechaNotaMedica);
-      }
+    // Validación E1: fecha del documento según régimen (SIRES: no futura; SIN_REGIMEN notaMedica: solo coherencia nacimiento)
+    const createDateField = this.dateFields[documentType];
+    if (createDateField && createDto[createDateField] && createDto.idTrabajador) {
+      await this.validateDocumentDateE1(
+        createDto.idTrabajador,
+        createDto[createDateField],
+        documentType,
+      );
     }
 
     // Validación embarazo CEX para notaMedica
@@ -742,6 +735,22 @@ export class ExpedientesService {
     });
 
     return savedDocument;
+  }
+
+  private async validateDocumentDateE1(
+    trabajadorId: string,
+    fechaDocumento: Date | string,
+    documentType?: string,
+  ): Promise<void> {
+    await validateDocumentDateE1ForRegime(
+      {
+        trabajadorModel: this.trabajadorModel,
+        centroTrabajoModel: this.centroTrabajoModel,
+        empresaModel: this.empresaModel,
+        regulatoryPolicyService: this.regulatoryPolicyService,
+      },
+      { trabajadorId, fechaDocumento, documentType },
+    );
   }
 
   /**
@@ -1161,24 +1170,13 @@ export class ExpedientesService {
       );
     }
 
-    // Validación E1: fechaDocumento para notaMedica
-    if (
-      documentType === 'notaMedica' &&
-      updateDto.fechaNotaMedica &&
-      trabajadorId
-    ) {
-      const trabajador = await this.trabajadorModel
-        .findById(trabajadorId)
-        .lean();
-
-      if (trabajador?.fechaNacimiento) {
-        validateFechaDocumento(
-          updateDto.fechaNotaMedica,
-          trabajador.fechaNacimiento,
-        );
-      } else {
-        validateFechaDocumento(updateDto.fechaNotaMedica);
-      }
+    // Validación E1: fecha del documento según régimen
+    if (updateDto[dateField] && trabajadorId) {
+      await this.validateDocumentDateE1(
+        trabajadorId,
+        updateDto[dateField],
+        documentType,
+      );
     }
 
     // Validar Regla B4: No duplicar principal en complementarios (para notaMedica)
@@ -1442,6 +1440,12 @@ export class ExpedientesService {
       throw new BadRequestException('El campo idTrabajador es requerido');
     }
 
+    await this.validateDocumentDateE1(
+      trabajadorId,
+      fechaDocumento,
+      'documentoExterno',
+    );
+
     // ✅ SIEMPRE crear una nueva entidad para evitar archivos huérfanos
     // Esto permite que cada archivo tenga su propio registro y se pueda gestionar individualmente
     const createdDocument = new model(createDto);
@@ -1556,6 +1560,12 @@ export class ExpedientesService {
     if (!trabajadorId) {
       throw new BadRequestException('El campo idTrabajador es requerido');
     }
+
+    await this.validateDocumentDateE1(
+      trabajadorId,
+      newFecha,
+      'documentoExterno',
+    );
 
     let result;
 

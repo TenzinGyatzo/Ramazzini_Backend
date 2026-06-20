@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ResultadoClinico, ResultadoGlobal, TipoEstudio, TipoSangre } from './schemas/resultado-clinico.schema';
@@ -6,6 +6,11 @@ import { CreateResultadoClinicoDto } from './dto/create-resultado-clinico.dto';
 import { UpdateResultadoClinicoDto } from './dto/update-resultado-clinico.dto';
 import { DocumentoExterno } from '../expedientes/schemas/documento-externo.schema';
 import { WorkerFusionService } from '../trabajadores/worker-fusion.service';
+import { Trabajador } from '../trabajadores/schemas/trabajador.schema';
+import { CentroTrabajo } from '../centros-trabajo/schemas/centro-trabajo.schema';
+import { Empresa } from '../empresas/schemas/empresa.schema';
+import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
+import { validateDocumentDateE1ForRegime } from '../expedientes/validators/document-date-e1.helper';
 
 /** Campos de categoría paraguas; solo debe persistir el que corresponda a `tipoEstudio`. */
 const TIPO_ALTERACION_FIELD_KEYS = [
@@ -107,8 +112,25 @@ export class ResultadosClinicosService {
     private resultadoClinicoModel: Model<ResultadoClinico>,
     @InjectModel(DocumentoExterno.name)
     private documentoExternoModel: Model<DocumentoExterno>,
+    @InjectModel(Trabajador.name)
+    private trabajadorModel: Model<Trabajador>,
+    @InjectModel(CentroTrabajo.name)
+    private centroTrabajoModel: Model<CentroTrabajo>,
+    @InjectModel(Empresa.name)
+    private empresaModel: Model<Empresa>,
     private workerFusionService: WorkerFusionService,
+    @Inject(forwardRef(() => RegulatoryPolicyService))
+    private regulatoryPolicyService: RegulatoryPolicyService,
   ) {}
+
+  private get documentDateE1Deps() {
+    return {
+      trabajadorModel: this.trabajadorModel,
+      centroTrabajoModel: this.centroTrabajoModel,
+      empresaModel: this.empresaModel,
+      regulatoryPolicyService: this.regulatoryPolicyService,
+    };
+  }
 
   async create(createDto: CreateResultadoClinicoDto): Promise<ResultadoClinico> {
     if (createDto.idTrabajador) {
@@ -116,6 +138,12 @@ export class ResultadosClinicosService {
         await this.workerFusionService.getCanonicalTrabajadorId(
           createDto.idTrabajador,
         );
+    }
+    if (createDto.idTrabajador && createDto.fechaEstudio) {
+      await validateDocumentDateE1ForRegime(this.documentDateE1Deps, {
+        trabajadorId: createDto.idTrabajador,
+        fechaDocumento: createDto.fechaEstudio,
+      });
     }
     if (createDto.tipoEstudio !== TipoEstudio.TIPO_SANGRE && !createDto.resultadoGlobal) {
       throw new BadRequestException('El resultado global es requerido para estudios de gabinete.');
@@ -199,6 +227,16 @@ export class ResultadosClinicosService {
     const existing = await this.resultadoClinicoModel.findById(id).exec();
     if (!existing) {
       throw new NotFoundException(`Resultado clínico con ID ${id} no encontrado`);
+    }
+
+    if (updateDto.fechaEstudio) {
+      const trabajadorId = existing.idTrabajador?.toString();
+      if (trabajadorId) {
+        await validateDocumentDateE1ForRegime(this.documentDateE1Deps, {
+          trabajadorId,
+          fechaDocumento: updateDto.fechaEstudio,
+        });
+      }
     }
 
     const updateData: any = { ...updateDto };

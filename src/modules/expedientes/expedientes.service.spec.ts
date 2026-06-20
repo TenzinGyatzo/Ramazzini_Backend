@@ -11,11 +11,13 @@ import { NOM024ComplianceUtil } from '../../utils/nom024-compliance.util';
 import { FilesService } from '../files/files.service';
 import { CatalogsService } from '../catalogs/catalogs.service';
 import { InformesService } from '../informes/informes.service';
+import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
 
 describe('ExpedientesService - Document Immutability Enforcement', () => {
   let service: ExpedientesService;
   let mockNom024Util: any;
   let mockCatalogsService: any;
+  let mockRegulatoryPolicyService: any;
 
   // Create mock model factory with proper chained methods
   const createMockModel = () => ({
@@ -45,6 +47,12 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
   beforeEach(async () => {
     mockNom024Util = {
       requiresNOM024Compliance: jest.fn().mockResolvedValue(true),
+    };
+
+    mockRegulatoryPolicyService = {
+      getRegulatoryPolicy: jest.fn().mockResolvedValue({
+        regime: 'SIRES_NOM024',
+      }),
     };
 
     mockCatalogsService = {
@@ -121,6 +129,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         },
         { provide: getModelToken(Empresa.name), useValue: createMockModel() },
         { provide: NOM024ComplianceUtil, useValue: mockNom024Util },
+        { provide: RegulatoryPolicyService, useValue: mockRegulatoryPolicyService },
         { provide: CatalogsService, useValue: mockCatalogsService },
         { provide: FilesService, useValue: mockFilesService },
         { provide: InformesService, useValue: mockInformesService },
@@ -273,7 +282,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
     });
   });
 
-  describe('Validación E1 - fechaDocumento para notaMedica', () => {
+  describe('Validación E1 - fechaDocumento por régimen', () => {
     const mockCreateNotaMedicaDto = {
       tipoNota: 'Inicial',
       fechaNotaMedica: new Date('2020-01-01'),
@@ -285,9 +294,37 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
       updatedBy: 'user123',
     };
 
-    it('debe rechazar crear nota médica con fechaNotaMedica futura', async () => {
-      const mockNotaMedicaModel = service['models']['notaMedica'];
-      const mockTrabajadorModel = service['trabajadorModel'];
+    const mockProveedorChain = (
+      regime: 'SIRES_NOM024' | 'SIN_REGIMEN',
+      fechaNacimiento: Date | null = new Date('1990-01-01'),
+    ) => {
+      mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue({
+        regime,
+      });
+
+      const mockTrabajadorModel = service['trabajadorModel'] as any;
+      mockTrabajadorModel.findById.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          idCentroTrabajo: 'centro123',
+          fechaNacimiento,
+        }),
+      });
+
+      const mockCentroTrabajoModel = service['centroTrabajoModel'] as any;
+      mockCentroTrabajoModel.findById.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({ idEmpresa: 'empresa123' }),
+      });
+
+      const mockEmpresaModel = service['empresaModel'] as any;
+      mockEmpresaModel.findById.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          idProveedorSalud: '507f1f77bcf86cd799439011',
+        }),
+      });
+    };
+
+    it('debe rechazar crear nota médica con fechaNotaMedica futura en SIRES_NOM024', async () => {
+      const mockNotaMedicaModel = service['models']['notaMedica'] as any;
 
       const fechaFutura = new Date();
       fechaFutura.setDate(fechaFutura.getDate() + 1);
@@ -297,12 +334,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         fechaNotaMedica: fechaFutura,
       };
 
-      // Mock trabajador
-      mockTrabajadorModel.findById.mockReturnValue({
-        lean: jest.fn().mockResolvedValue({
-          fechaNacimiento: new Date('1990-01-01'),
-        }),
-      });
+      mockProveedorChain('SIRES_NOM024');
 
       // Mock save
       mockNotaMedicaModel.save = jest.fn();
@@ -321,9 +353,63 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
       );
     });
 
+    it('debe permitir crear nota médica con fechaNotaMedica futura en SIN_REGIMEN', async () => {
+      const mockNotaMedicaModel = service['models']['notaMedica'] as any;
+
+      const fechaFutura = new Date();
+      fechaFutura.setDate(fechaFutura.getDate() + 1);
+
+      const dto = {
+        ...mockCreateNotaMedicaDto,
+        fechaNotaMedica: fechaFutura,
+      };
+
+      mockProveedorChain('SIN_REGIMEN');
+
+      const savedDocument = { ...dto, _id: 'nota123' };
+      mockNotaMedicaModel.save = jest.fn().mockResolvedValue(savedDocument);
+      (mockNotaMedicaModel as any).mockImplementation((data: any) => ({
+        ...data,
+        save: mockNotaMedicaModel.save,
+      }));
+
+      service['actualizarUpdatedAtTrabajador'] = jest
+        .fn()
+        .mockResolvedValue(undefined);
+      service['recordDocDraftCreated'] = jest.fn().mockResolvedValue(undefined);
+
+      const result = await service.createDocument('notaMedica', dto);
+      expect(result).toBeDefined();
+      expect(result._id).toBe('nota123');
+    });
+
+    it('debe rechazar crear antidoping con fecha futura en SIRES_NOM024', async () => {
+      const mockAntidopingModel = service['models']['antidoping'] as any;
+      const fechaFutura = new Date();
+      fechaFutura.setDate(fechaFutura.getDate() + 1);
+
+      mockProveedorChain('SIRES_NOM024');
+
+      const dto = {
+        fechaAntidoping: fechaFutura,
+        idTrabajador: 'trabajador123',
+        createdBy: 'user123',
+        updatedBy: 'user123',
+      };
+
+      mockAntidopingModel.save = jest.fn();
+      (mockAntidopingModel as any).mockImplementation((data: any) => ({
+        ...data,
+        save: mockAntidopingModel.save,
+      }));
+
+      await expect(service.createDocument('antidoping', dto)).rejects.toThrow(
+        'La fecha del documento no puede ser futura',
+      );
+    });
+
     it('debe rechazar crear nota médica con fechaNotaMedica < fechaNacimiento', async () => {
-      const mockNotaMedicaModel = service['models']['notaMedica'];
-      const mockTrabajadorModel = service['trabajadorModel'];
+      const mockNotaMedicaModel = service['models']['notaMedica'] as any;
 
       const fechaDoc = new Date('1989-12-31');
       const fechaNac = new Date('1990-01-01');
@@ -333,12 +419,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         fechaNotaMedica: fechaDoc,
       };
 
-      // Mock trabajador
-      mockTrabajadorModel.findById.mockReturnValue({
-        lean: jest.fn().mockResolvedValue({
-          fechaNacimiento: fechaNac,
-        }),
-      });
+      mockProveedorChain('SIRES_NOM024', fechaNac);
 
       // Mock save
       mockNotaMedicaModel.save = jest.fn();
@@ -358,8 +439,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
     });
 
     it('debe permitir crear nota médica con fechaNotaMedica válida', async () => {
-      const mockNotaMedicaModel = service['models']['notaMedica'];
-      const mockTrabajadorModel = service['trabajadorModel'];
+      const mockNotaMedicaModel = service['models']['notaMedica'] as any;
 
       const fechaDoc = new Date('2020-01-01');
       const fechaNac = new Date('1990-01-01');
@@ -369,12 +449,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         fechaNotaMedica: fechaDoc,
       };
 
-      // Mock trabajador
-      mockTrabajadorModel.findById.mockReturnValue({
-        lean: jest.fn().mockResolvedValue({
-          fechaNacimiento: fechaNac,
-        }),
-      });
+      mockProveedorChain('SIRES_NOM024', fechaNac);
 
       // Mock save
       const savedDocument = { ...dto, _id: 'nota123' };
@@ -390,6 +465,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
       service['actualizarUpdatedAtTrabajador'] = jest
         .fn()
         .mockResolvedValue(undefined);
+      service['recordDocDraftCreated'] = jest.fn().mockResolvedValue(undefined);
 
       const result = await service.createDocument('notaMedica', dto);
       expect(result).toBeDefined();
@@ -397,8 +473,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
     });
 
     it('debe permitir crear nota médica sin fechaNacimiento (solo valida que no sea futura)', async () => {
-      const mockNotaMedicaModel = service['models']['notaMedica'];
-      const mockTrabajadorModel = service['trabajadorModel'];
+      const mockNotaMedicaModel = service['models']['notaMedica'] as any;
 
       const fechaDoc = new Date();
       fechaDoc.setHours(0, 0, 0, 0);
@@ -408,12 +483,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         fechaNotaMedica: fechaDoc,
       };
 
-      // Mock trabajador sin fechaNacimiento
-      mockTrabajadorModel.findById.mockReturnValue({
-        lean: jest.fn().mockResolvedValue({
-          fechaNacimiento: null,
-        }),
-      });
+      mockProveedorChain('SIRES_NOM024', null);
 
       // Mock save
       const savedDocument = { ...dto, _id: 'nota123' };
@@ -429,6 +499,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
       service['actualizarUpdatedAtTrabajador'] = jest
         .fn()
         .mockResolvedValue(undefined);
+      service['recordDocDraftCreated'] = jest.fn().mockResolvedValue(undefined);
 
       const result = await service.createDocument('notaMedica', dto);
       expect(result).toBeDefined();

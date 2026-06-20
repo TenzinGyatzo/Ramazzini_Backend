@@ -143,7 +143,7 @@ describe('validateCodigoCIEDiagnostico23', () => {
       catalogExists,
     });
     expect(issues.some((i) => i.reason === 'fuera_alcance_ramazzini')).toBe(true);
-    expect(issues[0]?.message).toMatch(/medicina del trabajo/i);
+    expect(issues[0]?.message).toMatch(/oncología pediátrica|medicina del trabajo/i);
   });
 
   it('blocks diag3 when diag2 comorbilidad is not registered', async () => {
@@ -180,5 +180,76 @@ describe('validateCodigoCIEDiagnostico23', () => {
       catalogExists,
     });
     expect(issues.some((i) => i.reason === 'sexo_no_permitido')).toBe(true);
+  });
+
+  it('SIN_REGIMEN: sin código ni primeraVez no genera issues', async () => {
+    const issues = await validateCodigoCIEDiagnostico23({
+      field: 'codigoCIEDiagnostico2',
+      codigo: '',
+      primeraVez: undefined,
+      codigoCIEDiagnostico1: 'A000',
+      sexoBiologico: 1,
+      edad: 30,
+      tipoPersonal: 2,
+      tipoPersonalMedicoGeneral: 2,
+      tipoPersonalMedicoEspecialista: 4,
+      lookup,
+      catalogExists,
+      requirePrimeraVez: false,
+    });
+    expect(issues).toEqual([]);
+  });
+
+  it('SIN_REGIMEN: permite código sin primeraVez', async () => {
+    const catalogAll = jest.fn(async (code: string) =>
+      ['MT01', 'CP01', 'C530', 'R69X', 'A001'].includes(code),
+    );
+    const lookupAll = jest.fn(async (code: string) => {
+      if (code === 'A001') {
+        return {
+          key: 'A001',
+          lsex: 'NO',
+          linf: null,
+          lsup: null,
+          letra: 'A',
+        } as DiagnosisRule;
+      }
+      return lookup(code);
+    });
+
+    const issues = await validateCodigoCIEDiagnostico23({
+      field: 'codigoCIEDiagnostico2',
+      codigo: 'A001',
+      primeraVez: undefined,
+      codigoCIEDiagnostico1: 'C530',
+      sexoBiologico: 1,
+      edad: 30,
+      tipoPersonal: 2,
+      tipoPersonalMedicoGeneral: 2,
+      tipoPersonalMedicoEspecialista: 4,
+      lookup: lookupAll,
+      catalogExists: catalogAll,
+      requirePrimeraVez: false,
+    });
+    expect(issues).toEqual([]);
+  });
+
+  it('SIN_REGIMEN: diag3 requiere diag2 por código aunque no haya primeraVez', async () => {
+    const issues = await validateCodigoCIEDiagnostico23({
+      field: 'codigoCIEDiagnostico3',
+      codigo: 'A001',
+      primeraVez: undefined,
+      codigoCIEDiagnostico1: 'C530',
+      codigoCIEDiagnostico2: '',
+      sexoBiologico: 1,
+      edad: 30,
+      tipoPersonal: 2,
+      tipoPersonalMedicoGeneral: 2,
+      tipoPersonalMedicoEspecialista: 4,
+      lookup,
+      catalogExists,
+      requirePrimeraVez: false,
+    });
+    expect(issues.some((i) => i.reason === 'diag2_requerido')).toBe(true);
   });
 });

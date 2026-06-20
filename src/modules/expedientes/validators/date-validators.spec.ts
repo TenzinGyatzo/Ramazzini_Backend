@@ -152,5 +152,23 @@ describe('Date Validators', () => {
       hoy.setHours(0, 0, 0, 0);
       expect(() => validateFechaDocumento(hoy, undefined)).not.toThrow();
     });
+
+    it('debe permitir fecha futura cuando rejectFuture es false', () => {
+      const fechaFutura = new Date();
+      fechaFutura.setDate(fechaFutura.getDate() + 1);
+      expect(() =>
+        validateFechaDocumento(fechaFutura, null, { rejectFuture: false }),
+      ).not.toThrow();
+    });
+
+    it('debe seguir validando nacimiento cuando rejectFuture es false', () => {
+      const fechaNac = new Date('1990-01-01');
+      const fechaDoc = new Date('1989-12-31');
+      expect(() =>
+        validateFechaDocumento(fechaDoc, fechaNac, { rejectFuture: false }),
+      ).toThrow(
+        'La fecha del documento no puede ser anterior a la fecha de nacimiento del trabajador',
+      );
+    });
   });
 });
