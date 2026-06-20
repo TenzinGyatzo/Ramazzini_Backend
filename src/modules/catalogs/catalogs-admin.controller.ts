@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   NotFoundException,
   Param,
@@ -33,6 +34,7 @@ import { CatalogEntryMutationDto } from './dto/catalog-entry-mutation.dto';
 import { AuditService } from '../audit/audit.service';
 import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
+import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
 
 @Controller('api/catalogs/admin')
 export class CatalogsAdminController {
@@ -41,6 +43,7 @@ export class CatalogsAdminController {
     private readonly csvStore: CatalogCsvStoreService,
     private readonly usersService: UsersService,
     private readonly auditService: AuditService,
+    private readonly regulatoryPolicyService: RegulatoryPolicyService,
   ) {}
 
   private async assertAdminAndFeature(req: Request): Promise<{
@@ -48,7 +51,18 @@ export class CatalogsAdminController {
     proveedorSaludId: string | null;
   }> {
     assertCatalogAdminFeature();
-    return this.assertAdmin(req);
+    const ctx = await this.assertAdmin(req);
+    if (ctx.proveedorSaludId) {
+      const policy = await this.regulatoryPolicyService.getRegulatoryPolicy(
+        ctx.proveedorSaludId,
+      );
+      if (policy.regime !== 'SIRES_NOM024') {
+        throw new ForbiddenException(
+          'La administración de catálogos solo está disponible en régimen SIRES_NOM024.',
+        );
+      }
+    }
+    return ctx;
   }
 
   private async assertAdmin(req: Request): Promise<{

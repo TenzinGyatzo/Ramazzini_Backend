@@ -1,7 +1,7 @@
 /**
  * Phase 4 AuditTrail — Record events with canonical hash and chain (D4). Class 1 hard-fail, Class 2 soft-fail to outbox.
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AuditEvent } from './schemas/audit-event.schema';
@@ -12,6 +12,7 @@ import type { RecordAuditParams } from './interfaces/audit-service.interface';
 import { AuditEventClass } from './constants/audit-event-class';
 import type { QueryAuditEventsDto } from './dto/query-audit-events.dto';
 import { UsersService } from '../users/users.service';
+import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
 
 @Injectable()
 export class AuditService {
@@ -23,6 +24,8 @@ export class AuditService {
     @InjectModel(AuditOutbox.name)
     private readonly auditOutboxModel: Model<AuditOutbox>,
     private readonly usersService: UsersService,
+    @Inject(forwardRef(() => RegulatoryPolicyService))
+    private readonly regulatoryPolicyService: RegulatoryPolicyService,
   ) {}
 
   async findEvents(
@@ -177,9 +180,20 @@ export class AuditService {
   }
 
   async record(params: RecordAuditParams): Promise<void> {
-    const timestamp = new Date();
     const proveedorSaludIdStr =
       params.proveedorSaludId != null ? String(params.proveedorSaludId) : null;
+
+    if (proveedorSaludIdStr != null) {
+      const policy =
+        await this.regulatoryPolicyService.getRegulatoryPolicy(
+          proveedorSaludIdStr,
+        );
+      if (policy.regime !== 'SIRES_NOM024') {
+        return;
+      }
+    }
+
+    const timestamp = new Date();
     const actorIdStr = params.actorId != null ? String(params.actorId) : null;
 
     let actorSnapshot: {

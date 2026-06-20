@@ -18,6 +18,7 @@ export interface RegulatoryPolicy {
     cluesFieldVisible: boolean; // CLUES visible solo en SIRES
     dailyConsentEnabled: boolean; // Consentimiento informado diario
     workerIdentificationImmutable: boolean; // Identificación trabajador inmutable post-alta
+    auditTrailEnabled: boolean; // Trail de auditoría NOM-024 (consulta/exportación)
   };
   validation: {
     curpFirmantes: 'required' | 'optional';
@@ -110,6 +111,7 @@ export class RegulatoryPolicyService {
         cluesFieldVisible: true,
         dailyConsentEnabled: true,
         workerIdentificationImmutable: true,
+        auditTrailEnabled: true,
       },
       validation: {
         curpFirmantes: 'required',
@@ -137,6 +139,7 @@ export class RegulatoryPolicyService {
         cluesFieldVisible: false,
         dailyConsentEnabled: false,
         workerIdentificationImmutable: false,
+        auditTrailEnabled: false,
       },
       validation: {
         curpFirmantes: 'optional',

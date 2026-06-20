@@ -6,6 +6,7 @@ import {
   Res,
   UnauthorizedException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { AuditService } from './audit.service';
@@ -15,12 +16,14 @@ import { UsersService } from '../users/users.service';
 import { AuditActionType } from './constants/audit-action-type';
 import { AuditEventClass } from './constants/audit-event-class';
 import { assertAuditAccessRole } from './utils/audit-access-auth.util';
+import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
 
 @Controller('api/audit')
 export class AuditController {
   constructor(
     private readonly auditService: AuditService,
     private readonly usersService: UsersService,
+    private readonly regulatoryPolicyService: RegulatoryPolicyService,
   ) {}
 
   private async assertAuditAccess(req: Request): Promise<string> {
@@ -35,7 +38,15 @@ export class AuditController {
         'Usuario sin proveedor de salud asociado para consultar auditoría',
       );
     }
-    return String(user.idProveedorSalud);
+    const proveedorSaludId = String(user.idProveedorSalud);
+    const policy =
+      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
+    if (policy.regime !== 'SIRES_NOM024') {
+      throw new ForbiddenException(
+        'El trail de auditoría solo está disponible para proveedores SIRES_NOM024.',
+      );
+    }
+    return proveedorSaludId;
   }
 
   @Get('events')

@@ -8,6 +8,7 @@ import { AuditOutbox, AuditOutboxSchema } from './schemas/audit-outbox.schema';
 import { AuditService } from './audit.service';
 import { AuditController } from './audit.controller';
 import { UsersModule } from '../users/users.module';
+import { ProveedoresSaludModule } from '../proveedores-salud/proveedores-salud.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { UsersModule } from '../users/users.module';
       { name: AuditOutbox.name, schema: AuditOutboxSchema },
     ]),
     forwardRef(() => UsersModule),
+    forwardRef(() => ProveedoresSaludModule),
   ],
   controllers: [AuditController],
   providers: [AuditService],

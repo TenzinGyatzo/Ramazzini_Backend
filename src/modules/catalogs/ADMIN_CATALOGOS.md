@@ -1,17 +1,19 @@
 # Administración de catálogos (CSV)
 
-## Feature flag (verificación SIRES)
+## Feature flag y régimen (verificación SIRES)
 
-La GUI y la API de administración están **desactivadas por defecto**. Actívalas solo durante la ventana de verificación SIRES. La lectura de catálogos (validaciones clínicas, autocompletados) **no** depende de este flag.
+La GUI y la API de administración están **desactivadas por defecto**. Actívalas solo durante la ventana de verificación SIRES. Además, el tenant debe estar en régimen **`SIRES_NOM024`**. La lectura de catálogos (validaciones clínicas, autocompletados) **no** depende de este flag ni del régimen.
 
 | Entorno | Variable | Valor activo |
 |---------|----------|--------------|
 | Backend | `CATALOG_ADMIN_ENABLED` | `true` |
 | Frontend (build Vite) | `VITE_CATALOG_ADMIN_ENABLED` | `true` |
 
-Mantén **ambas** con el mismo valor en producción. Tras cambiar el backend, reinicia el proceso Node. Tras cambiar el frontend, vuelve a compilar/desplegar.
+**Condición de acceso completa:** `CATALOG_ADMIN_ENABLED=true` **AND** régimen `SIRES_NOM024` **AND** rol Principal o Administrador.
 
-Si el flag está desactivado: la API admin responde **403**; el menú y la ruta `/admin/catalogos` no se muestran.
+Mantén **ambas** variables de entorno con el mismo valor en producción. Tras cambiar el backend, reinicia el proceso Node. Tras cambiar el frontend, vuelve a compilar/desplegar.
+
+Si el flag está desactivado o el proveedor no es SIRES: la API admin responde **403**; el menú y la ruta `/admin/catalogos` no se muestran.
 
 Config: [`config/catalog-admin.config.ts`](config/catalog-admin.config.ts).
 

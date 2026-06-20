@@ -7,6 +7,7 @@ import { GeographyValidator } from './validators/geography.validator';
 import { CexCatalogResolver } from './cex-catalog.resolver';
 import { UsersModule } from '../users/users.module';
 import { AuditModule } from '../audit/audit.module';
+import { ProveedoresSaludModule } from '../proveedores-salud/proveedores-salud.module';
 
 /**
  * Catalogs Module
@@ -19,6 +20,7 @@ import { AuditModule } from '../audit/audit.module';
   imports: [
     forwardRef(() => UsersModule),
     forwardRef(() => AuditModule),
+    forwardRef(() => ProveedoresSaludModule),
   ],
   controllers: [CatalogsController, CatalogsAdminController],
   providers: [
