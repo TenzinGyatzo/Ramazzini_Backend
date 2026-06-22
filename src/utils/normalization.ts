@@ -51,15 +51,64 @@ export function normalizeCentroTrabajoData(
   };
 }
 
+export function normalizeTrabajadorPersonName(
+  value: string | undefined | null,
+  regime?: string | null,
+): string | undefined {
+  if (value == null || String(value).trim() === '') {
+    return typeof value === 'string' ? value.trim() : undefined;
+  }
+
+  const trimmed = String(value).trim().replace(/\s+/g, ' ');
+
+  if (regime === 'SIN_REGIMEN') {
+    return trimmed.replace(/\S+/g, (word) => word.charAt(0).toUpperCase() + word.slice(1));
+  }
+
+  return trimmed.toUpperCase();
+}
+
+export function applyTrabajadorPersonNames(
+  dto: CreateTrabajadorDto | UpdateTrabajadorDto | Record<string, unknown>,
+  regime?: string | null,
+): void {
+  const target = dto as Record<string, unknown>;
+
+  if ('nombre' in target && target.nombre != null && String(target.nombre).trim() !== '') {
+    target.nombre = normalizeTrabajadorPersonName(String(target.nombre), regime);
+  }
+
+  if (
+    'primerApellido' in target &&
+    target.primerApellido != null &&
+    String(target.primerApellido).trim() !== ''
+  ) {
+    target.primerApellido = normalizeTrabajadorPersonName(
+      String(target.primerApellido),
+      regime,
+    );
+  }
+
+  if (
+    'segundoApellido' in target &&
+    target.segundoApellido != null &&
+    String(target.segundoApellido).trim() !== ''
+  ) {
+    target.segundoApellido = normalizeTrabajadorPersonName(
+      String(target.segundoApellido),
+      regime,
+    );
+  }
+}
+
 export function normalizeTrabajadorData(
   dto: CreateTrabajadorDto | UpdateTrabajadorDto,
 ) {
   const normalizedDto: Record<string, unknown> = {
     ...dto,
-    // NOM-024: Names normalized to uppercase
-    primerApellido: dto.primerApellido?.trim().toUpperCase(),
-    segundoApellido: dto.segundoApellido?.trim().toUpperCase(),
-    nombre: dto.nombre?.trim().toUpperCase(),
+    primerApellido: dto.primerApellido?.trim().replace(/\s+/g, ' '),
+    segundoApellido: dto.segundoApellido?.trim().replace(/\s+/g, ' '),
+    nombre: dto.nombre?.trim().replace(/\s+/g, ' '),
     fechaNacimiento: dto.fechaNacimiento,
     sexo: dto.sexo?.trim(),
     escolaridad: dto.escolaridad?.trim(),

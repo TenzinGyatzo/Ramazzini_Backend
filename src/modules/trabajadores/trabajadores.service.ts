@@ -10,7 +10,7 @@ import { Model, Types } from 'mongoose';
 import { Trabajador } from './entities/trabajador.entity';
 import { CreateTrabajadorDto } from './dto/create-trabajador.dto';
 import { UpdateTrabajadorDto } from './dto/update-trabajador.dto';
-import { normalizeTrabajadorData } from 'src/utils/normalization';
+import { normalizeTrabajadorData, applyTrabajadorPersonNames } from 'src/utils/normalization';
 import moment from 'moment';
 import * as xlsx from 'xlsx';
 import { format } from 'date-fns';
@@ -535,6 +535,9 @@ export class TrabajadoresService {
     const proveedorSaludId = await this.getProveedorSaludIdFromCentroTrabajo(
       normalizedDto.idCentroTrabajo,
     );
+    const policy =
+      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
+    applyTrabajadorPersonNames(normalizedDto, policy?.regime);
     await this.validateNOM024PersonFields(normalizedDto, proveedorSaludId);
     await this.validateCURPForMX(normalizedDto.curp, proveedorSaludId, {
       fechaNacimiento: normalizedDto.fechaNacimiento,
@@ -1806,6 +1809,7 @@ export class TrabajadoresService {
       trabajadorActual,
       policy,
     );
+    applyTrabajadorPersonNames(normalizedDto, policy?.regime);
 
     // Merge current worker data with update DTO for validation
     const mergedDto = {
