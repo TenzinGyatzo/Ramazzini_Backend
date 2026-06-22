@@ -11,6 +11,7 @@ import {
   RegulatoryPolicyService,
   RegulatoryPolicy,
 } from '../../utils/regulatory-policy.service';
+import { WorkerFusionService } from './worker-fusion.service';
 
 describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
   let service: TrabajadoresService;
@@ -139,6 +140,14 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
           useValue: (mockRegulatoryPolicyService = {
             getRegulatoryPolicy: jest.fn(),
           } as any),
+        },
+        {
+          provide: WorkerFusionService,
+          useValue: {
+            findDuplicateInEmpresa: jest.fn().mockResolvedValue(null),
+            getIdEmpresaFromCentro: jest.fn(),
+            createDuplicateAlert: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -654,12 +663,6 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
         errors: [],
       });
 
-      const mockTrabajadorModel = createMockModel();
-      mockTrabajadorModel.save = jest.fn().mockResolvedValue({
-        _id: '507f1f77bcf86cd799439013',
-        ...dto,
-      });
-
       const dto = {
         primerApellido: 'García',
         nombre: 'Juan',
@@ -677,6 +680,12 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
         municipioResidencia: '001',
         localidadResidencia: '0001',
       };
+
+      const mockTrabajadorModel = createMockModel();
+      (mockTrabajadorModel as any).save = jest.fn().mockResolvedValue({
+        _id: '507f1f77bcf86cd799439013',
+        ...dto,
+      });
 
       (service as any).trabajadorModel = mockTrabajadorModel;
       (service as any).centroTrabajoModel = {
@@ -763,6 +772,7 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
         cluesFieldVisible: true,
         dailyConsentEnabled: true,
         workerIdentificationImmutable: true,
+        auditTrailEnabled: true,
       },
       validation: {
         curpFirmantes: 'required',
@@ -784,6 +794,7 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
         cluesFieldVisible: false,
         dailyConsentEnabled: false,
         workerIdentificationImmutable: false,
+        auditTrailEnabled: false,
       },
       validation: {
         curpFirmantes: 'optional',
@@ -819,7 +830,7 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
 
       it('should require entidadNacimiento for SIRES_NOM024', async () => {
         const mockTrabajadorModel = service['trabajadorModel'];
-        mockTrabajadorModel.save = jest.fn().mockResolvedValue({
+        (mockTrabajadorModel as any).save = jest.fn().mockResolvedValue({
           _id: 'new-id',
         });
 
@@ -859,7 +870,7 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
 
       it('should require paisNacimiento for SIRES_NOM024', async () => {
         const mockTrabajadorModel = service['trabajadorModel'];
-        mockTrabajadorModel.save = jest.fn().mockResolvedValue({
+        (mockTrabajadorModel as any).save = jest.fn().mockResolvedValue({
           _id: 'new-id',
         });
 
@@ -900,7 +911,7 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
 
       it('should require paisResidencia for SIRES_NOM024', async () => {
         const mockTrabajadorModel = service['trabajadorModel'];
-        mockTrabajadorModel.save = jest.fn().mockResolvedValue({
+        (mockTrabajadorModel as any).save = jest.fn().mockResolvedValue({
           _id: 'new-id',
         });
 
@@ -946,7 +957,7 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
           createSinRegimenPolicy(),
         );
         const mockTrabajadorModel = createMockModel();
-        mockTrabajadorModel.save = jest.fn().mockResolvedValue({
+        (mockTrabajadorModel as any).save = jest.fn().mockResolvedValue({
           _id: 'new-id',
         });
         (service as any).trabajadorModel = mockTrabajadorModel;
@@ -990,7 +1001,7 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
           createSiresPolicy(),
         );
         const mockTrabajadorModel = createMockModel();
-        mockTrabajadorModel.save = jest.fn().mockResolvedValue({
+        (mockTrabajadorModel as any).save = jest.fn().mockResolvedValue({
           _id: 'new-id',
         });
         (service as any).trabajadorModel = mockTrabajadorModel;
@@ -1037,7 +1048,7 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
           createSinRegimenPolicy(),
         );
         const mockTrabajadorModel = createMockModel();
-        mockTrabajadorModel.save = jest.fn().mockResolvedValue({
+        (mockTrabajadorModel as any).save = jest.fn().mockResolvedValue({
           _id: 'new-id',
         });
         (service as any).trabajadorModel = mockTrabajadorModel;

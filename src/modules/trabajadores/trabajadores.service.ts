@@ -420,6 +420,11 @@ export class TrabajadoresService {
       return;
     }
 
+    const pais = await this.nom024Util.getProveedorPais(proveedorSaludId);
+    if (pais !== 'MX') {
+      return;
+    }
+
     const policy =
       await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
 

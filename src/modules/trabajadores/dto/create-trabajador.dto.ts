@@ -199,19 +199,19 @@ export class CreateTrabajadorDto {
 
   @ApiProperty({
     description:
-      'CURP según formato RENAPO (18 caracteres). Obligatorio para proveedores MX, opcional para otros países. Formato: [A-Z]{4}\\d{6}[HMX][A-Z]{5}[0-9A-Z]\\d',
+      'CURP (MX, formato RENAPO) o identificador personal LATAM (DPI, cédula, etc.). Opcional; validación estricta RENAPO solo en service layer para MX + SIRES.',
     example: 'ROAJ850102HDFLRN08',
     required: false,
   })
   @IsOptional()
   @IsString({ message: 'El identificador CURP debe ser un string' })
-  // RENAPO format: [A-Z]{4}\d{6}[HMX][A-Z]{5}[0-9A-Z]\d (18 chars, uppercase)
-  // Also allows generic CURP: XXXX999999XXXXXX99 (for unknown/foreign patients)
-  // Allow empty for non-MX providers, but enforce strict format when provided
-  @Matches(/^$|^([A-Z]{4}\d{6}[HMX][A-Z]{5}[0-9A-Z]\d|XXXX999999XXXXXX99)$/, {
-    message:
-      'CURP debe tener exactamente 18 caracteres en formato RENAPO: 4 letras, 6 dígitos, H, M o X, 5 letras, 1 alfanumérico, 1 dígito. Ejemplo: ROAJ850102HDFLRN08. También se permite CURP genérica: XXXX999999XXXXXX99',
-  })
+  @Matches(
+    /^$|^([A-Z]{4}\d{6}[HMX][A-Z]{5}[0-9A-Z]\d|XXXX999999XXXXXX99|[A-Za-z0-9\s\-_.\/#]{4,30})$/,
+    {
+      message:
+        'Identificador inválido: use formato RENAPO (18 caracteres) para CURP mexicana, o 4-30 caracteres alfanuméricos para identificadores locales',
+    },
+  )
   curp?: string;
 
   // NOM-024 Person Identification Fields

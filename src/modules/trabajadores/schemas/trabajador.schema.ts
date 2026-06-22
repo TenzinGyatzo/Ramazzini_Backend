@@ -78,10 +78,9 @@ export class Trabajador extends Document {
 
   @Prop({
     required: false,
-    // RENAPO format: [A-Z]{4}\d{6}[HMX][A-Z]{5}[0-9A-Z]\d (X desde 2024, no binario)
-    // Also allows generic CURP: XXXX999999XXXXXX99 (for unknown/foreign patients)
-    // Allow empty string for non-MX providers, but enforce strict format when provided
-    match: /^$|^([A-Z]{4}\d{6}[HMX][A-Z]{5}[0-9A-Z]\d|XXXX999999XXXXXX99)$/,
+    // RENAPO (MX) o identificador personal LATAM (DPI, cédula, etc.)
+    match:
+      /^$|^([A-Z]{4}\d{6}[HMX][A-Z]{5}[0-9A-Z]\d|XXXX999999XXXXXX99|[A-Za-z0-9\s\-_.\/#]{4,30})$/,
     unique: false,
   })
   curp: string;
