@@ -13,6 +13,7 @@ import {
   Matches,
   Max,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { TRABAJADOR_SEXOS } from '../constants/trabajador-sexo.constants';
 
@@ -204,6 +205,7 @@ export class CreateTrabajadorDto {
     required: false,
   })
   @IsOptional()
+  @ValidateIf((_, value) => value !== null)
   @IsString({ message: 'El identificador CURP debe ser un string' })
   @Matches(
     /^$|^([A-Z]{4}\d{6}[HMX][A-Z]{5}[0-9A-Z]\d|XXXX999999XXXXXX99|[A-Za-z0-9\s\-_.\/#]{4,30})$/,

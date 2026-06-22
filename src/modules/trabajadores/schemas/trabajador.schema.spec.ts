@@ -7,6 +7,10 @@ describe('TrabajadorSchema - curp', () => {
     expect(CURP_SCHEMA_REGEX.test('AEEFAE')).toBe(true);
   });
 
+  it('acepta DPI guatemalteco con espacios', () => {
+    expect(CURP_SCHEMA_REGEX.test('2068 93825 0501')).toBe(true);
+  });
+
   it('acepta CURP RENAPO mexicana', () => {
     expect(CURP_SCHEMA_REGEX.test('ROAJ850102HDFLRN08')).toBe(true);
   });

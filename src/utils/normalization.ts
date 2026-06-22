@@ -71,7 +71,6 @@ export function normalizeTrabajadorData(
     estadoCivil: dto.estadoCivil?.trim(),
     numeroEmpleado: dto.numeroEmpleado?.trim(),
     nss: dto.nss?.trim(),
-    curp: dto.curp?.trim(),
     estadoLaboral: dto.estadoLaboral?.trim(),
     agentesRiesgoActuales: dto.agentesRiesgoActuales?.map((agent) =>
       agent.trim(),
@@ -80,6 +79,15 @@ export function normalizeTrabajadorData(
     createdBy: dto.createdBy?.trim(),
     updatedBy: dto.updatedBy?.trim(),
   };
+
+  if ('curp' in dto) {
+    const rawCurp = dto.curp;
+    if (rawCurp == null || String(rawCurp).trim() === '') {
+      normalizedDto.curp = null;
+    } else {
+      normalizedDto.curp = String(rawCurp).trim();
+    }
+  }
 
   if (
     'paisNacimiento' in dto &&

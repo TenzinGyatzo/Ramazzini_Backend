@@ -1853,6 +1853,23 @@ export class TrabajadoresService {
         .toUpperCase();
     }
 
+    const pais = await this.nom024Util.getProveedorPais(proveedorSaludId);
+    const shouldClearCurp =
+      pais !== 'MX' &&
+      'curp' in updateTrabajadorDto &&
+      (normalizedDto.curp === null || normalizedDto.curp === '');
+
+    if (shouldClearCurp) {
+      delete normalizedDto.curp;
+      return await this.trabajadorModel
+        .findByIdAndUpdate(
+          id,
+          { $set: normalizedDto, $unset: { curp: '' } },
+          { new: true, runValidators: true },
+        )
+        .exec();
+    }
+
     return await this.trabajadorModel
       .findByIdAndUpdate(id, normalizedDto, { new: true })
       .exec();
