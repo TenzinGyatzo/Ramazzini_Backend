@@ -467,37 +467,6 @@ export class WorkerFusionService {
       throw new NotFoundException('Trabajador destino o fuente no encontrado');
     }
 
-    await this.assertSameEmpresa(
-      (destino as any).idCentroTrabajo.toString(),
-      (fuente as any).idCentroTrabajo.toString(),
-    );
-
-    const [
-      conteosDestino,
-      conteosFuente,
-      consentimientoMismoDia,
-      resultadosClinicosDestino,
-      resultadosClinicosFuente,
-      riesgosTrabajoDestino,
-      riesgosTrabajoFuente,
-    ] = await Promise.all([
-      this.countDocumentsByWorker(destinoId),
-      this.countDocumentsByWorker(fuenteId),
-      this.countConsentimientoCollisions(destinoId, fuenteId),
-      this.fetchResultadosClinicosSummary(destinoId),
-      this.fetchResultadosClinicosSummary(fuenteId),
-      this.fetchRiesgosTrabajoSummary(destinoId),
-      this.fetchRiesgosTrabajoSummary(fuenteId),
-    ]);
-    const totalDocumentosFuente = Object.values(conteosFuente).reduce((a, b) => a + b, 0);
-
-    const numDestino = (destino as any).numeroEmpleado?.trim();
-    const numFuente = (fuente as any).numeroEmpleado?.trim();
-    const numeroEmpleadoConflict =
-      !!numDestino && !!numFuente && numDestino !== numFuente;
-
-    const criterioMatch = this.detectMatchCriterio(destino as any, fuente as any);
-
     const centroIds = [
       ...new Set(
         [
@@ -506,16 +475,50 @@ export class WorkerFusionService {
         ].filter(Boolean),
       ),
     ];
-    const centros = centroIds.length
-      ? await this.centroTrabajoModel
-          .find({ _id: { $in: centroIds.map((id) => new Types.ObjectId(id)) } })
-          .select('nombreCentro')
-          .lean()
-          .exec()
-      : [];
+    const centroInfoMap = await this.resolveCentrosForFusionPair(centroIds);
     const centroNombreMap = new Map<string, string>(
-      centros.map((c) => [(c as any)._id.toString(), (c as any).nombreCentro as string]),
+      [...centroInfoMap.entries()].map(([id, info]) => [id, info.nombreCentro]),
     );
+
+    const [
+      { destino: conteosDestinoBase, fuente: conteosFuenteBase },
+      consentimientoMismoDia,
+      resultadosClinicosDestino,
+      resultadosClinicosFuente,
+      riesgosTrabajoDestino,
+      riesgosTrabajoFuente,
+    ] = await Promise.all([
+      this.countDocumentsByWorkerPair(destinoId, fuenteId),
+      this.countConsentimientoCollisions(destinoId, fuenteId),
+      this.fetchResultadosClinicosSummary(destinoId),
+      this.fetchResultadosClinicosSummary(fuenteId),
+      this.fetchRiesgosTrabajoSummary(destinoId),
+      this.fetchRiesgosTrabajoSummary(fuenteId),
+    ]);
+
+    const conteosDestino = { ...conteosDestinoBase };
+    const conteosFuente = { ...conteosFuenteBase };
+    if (resultadosClinicosDestino.length) {
+      conteosDestino.ResultadoClinico = resultadosClinicosDestino.length;
+    }
+    if (resultadosClinicosFuente.length) {
+      conteosFuente.ResultadoClinico = resultadosClinicosFuente.length;
+    }
+    if (riesgosTrabajoDestino.length) {
+      conteosDestino.RiesgoTrabajo = riesgosTrabajoDestino.length;
+    }
+    if (riesgosTrabajoFuente.length) {
+      conteosFuente.RiesgoTrabajo = riesgosTrabajoFuente.length;
+    }
+
+    const totalDocumentosFuente = Object.values(conteosFuente).reduce((a, b) => a + b, 0);
+
+    const numDestino = (destino as any).numeroEmpleado?.trim();
+    const numFuente = (fuente as any).numeroEmpleado?.trim();
+    const numeroEmpleadoConflict =
+      !!numDestino && !!numFuente && numDestino !== numFuente;
+
+    const criterioMatch = this.detectMatchCriterio(destino as any, fuente as any);
 
     const destinoDocs = Object.values(conteosDestino).reduce((a, b) => a + b, 0);
     const fuenteDocs = totalDocumentosFuente;
@@ -877,34 +880,61 @@ export class WorkerFusionService {
     return migrated;
   }
 
-  private async countDocumentsByWorker(
-    trabajadorId: string,
-  ): Promise<Record<string, number>> {
-    const workerObjectId = new Types.ObjectId(trabajadorId);
+  /** Conteos derivados de summaries; no duplicar countDocuments en el batch. */
+  private static readonly SUMMARY_COUNT_MODELS = new Set([
+    'ResultadoClinico',
+    'RiesgoTrabajo',
+  ]);
 
-    // Conteo en paralelo por colección (evita ~27 round-trips secuenciales).
+  private async countDocumentsByWorkerPair(
+    destinoId: string,
+    fuenteId: string,
+  ): Promise<{
+    destino: Record<string, number>;
+    fuente: Record<string, number>;
+  }> {
+    const destinoOid = new Types.ObjectId(destinoId);
+    const fuenteOid = new Types.ObjectId(fuenteId);
+    const workerIds = [destinoOid, fuenteOid];
+
+    const configs = WORKER_LINKED_COLLECTIONS.filter(
+      (c) => !WorkerFusionService.SUMMARY_COUNT_MODELS.has(c.modelName),
+    );
+
     const results = await Promise.all(
-      WORKER_LINKED_COLLECTIONS.map(async (config) => {
+      configs.map(async (config) => {
         let model: Model<any>;
         try {
           model = this.connection.model(config.modelName);
         } catch {
           return null;
         }
-        const count = await model
-          .countDocuments({ [config.fkField]: workerObjectId })
+        const groups = await model
+          .aggregate<{ _id: Types.ObjectId; count: number }>([
+            { $match: { [config.fkField]: { $in: workerIds } } },
+            { $group: { _id: `$${config.fkField}`, count: { $sum: 1 } } },
+          ])
           .exec();
-        return count > 0
-          ? ({ modelName: config.modelName, count } as const)
-          : null;
+        return { modelName: config.modelName, groups };
       }),
     );
 
-    const counts: Record<string, number> = {};
+    const destino: Record<string, number> = {};
+    const fuente: Record<string, number> = {};
+
     for (const entry of results) {
-      if (entry) counts[entry.modelName] = entry.count;
+      if (!entry) continue;
+      for (const group of entry.groups) {
+        const workerId = group._id?.toString();
+        if (workerId === destinoId) {
+          destino[entry.modelName] = group.count;
+        } else if (workerId === fuenteId) {
+          fuente[entry.modelName] = group.count;
+        }
+      }
     }
-    return counts;
+
+    return { destino, fuente };
   }
 
   /** Separa conteos en documentos del expediente vs otros registros vinculados. */
@@ -978,26 +1008,50 @@ export class WorkerFusionService {
     }));
   }
 
+  private consentimientoCollisionKey(
+    proveedorSaludId: unknown,
+    dateKey: unknown,
+  ): string {
+    return `${String(proveedorSaludId)}:${String(dateKey)}`;
+  }
+
   private async countConsentimientoCollisions(
     destinoId: string,
     fuenteId: string,
   ): Promise<number> {
-    const fuenteConsents = await this.consentimientoModel
-      .find({ trabajadorId: new Types.ObjectId(fuenteId) })
-      .select('proveedorSaludId dateKey')
-      .lean()
-      .exec();
+    const destinoOid = new Types.ObjectId(destinoId);
+    const fuenteOid = new Types.ObjectId(fuenteId);
 
-    let collisions = 0;
-    for (const c of fuenteConsents) {
-      const exists = await this.consentimientoModel.exists({
-        proveedorSaludId: (c as any).proveedorSaludId,
-        trabajadorId: new Types.ObjectId(destinoId),
-        dateKey: (c as any).dateKey,
-      });
-      if (exists) collisions++;
-    }
-    return collisions;
+    const [destConsents, fuenteConsents] = await Promise.all([
+      this.consentimientoModel
+        .find({ trabajadorId: destinoOid })
+        .select('proveedorSaludId dateKey')
+        .lean()
+        .exec(),
+      this.consentimientoModel
+        .find({ trabajadorId: fuenteOid })
+        .select('proveedorSaludId dateKey')
+        .lean()
+        .exec(),
+    ]);
+
+    const destKeys = new Set(
+      destConsents.map((c) =>
+        this.consentimientoCollisionKey(
+          (c as any).proveedorSaludId,
+          (c as any).dateKey,
+        ),
+      ),
+    );
+
+    return fuenteConsents.filter((c) =>
+      destKeys.has(
+        this.consentimientoCollisionKey(
+          (c as any).proveedorSaludId,
+          (c as any).dateKey,
+        ),
+      ),
+    ).length;
   }
 
   private detectMatchCriterio(
@@ -1058,19 +1112,41 @@ export class WorkerFusionService {
     };
   }
 
-  private async assertSameEmpresa(
-    centroIdA: string,
-    centroIdB: string,
-  ): Promise<void> {
-    const [a, b] = await Promise.all([
-      this.getIdEmpresaFromCentro(centroIdA),
-      this.getIdEmpresaFromCentro(centroIdB),
-    ]);
-    if (!a || !b || a !== b) {
+  private async resolveCentrosForFusionPair(
+    centroIds: string[],
+  ): Promise<Map<string, { nombreCentro: string; idEmpresa: string }>> {
+    if (centroIds.length === 0) {
+      return new Map();
+    }
+
+    const centros = await this.centroTrabajoModel
+      .find({ _id: { $in: centroIds.map((id) => new Types.ObjectId(id)) } })
+      .select('nombreCentro idEmpresa')
+      .lean()
+      .exec();
+
+    const map = new Map<string, { nombreCentro: string; idEmpresa: string }>();
+    const empresas = new Set<string>();
+
+    for (const centro of centros) {
+      const id = (centro as any)._id.toString();
+      const idEmpresa =
+        (centro as any).idEmpresa?.toString?.() ??
+        String((centro as any).idEmpresa ?? '');
+      map.set(id, {
+        nombreCentro: (centro as any).nombreCentro ?? '',
+        idEmpresa,
+      });
+      if (idEmpresa) empresas.add(idEmpresa);
+    }
+
+    if (centroIds.length >= 2 && empresas.size !== 1) {
       throw new BadRequestException(
         'Los trabajadores deben pertenecer a la misma empresa',
       );
     }
+
+    return map;
   }
 
   async getIdEmpresaFromCentro(

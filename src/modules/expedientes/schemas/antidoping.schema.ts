@@ -99,3 +99,4 @@ export const AntidopingSchema = SchemaFactory.createForClass(Antidoping).set(
   'timestamps',
   true,
 );
+AntidopingSchema.index({ createdBy: 1, createdAt: -1 });

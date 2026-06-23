@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { UserDocument } from '../users/schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { InviteUserDto } from './dto/invite-user.dto';
@@ -225,8 +225,29 @@ export class UsersService {
 
   async findByProveedorSaludId(
     idProveedorSalud: string,
+    options?: {
+      scope?: 'permissions' | 'assignments' | 'full';
+      roles?: string[];
+    },
   ): Promise<UserDocument[] | null> {
-    return this.userModel.find({ idProveedorSalud }).exec();
+    const query: Record<string, unknown> = { idProveedorSalud };
+
+    if (options?.roles?.length) {
+      query.role = { $in: options.roles };
+    }
+
+    const scope = options?.scope ?? 'full';
+    const selectByScope: Record<string, string> = {
+      permissions: 'username email role permisos cuentaActiva',
+      assignments:
+        'username email role permisos empresasAsignadas centrosTrabajoAsignados cuentaActiva',
+      full: 'username email phone role permisos empresasAsignadas centrosTrabajoAsignados cuentaActiva',
+    };
+
+    return this.userModel
+      .find(query)
+      .select(selectByScope[scope] ?? selectByScope.full)
+      .exec();
   }
 
   async assertActorCanManageTargetUser(
@@ -367,33 +388,273 @@ export class UsersService {
   }
 
   // Métodos para estadísticas de productividad
+  private readonly reglasPuntajeDefault = {
+    aptitudes: 3,
+    historias: 1,
+    exploraciones: 1,
+    examenesVista: 1,
+    audiometrias: 1,
+    antidopings: 1,
+    notas: 2,
+    externos: 0,
+  };
+
+  private createEmptyProductivityStats() {
+    return {
+      totalAptitudes: 0,
+      totalHistoriasClinicas: 0,
+      totalExploracionesFisicas: 0,
+      totalExamenesVista: 0,
+      totalAudiometrias: 0,
+      totalAntidopings: 0,
+      totalNotasMedicas: 0,
+      totalDocumentosExternos: 0,
+      totalDocumentos: 0,
+      ultimoInforme: null as Date | null,
+    };
+  }
+
+  private async getReglasPuntajeForProveedor(idProveedorSalud: string) {
+    const proveedor = await this.proveedorSaludModel
+      .findById(idProveedorSalud)
+      .select('reglasPuntaje')
+      .exec();
+
+    if (!proveedor?.reglasPuntaje) {
+      return { ...this.reglasPuntajeDefault };
+    }
+
+    return proveedor.reglasPuntaje;
+  }
+
+  private async aggregateProductivityByCollection(
+    model: Model<any>,
+    userIds: string[],
+    fechaInicio?: string,
+    fechaFin?: string,
+  ): Promise<Map<string, { count: number; ultimoInforme: Date | null }>> {
+    if (userIds.length === 0) {
+      return new Map();
+    }
+
+    const filtroFecha = this.construirFiltroFecha(fechaInicio, fechaFin);
+    const objectIds = userIds.map((id) => new Types.ObjectId(id));
+
+    const results = await model
+      .aggregate([
+        {
+          $match: {
+            createdBy: { $in: objectIds },
+            ...filtroFecha,
+          },
+        },
+        {
+          $group: {
+            _id: '$createdBy',
+            count: { $sum: 1 },
+            ultimoInforme: { $max: '$createdAt' },
+          },
+        },
+      ])
+      .exec();
+
+    const map = new Map<string, { count: number; ultimoInforme: Date | null }>();
+    for (const row of results) {
+      map.set(row._id.toString(), {
+        count: row.count,
+        ultimoInforme: row.ultimoInforme ?? null,
+      });
+    }
+
+    return map;
+  }
+
+  private mergeCollectionStats(
+    aptitudes: Map<string, { count: number; ultimoInforme: Date | null }>,
+    historias: Map<string, { count: number; ultimoInforme: Date | null }>,
+    exploraciones: Map<string, { count: number; ultimoInforme: Date | null }>,
+    examenesVista: Map<string, { count: number; ultimoInforme: Date | null }>,
+    audiometrias: Map<string, { count: number; ultimoInforme: Date | null }>,
+    antidopings: Map<string, { count: number; ultimoInforme: Date | null }>,
+    notas: Map<string, { count: number; ultimoInforme: Date | null }>,
+    externos: Map<string, { count: number; ultimoInforme: Date | null }>,
+    userId: string,
+  ) {
+    const getCount = (map: Map<string, { count: number; ultimoInforme: Date | null }>) =>
+      map.get(userId)?.count ?? 0;
+
+    const ultimos = [
+      aptitudes.get(userId)?.ultimoInforme,
+      historias.get(userId)?.ultimoInforme,
+      exploraciones.get(userId)?.ultimoInforme,
+      examenesVista.get(userId)?.ultimoInforme,
+      audiometrias.get(userId)?.ultimoInforme,
+      antidopings.get(userId)?.ultimoInforme,
+      notas.get(userId)?.ultimoInforme,
+      externos.get(userId)?.ultimoInforme,
+    ].filter((fecha): fecha is Date => fecha instanceof Date);
+
+    const totalAptitudes = getCount(aptitudes);
+    const totalHistoriasClinicas = getCount(historias);
+    const totalExploracionesFisicas = getCount(exploraciones);
+    const totalExamenesVista = getCount(examenesVista);
+    const totalAudiometrias = getCount(audiometrias);
+    const totalAntidopings = getCount(antidopings);
+    const totalNotasMedicas = getCount(notas);
+    const totalDocumentosExternos = getCount(externos);
+
+    return {
+      totalAptitudes,
+      totalHistoriasClinicas,
+      totalExploracionesFisicas,
+      totalExamenesVista,
+      totalAudiometrias,
+      totalAntidopings,
+      totalNotasMedicas,
+      totalDocumentosExternos,
+      totalDocumentos:
+        totalAptitudes +
+        totalHistoriasClinicas +
+        totalExploracionesFisicas +
+        totalExamenesVista +
+        totalAudiometrias +
+        totalAntidopings +
+        totalNotasMedicas +
+        totalDocumentosExternos,
+      ultimoInforme:
+        ultimos.length > 0
+          ? ultimos.reduce((masReciente, actual) =>
+              actual > masReciente ? actual : masReciente,
+            )
+          : null,
+    };
+  }
+
+  private async buildProductivityStatsForUsers(
+    userIds: string[],
+    fechaInicio?: string,
+    fechaFin?: string,
+  ) {
+    if (userIds.length === 0) {
+      return new Map<string, ReturnType<UsersService['createEmptyProductivityStats']>>();
+    }
+
+    const [
+      aptitudes,
+      historias,
+      exploraciones,
+      examenesVista,
+      audiometrias,
+      antidopings,
+      notas,
+      externos,
+    ] = await Promise.all([
+      this.aggregateProductivityByCollection(
+        this.aptitudModel,
+        userIds,
+        fechaInicio,
+        fechaFin,
+      ),
+      this.aggregateProductivityByCollection(
+        this.historiaClinicaModel,
+        userIds,
+        fechaInicio,
+        fechaFin,
+      ),
+      this.aggregateProductivityByCollection(
+        this.exploracionFisicaModel,
+        userIds,
+        fechaInicio,
+        fechaFin,
+      ),
+      this.aggregateProductivityByCollection(
+        this.examenVistaModel,
+        userIds,
+        fechaInicio,
+        fechaFin,
+      ),
+      this.aggregateProductivityByCollection(
+        this.audiometriaModel,
+        userIds,
+        fechaInicio,
+        fechaFin,
+      ),
+      this.aggregateProductivityByCollection(
+        this.antidopingModel,
+        userIds,
+        fechaInicio,
+        fechaFin,
+      ),
+      this.aggregateProductivityByCollection(
+        this.notaMedicaModel,
+        userIds,
+        fechaInicio,
+        fechaFin,
+      ),
+      this.aggregateProductivityByCollection(
+        this.documentoExternoModel,
+        userIds,
+        fechaInicio,
+        fechaFin,
+      ),
+    ]);
+
+    const statsMap = new Map<
+      string,
+      ReturnType<UsersService['createEmptyProductivityStats']>
+    >();
+
+    for (const userId of userIds) {
+      statsMap.set(
+        userId,
+        this.mergeCollectionStats(
+          aptitudes,
+          historias,
+          exploraciones,
+          examenesVista,
+          audiometrias,
+          antidopings,
+          notas,
+          externos,
+          userId,
+        ),
+      );
+    }
+
+    return statsMap;
+  }
+
   async getProductivityStatsByProveedor(
     idProveedorSalud: string,
     fechaInicio?: string,
     fechaFin?: string,
   ) {
     try {
-      // Obtener todos los usuarios del proveedor
-      const usuarios = await this.userModel.find({ idProveedorSalud }).exec();
+      const [usuarios, reglasPuntaje] = await Promise.all([
+        this.userModel.find({ idProveedorSalud }).exec(),
+        this.getReglasPuntajeForProveedor(idProveedorSalud),
+      ]);
 
-      const usuariosConEstadisticas = await Promise.all(
-        usuarios.map(async (usuario) => {
-          const estadisticas = await this.getUserDetailedStats(
-            usuario._id.toString(),
-            fechaInicio,
-            fechaFin,
-          );
-          return {
-            _id: usuario._id,
-            username: usuario.username,
-            email: usuario.email,
-            role: usuario.role,
-            productividad: estadisticas,
-          };
-        }),
+      const userIds = usuarios.map((usuario) => usuario._id.toString());
+      const statsMap = await this.buildProductivityStatsForUsers(
+        userIds,
+        fechaInicio,
+        fechaFin,
       );
 
-      return usuariosConEstadisticas;
+      const usuariosConEstadisticas = usuarios.map((usuario) => {
+        const userId = usuario._id.toString();
+        return {
+          _id: usuario._id,
+          username: usuario.username,
+          email: usuario.email,
+          role: usuario.role,
+          productividad:
+            statsMap.get(userId) ?? this.createEmptyProductivityStats(),
+        };
+      });
+
+      return { usuarios: usuariosConEstadisticas, reglasPuntaje };
     } catch (error) {
       console.error('Error al obtener estadísticas de productividad:', error);
       throw error;
@@ -406,121 +667,16 @@ export class UsersService {
     fechaFin?: string,
   ) {
     try {
-      // Construir filtro de fecha si se proporcionan fechas
-      const filtroFecha = this.construirFiltroFecha(fechaInicio, fechaFin);
+      const statsMap = await this.buildProductivityStatsForUsers(
+        [userId],
+        fechaInicio,
+        fechaFin,
+      );
 
-      // Contar documentos por tipo para el usuario con filtro de fecha
-      const [
-        totalAptitudes,
-        totalHistoriasClinicas,
-        totalExploracionesFisicas,
-        totalExamenesVista,
-        totalAudiometrias,
-        totalAntidopings,
-        totalNotasMedicas,
-        totalDocumentosExternos,
-        ultimoDocumento,
-      ] = await Promise.all([
-        this.aptitudModel
-          .countDocuments({ createdBy: userId, ...filtroFecha })
-          .exec(),
-        this.historiaClinicaModel
-          .countDocuments({ createdBy: userId, ...filtroFecha })
-          .exec(),
-        this.exploracionFisicaModel
-          .countDocuments({ createdBy: userId, ...filtroFecha })
-          .exec(),
-        this.examenVistaModel
-          .countDocuments({ createdBy: userId, ...filtroFecha })
-          .exec(),
-        this.audiometriaModel
-          .countDocuments({ createdBy: userId, ...filtroFecha })
-          .exec(),
-        this.antidopingModel
-          .countDocuments({ createdBy: userId, ...filtroFecha })
-          .exec(),
-        this.notaMedicaModel
-          .countDocuments({ createdBy: userId, ...filtroFecha })
-          .exec(),
-        this.documentoExternoModel
-          .countDocuments({ createdBy: userId, ...filtroFecha })
-          .exec(),
-        this.getUltimoDocumentoUsuario(userId, fechaInicio, fechaFin),
-      ]);
-
-      const totalDocumentos =
-        totalAptitudes +
-        totalHistoriasClinicas +
-        totalExploracionesFisicas +
-        totalExamenesVista +
-        totalAudiometrias +
-        totalAntidopings +
-        totalNotasMedicas +
-        totalDocumentosExternos;
-
-      return {
-        totalAptitudes,
-        totalHistoriasClinicas,
-        totalExploracionesFisicas,
-        totalExamenesVista,
-        totalAudiometrias,
-        totalAntidopings,
-        totalNotasMedicas,
-        totalDocumentosExternos,
-        totalDocumentos,
-        ultimoInforme: ultimoDocumento ? ultimoDocumento.createdAt : null,
-      };
+      return statsMap.get(userId) ?? this.createEmptyProductivityStats();
     } catch (error) {
       console.error('Error al obtener estadísticas del usuario:', error);
       throw error;
-    }
-  }
-
-  private async getUltimoDocumentoUsuario(
-    userId: string,
-    fechaInicio?: string,
-    fechaFin?: string,
-  ) {
-    try {
-      // Construir filtro de fecha si se proporcionan fechas
-      const filtroFecha = this.construirFiltroFecha(fechaInicio, fechaFin);
-
-      // Buscar el documento más reciente creado por el usuario
-      const modelos = [
-        this.aptitudModel,
-        this.historiaClinicaModel,
-        this.exploracionFisicaModel,
-        this.examenVistaModel,
-        this.audiometriaModel,
-        this.antidopingModel,
-        this.notaMedicaModel,
-        this.documentoExternoModel,
-      ];
-
-      const ultimosDocumentos = await Promise.all(
-        modelos.map((modelo) =>
-          modelo
-            .findOne({ createdBy: userId, ...filtroFecha })
-            .sort({ createdAt: -1 })
-            .select('createdAt')
-            .exec(),
-        ),
-      );
-
-      // Encontrar el más reciente
-      const documentosConFecha = ultimosDocumentos.filter(
-        (doc) => doc !== null,
-      );
-      if (documentosConFecha.length === 0) return null;
-
-      return documentosConFecha.reduce((masReciente, actual) =>
-        new Date(actual.createdAt) > new Date(masReciente.createdAt)
-          ? actual
-          : masReciente,
-      );
-    } catch (error) {
-      console.error('Error al obtener último documento:', error);
-      return null;
     }
   }
 
@@ -529,14 +685,10 @@ export class UsersService {
     const filtro: any = {};
 
     if (fechaInicio && fechaFin) {
-      // Convertir fechas a objetos Date
       const inicio = new Date(fechaInicio);
       const fin = new Date(fechaFin);
 
-      // Establecer hora de inicio al comienzo del día
       inicio.setHours(0, 0, 0, 0);
-
-      // Establecer hora de fin al final del día
       fin.setHours(23, 59, 59, 999);
 
       filtro.createdAt = {
@@ -544,12 +696,10 @@ export class UsersService {
         $lte: fin,
       };
     } else if (fechaInicio) {
-      // Solo fecha de inicio
       const inicio = new Date(fechaInicio);
       inicio.setHours(0, 0, 0, 0);
       filtro.createdAt = { $gte: inicio };
     } else if (fechaFin) {
-      // Solo fecha de fin
       const fin = new Date(fechaFin);
       fin.setHours(23, 59, 59, 999);
       filtro.createdAt = { $lte: fin };
@@ -558,49 +708,45 @@ export class UsersService {
     return filtro;
   }
 
-  // Método para obtener estadísticas de todos los usuarios del sistema (solo para administradores)
-  async getAllProductivityStats(fechaInicio?: string, fechaFin?: string) {
+  async getAllProductivityStats(
+    fechaInicio?: string,
+    fechaFin?: string,
+    idProveedorSaludActor?: string,
+  ) {
     try {
-      // Obtener todos los usuarios del sistema
       const usuarios = await this.userModel.find({}).exec();
+      const userIds = usuarios.map((usuario) => usuario._id.toString());
 
-      const usuariosConEstadisticas = await Promise.all(
-        usuarios.map(async (usuario) => {
-          const estadisticas = await this.getUserDetailedStats(
-            usuario._id.toString(),
-            fechaInicio,
-            fechaFin,
-          );
+      const [statsMap, proveedores, reglasPuntaje] = await Promise.all([
+        this.buildProductivityStatsForUsers(userIds, fechaInicio, fechaFin),
+        this.loadProveedorNombresMap(usuarios),
+        idProveedorSaludActor
+          ? this.getReglasPuntajeForProveedor(idProveedorSaludActor)
+          : Promise.resolve(null),
+      ]);
 
-          // Obtener información del proveedor de salud
-          let proveedorNombre = 'Sin proveedor';
-          if (usuario.idProveedorSalud) {
-            try {
-              const proveedor = await this.proveedorSaludModel
-                .findById(usuario.idProveedorSalud)
-                .select('nombre')
-                .exec();
-              if (proveedor) {
-                proveedorNombre = proveedor.nombre;
-              }
-            } catch (error) {
-              console.error('Error al obtener nombre del proveedor:', error);
-            }
-          }
+      const usuariosConEstadisticas = usuarios.map((usuario) => {
+        const userId = usuario._id.toString();
+        const proveedorKey = usuario.idProveedorSalud?.toString();
 
-          return {
-            _id: usuario._id,
-            username: usuario.username,
-            email: usuario.email,
-            role: usuario.role,
-            idProveedorSalud: usuario.idProveedorSalud,
-            proveedorNombre,
-            productividad: estadisticas,
-          };
-        }),
-      );
+        return {
+          _id: usuario._id,
+          username: usuario.username,
+          email: usuario.email,
+          role: usuario.role,
+          idProveedorSalud: usuario.idProveedorSalud,
+          proveedorNombre: proveedorKey
+            ? proveedores.get(proveedorKey) ?? 'Sin proveedor'
+            : 'Sin proveedor',
+          productividad:
+            statsMap.get(userId) ?? this.createEmptyProductivityStats(),
+        };
+      });
 
-      return usuariosConEstadisticas;
+      return {
+        usuarios: usuariosConEstadisticas,
+        ...(reglasPuntaje ? { reglasPuntaje } : {}),
+      };
     } catch (error) {
       console.error(
         'Error al obtener estadísticas de productividad de todos los usuarios:',
@@ -608,6 +754,32 @@ export class UsersService {
       );
       throw error;
     }
+  }
+
+  private async loadProveedorNombresMap(usuarios: UserDocument[]) {
+    const proveedorIds = [
+      ...new Set(
+        usuarios
+          .map((usuario) => usuario.idProveedorSalud?.toString())
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+
+    if (proveedorIds.length === 0) {
+      return new Map<string, string>();
+    }
+
+    const proveedores = await this.proveedorSaludModel
+      .find({ _id: { $in: proveedorIds } })
+      .select('nombre')
+      .exec();
+
+    return new Map(
+      proveedores.map((proveedor) => [
+        proveedor._id.toString(),
+        proveedor.nombre,
+      ]),
+    );
   }
 
   async getUserCentrosTrabajo(userId: string): Promise<any[]> {

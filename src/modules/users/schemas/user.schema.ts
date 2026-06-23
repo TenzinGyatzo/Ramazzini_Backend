@@ -112,6 +112,7 @@ export class User {
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+UserSchema.index({ idProveedorSalud: 1, role: 1 });
 
 // Migración: copiar gestionarCuestionariosAdicionales a gestionarOtrosDocumentos al serializar
 UserSchema.set('toJSON', {

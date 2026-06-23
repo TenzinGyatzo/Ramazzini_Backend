@@ -643,6 +643,8 @@ export class UsersController {
     @Param('idProveedorSalud') idProveedorSalud: string,
     @Req() req: Request,
     @Res() res: Response,
+    @Query('scope') scope?: 'permissions' | 'assignments' | 'full',
+    @Query('roles') roles?: string,
   ) {
     const actorUserId = getUserIdFromRequest(req);
     await this.usersService.assertActorCanAccessProveedor(
@@ -650,8 +652,18 @@ export class UsersController {
       idProveedorSalud,
     );
 
-    const users =
-      await this.usersService.findByProveedorSaludId(idProveedorSalud);
+    const roleList = roles
+      ?.split(',')
+      .map((role) => role.trim())
+      .filter(Boolean);
+
+    const users = await this.usersService.findByProveedorSaludId(
+      idProveedorSalud,
+      {
+        scope: scope ?? 'full',
+        roles: roleList,
+      },
+    );
     res.json(this.usersService.sanitizeUsersList(users));
   }
 
@@ -716,9 +728,11 @@ export class UsersController {
     const actorUserId = getUserIdFromRequest(req);
     await this.usersService.assertActorIsPlatformAdministrador(actorUserId);
 
+    const actor = await this.usersService.findById(actorUserId);
     const stats = await this.usersService.getAllProductivityStats(
       fechaInicio,
       fechaFin,
+      actor?.idProveedorSalud?.toString(),
     );
     res.json(stats);
   }

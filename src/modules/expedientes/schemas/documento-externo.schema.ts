@@ -66,3 +66,4 @@ export class DocumentoExterno extends Document {
 export const DocumentoExternoSchema = SchemaFactory.createForClass(
   DocumentoExterno,
 ).set('timestamps', true);
+DocumentoExternoSchema.index({ createdBy: 1, createdAt: -1 });

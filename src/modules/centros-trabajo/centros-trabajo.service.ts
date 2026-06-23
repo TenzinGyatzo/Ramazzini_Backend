@@ -88,6 +88,16 @@ export class CentrosTrabajoService {
     return await this.centroTrabajoModel.find({ idEmpresa: id }).exec();
   }
 
+  async findCentersByCompanies(empresaIds: string[]): Promise<CentroTrabajo[]> {
+    if (empresaIds.length === 0) {
+      return [];
+    }
+
+    return this.centroTrabajoModel
+      .find({ idEmpresa: { $in: empresaIds } })
+      .exec();
+  }
+
   async findByUserAssignments(userId: string): Promise<CentroTrabajo[]> {
     const user = await this.userModel.findById(userId).exec();
     if (!user) {

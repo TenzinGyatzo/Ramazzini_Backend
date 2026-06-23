@@ -377,3 +377,4 @@ export const HistoriaClinicaSchema = SchemaFactory.createForClass(
   HistoriaClinica,
 ).set('timestamps', true);
 HistoriaClinicaSchema.index({ idTrabajador: 1, fechaHistoriaClinica: -1 });
+HistoriaClinicaSchema.index({ createdBy: 1, createdAt: -1 });

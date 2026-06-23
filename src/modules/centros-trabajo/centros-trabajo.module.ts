@@ -2,6 +2,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CentrosTrabajoService } from './centros-trabajo.service';
 import { CentrosTrabajoController } from './centros-trabajo.controller';
+import { CentrosTrabajoBatchController } from './centros-trabajo-batch.controller';
 import {
   CentroTrabajo,
   CentroTrabajoSchema,
@@ -68,7 +69,7 @@ import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
     forwardRef(() => UsersModule),
     DeletionAuthModule,
   ],
-  controllers: [CentrosTrabajoController],
+  controllers: [CentrosTrabajoController, CentrosTrabajoBatchController],
   providers: [CentrosTrabajoService],
   exports: [CentrosTrabajoService],
 })

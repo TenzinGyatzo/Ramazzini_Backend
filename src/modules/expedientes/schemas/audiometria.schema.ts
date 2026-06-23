@@ -152,3 +152,4 @@ export const AudiometriaSchema = SchemaFactory.createForClass(Audiometria).set(
   true,
 );
 AudiometriaSchema.index({ idTrabajador: 1, fechaAudiometria: -1 });
+AudiometriaSchema.index({ createdBy: 1, createdAt: -1 });

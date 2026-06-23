@@ -188,3 +188,4 @@ export const ExamenVistaSchema = SchemaFactory.createForClass(ExamenVista).set(
   true,
 );
 ExamenVistaSchema.index({ idTrabajador: 1, fechaExamenVista: -1 });
+ExamenVistaSchema.index({ createdBy: 1, createdAt: -1 });

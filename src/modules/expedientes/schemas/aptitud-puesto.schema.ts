@@ -135,3 +135,4 @@ export const AptitudPuestoSchema = SchemaFactory.createForClass(
   AptitudPuesto,
 ).set('timestamps', true);
 AptitudPuestoSchema.index({ idTrabajador: 1, fechaAptitudPuesto: -1 });
+AptitudPuestoSchema.index({ createdBy: 1, createdAt: -1 });

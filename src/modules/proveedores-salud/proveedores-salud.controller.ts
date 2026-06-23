@@ -12,6 +12,7 @@ import {
   Res,
   StreamableFile,
   Req,
+  Query,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { ProveedoresSaludService } from './proveedores-salud.service';
@@ -112,6 +113,14 @@ export class ProveedoresSaludController {
     }
 
     return proveedoresSalud;
+  }
+
+  @Get('panel-admin')
+  async getPanelAdmin(@Query('ids') ids?: string) {
+    const idList = ids
+      ? ids.split(',').map((id) => id.trim()).filter(Boolean)
+      : undefined;
+    return this.proveedoresSaludService.getPanelAdmin(idList);
   }
 
   @Get('obtener-proveedor-salud/:id')

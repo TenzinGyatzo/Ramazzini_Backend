@@ -233,3 +233,4 @@ export const ExploracionFisicaSchema = SchemaFactory.createForClass(
   ExploracionFisica,
 ).set('timestamps', true);
 ExploracionFisicaSchema.index({ idTrabajador: 1, fechaExploracionFisica: -1 });
+ExploracionFisicaSchema.index({ createdBy: 1, createdAt: -1 });

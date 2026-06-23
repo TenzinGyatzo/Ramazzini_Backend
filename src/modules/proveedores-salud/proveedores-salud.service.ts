@@ -9,9 +9,11 @@ import {
 import { CreateProveedoresSaludDto } from './dto/create-proveedores-salud.dto';
 import { UpdateProveedoresSaludDto } from './dto/update-proveedores-salud.dto';
 import { ChangeRegimenRegulatorioDto } from './dto/change-regimen-regulatorio.dto';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ProveedorSalud } from './schemas/proveedor-salud.schema';
-import { Model, Types } from 'mongoose';
+import { Connection, Model, Types } from 'mongoose';
+import { Empresa } from '../empresas/schemas/empresa.schema';
+import { Suscripcion } from '../pagos/schemas/suscripcion.schema';
 import { normalizeProveedorSaludData } from 'src/utils/normalization';
 import { NOM024ComplianceUtil } from 'src/utils/nom024-compliance.util';
 import { CatalogsService } from '../catalogs/catalogs.service';
@@ -21,6 +23,23 @@ import { AuditService } from '../audit/audit.service';
 import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
 
+export interface PanelAdminPrincipalUser {
+  username: string;
+  email: string;
+  phone?: string;
+}
+
+export interface PanelAdminProveedorRow {
+  _id: string;
+  empresasCount: number;
+  principalUser: PanelAdminPrincipalUser | null;
+  historiasClinicasMes: number;
+  notasMedicasMes: number;
+  totalHistoriasClinicas: number;
+  totalNotasMedicas: number;
+  suscripcion: Record<string, unknown> | null;
+}
+
 @Injectable()
 export class ProveedoresSaludService {
   constructor(
@@ -28,6 +47,12 @@ export class ProveedoresSaludService {
     private proveedoresSaludModel: Model<ProveedorSalud>,
     @InjectModel('User')
     private userModel: Model<any>,
+    @InjectModel(Empresa.name)
+    private empresaModel: Model<Empresa>,
+    @InjectModel(Suscripcion.name)
+    private suscripcionModel: Model<Suscripcion>,
+    @InjectConnection()
+    private connection: Connection,
     @Inject(forwardRef(() => NOM024ComplianceUtil))
     private nom024Util: NOM024ComplianceUtil,
     private catalogsService: CatalogsService,
@@ -810,5 +835,226 @@ export class ProveedoresSaludService {
       proveedorSalud: updatedProveedor,
       regulatoryPolicy,
     };
+  }
+
+  async getPanelAdmin(ids?: string[]): Promise<PanelAdminProveedorRow[]> {
+    const filter =
+      ids?.length && ids.every((id) => Types.ObjectId.isValid(id))
+        ? { _id: { $in: ids.map((id) => new Types.ObjectId(id)) } }
+        : {};
+
+    const proveedores = await this.proveedoresSaludModel
+      .find(filter)
+      .select('-reglasPuntaje')
+      .lean()
+      .exec();
+
+    if (proveedores.length === 0) return [];
+
+    const proveedorIds = proveedores.map((p) => (p as any)._id.toString());
+    const proveedorObjectIds = proveedorIds.map((id) => new Types.ObjectId(id));
+    const idSet = new Set(proveedorIds);
+
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const [
+      empresasCounts,
+      principalUsers,
+      historiasStats,
+      notasStats,
+      suscripciones,
+    ] = await Promise.all([
+      this.batchEmpresasCountByProveedor(proveedorObjectIds),
+      this.userModel
+        .find({
+          idProveedorSalud: { $in: proveedorObjectIds },
+          role: 'Principal',
+        })
+        .select('username email phone idProveedorSalud')
+        .lean()
+        .exec(),
+      this.batchDocumentStatsByProveedor(
+        'historiaclinicas',
+        firstDay,
+        lastDay,
+        idSet,
+      ),
+      this.batchDocumentStatsByProveedor(
+        'notamedicas',
+        firstDay,
+        lastDay,
+        idSet,
+      ),
+      this.batchSuscripciones(
+        proveedores
+          .map((p) => (p as any).suscripcionActiva)
+          .filter(Boolean) as string[],
+      ),
+    ]);
+
+    const empresasMap = new Map(
+      empresasCounts.map((row) => [row._id, row.count]),
+    );
+    const usersMap = new Map<string, PanelAdminPrincipalUser>();
+    for (const user of principalUsers) {
+      const pid = (user as any).idProveedorSalud?.toString();
+      if (!pid) continue;
+      usersMap.set(pid, {
+        username: (user as any).username,
+        email: (user as any).email,
+        phone: (user as any).phone,
+      });
+    }
+    const historiasMap = new Map(
+      historiasStats.map((row) => [row._id, row]),
+    );
+    const notasMap = new Map(notasStats.map((row) => [row._id, row]));
+    const subsMap = new Map(
+      suscripciones.map((s) => [(s as any).subscription_id, s]),
+    );
+
+    return proveedores.map((p) => {
+      const id = (p as any)._id.toString();
+      const historias = historiasMap.get(id);
+      const notas = notasMap.get(id);
+      const suscripcionActiva = (p as any).suscripcionActiva as
+        | string
+        | undefined;
+
+      return {
+        _id: id,
+        empresasCount: empresasMap.get(id) ?? 0,
+        principalUser: usersMap.get(id) ?? null,
+        historiasClinicasMes: historias?.mesCount ?? 0,
+        notasMedicasMes: notas?.mesCount ?? 0,
+        totalHistoriasClinicas: historias?.totalCount ?? 0,
+        totalNotasMedicas: notas?.totalCount ?? 0,
+        suscripcion: suscripcionActiva
+          ? ((subsMap.get(suscripcionActiva) as Record<string, unknown>) ?? null)
+          : null,
+      };
+    });
+  }
+
+  private async batchEmpresasCountByProveedor(
+    proveedorObjectIds: Types.ObjectId[],
+  ): Promise<{ _id: string; count: number }[]> {
+    const rows = await this.empresaModel
+      .aggregate<{ _id: Types.ObjectId; count: number }>([
+        { $match: { idProveedorSalud: { $in: proveedorObjectIds } } },
+        { $group: { _id: '$idProveedorSalud', count: { $sum: 1 } } },
+      ])
+      .exec();
+
+    return rows.map((row) => ({
+      _id: row._id.toString(),
+      count: row.count,
+    }));
+  }
+
+  private async batchDocumentStatsByProveedor(
+    collectionName: string,
+    firstDay: Date,
+    lastDay: Date,
+    proveedorIdFilter?: Set<string>,
+  ): Promise<
+    { _id: string; totalCount: number; mesCount: number }[]
+  > {
+    const collection = this.connection.collection(collectionName);
+    const matchProveedor =
+      proveedorIdFilter && proveedorIdFilter.size > 0
+        ? {
+            $match: {
+              'e.idProveedorSalud': {
+                $in: [...proveedorIdFilter].map((id) => new Types.ObjectId(id)),
+              },
+            },
+          }
+        : null;
+
+    const pipeline: Record<string, unknown>[] = [
+      {
+        $lookup: {
+          from: 'trabajadors',
+          localField: 'idTrabajador',
+          foreignField: '_id',
+          as: 'trabajador',
+        },
+      },
+      { $unwind: '$trabajador' },
+      {
+        $lookup: {
+          from: 'centrotrabajos',
+          localField: 'trabajador.idCentroTrabajo',
+          foreignField: '_id',
+          as: 'centro',
+        },
+      },
+      { $unwind: '$centro' },
+      {
+        $lookup: {
+          from: 'empresas',
+          localField: 'centro.idEmpresa',
+          foreignField: '_id',
+          as: 'empresa',
+        },
+      },
+      { $unwind: '$empresa' },
+    ];
+
+    if (matchProveedor) {
+      pipeline.push({
+        $match: (matchProveedor as { $match: Record<string, unknown> }).$match,
+      });
+    }
+
+    pipeline.push({
+      $group: {
+        _id: '$empresa.idProveedorSalud',
+        totalCount: { $sum: 1 },
+        mesCount: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $gte: ['$createdAt', firstDay] },
+                  { $lte: ['$createdAt', lastDay] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+        },
+      },
+    });
+
+    const rows = await collection
+      .aggregate<{ _id: Types.ObjectId; totalCount: number; mesCount: number }>(
+        pipeline,
+      )
+      .toArray();
+
+    return rows.map((row) => ({
+      _id: row._id.toString(),
+      totalCount: row.totalCount,
+      mesCount: row.mesCount,
+    }));
+  }
+
+  private async batchSuscripciones(
+    subscriptionIds: string[],
+  ): Promise<Record<string, unknown>[]> {
+    if (subscriptionIds.length === 0) return [];
+
+    const uniqueIds = [...new Set(subscriptionIds)];
+    const docs = await this.suscripcionModel
+      .find({ subscription_id: { $in: uniqueIds } })
+      .lean()
+      .exec();
+
+    return docs as Record<string, unknown>[];
   }
 }

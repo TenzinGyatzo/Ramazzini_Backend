@@ -207,3 +207,4 @@ export const NotaMedicaSchema = SchemaFactory.createForClass(NotaMedica).set(
   true,
 );
 NotaMedicaSchema.index({ idTrabajador: 1, fechaNotaMedica: -1 });
+NotaMedicaSchema.index({ createdBy: 1, createdAt: -1 });
