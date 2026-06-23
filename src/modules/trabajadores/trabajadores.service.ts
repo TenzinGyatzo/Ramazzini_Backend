@@ -1167,16 +1167,173 @@ export class TrabajadoresService {
       trabajadoresEvaluados: [],
     };
 
-    // 5. EXPLORACIONES FÍSICAS – Obtener la más reciente por trabajador activo
-    const exploraciones = await this.exploracionFisicaModel
-      .find({
-        idTrabajador: { $in: idsActivos },
-        ...rangoFecha('fechaExploracionFisica'),
-      })
-      .select(
-        'idTrabajador categoriaIMC categoriaCircunferenciaCintura categoriaTensionArterial fechaExploracionFisica',
-      )
-      .lean();
+    // 5–18. Consultas independientes en paralelo (último registro por trabajador se resuelve en memoria)
+    const teaSelect = [
+      'idTrabajador',
+      'fechaTrastornosEstadoAnimo',
+      'p1ExaltadoComportamientoNoHabitualOMetidoProblemas',
+      'p1IrritableGritosPeleas',
+      'p1MasSeguridadQueLoHabitual',
+      'p1DormiaMenosSinNecesitarMasSueno',
+      'p1HablabaMasOMasRapido',
+      'p1PensamientosAgolpados',
+      'p1DistraccionDificultadConcentracion',
+      'p1MasEnergiaQueLoHabitual',
+      'p1MasActivoOMasCosasQueLoHabitual',
+      'p1MasSocialExtrovertido',
+      'p1MasApetitoSexual',
+      'p1CosasExageradasRiesgosas',
+      'p1GastoDineroProblemas',
+      'p2SituacionesMismoPeriodo',
+      'p3NivelProblemaCausado',
+      'p4FamiliarDirectoBipolar',
+      'p5DiagnosticoProfesionalBipolar',
+    ].join(' ');
+
+    const cpbFields = [
+      'idTrabajador',
+      'fechaCuestionarioProdromalBreve',
+      ...Array.from({ length: 21 }, (_, i) => `p${i + 1}`),
+    ].join(' ');
+
+    const tlpSelect = [
+      'idTrabajador',
+      'fechaTrastornoLimitePersonalidad',
+      'relacionesCercanasDiscusionesRupturas',
+      'autolesionIntentoSuicidio',
+      'impulsividadOtrosDosProblemas',
+      'extremadamenteMalHumor',
+      'enojadoFrecuenteActuaEnojadoSarcastico',
+      'desconfianzaOtrasPersonas',
+      'sensacionIrrealidadEntornoIrreal',
+      'vacioCronico',
+      'faltaIdentidadQuienEs',
+      'esfuerzosEvitarAbandono',
+    ].join(' ');
+
+    const [
+      exploraciones,
+      historias,
+      examenesVista,
+      aptitudes,
+      consultas,
+      audiometrias,
+      resultadosClinicos,
+      trastornosEstadoAnimoDocs,
+      cuestionarioProdromalDocs,
+      trastornoLimiteDocs,
+    ] = await Promise.all([
+      this.exploracionFisicaModel
+        .find({
+          idTrabajador: { $in: idsActivos },
+          ...rangoFecha('fechaExploracionFisica'),
+        })
+        .select(
+          'idTrabajador categoriaIMC categoriaCircunferenciaCintura categoriaTensionArterial fechaExploracionFisica',
+        )
+        .lean(),
+      this.historiaClinicaModel
+        .find({
+          idTrabajador: { $in: idsActivos },
+          ...rangoFecha('fechaHistoriaClinica'),
+        })
+        .select(
+          'idTrabajador alcoholismo tabaquismo diabeticosPP hipertensivosPP cardiopaticosPP epilepticosPP respiratorios alergicos lumbalgias accidentes quirurgicos otros fechaHistoriaClinica',
+        )
+        .lean(),
+      this.examenVistaModel
+        .find({
+          idTrabajador: { $in: idsActivos },
+          ...rangoFecha('fechaExamenVista'),
+        })
+        .select(
+          'idTrabajador requiereLentesUsoGeneral ojoIzquierdoLejanaSinCorreccion ojoDerechoLejanaSinCorreccion sinCorreccionLejanaInterpretacion ojoIzquierdoLejanaConCorreccion ojoDerechoLejanaConCorreccion conCorreccionLejanaInterpretacion interpretacionIshihara fechaExamenVista',
+        )
+        .lean(),
+      this.aptitudModel
+        .find({
+          idTrabajador: { $in: idsTodos },
+          ...rangoFecha('fechaAptitudPuesto'),
+        })
+        .select('idTrabajador aptitudPuesto fechaAptitudPuesto')
+        .lean(),
+      this.notaMedicaModel
+        .find({
+          idTrabajador: { $in: idsTodos },
+          ...rangoFecha('fechaNotaMedica'),
+        })
+        .select('idTrabajador fechaNotaMedica')
+        .lean(),
+      this.audiometriaModel
+        .find({
+          idTrabajador: { $in: idsActivos },
+          ...rangoFecha('fechaAudiometria'),
+        })
+        .select([
+          'idTrabajador',
+          'fechaAudiometria',
+          'metodoAudiometria',
+          'hipoacusiaBilateralCombinada',
+          'perdidaAuditivaBilateralAMA',
+          'oidoDerecho125',
+          'oidoDerecho250',
+          'oidoDerecho500',
+          'oidoDerecho1000',
+          'oidoDerecho2000',
+          'oidoDerecho3000',
+          'oidoDerecho4000',
+          'oidoDerecho6000',
+          'oidoDerecho8000',
+          'oidoIzquierdo125',
+          'oidoIzquierdo250',
+          'oidoIzquierdo500',
+          'oidoIzquierdo1000',
+          'oidoIzquierdo2000',
+          'oidoIzquierdo3000',
+          'oidoIzquierdo4000',
+          'oidoIzquierdo6000',
+          'oidoIzquierdo8000',
+        ])
+        .lean(),
+      this.resultadoClinicoModel
+        .find({
+          idTrabajador: { $in: idsActivos },
+          tipoEstudio: {
+            $in: [
+              TipoEstudio.EKG,
+              TipoEstudio.ESPIROMETRIA,
+              TipoEstudio.RAYOS_X,
+              TipoEstudio.ANALISIS_LABORATORIO,
+            ],
+          },
+          ...rangoFecha('fechaEstudio'),
+        })
+        .select(
+          'idTrabajador tipoEstudio resultadoGlobal tipoAlteracion tipoAlteracionPrincipal tipoAlteracionEspirometria tipoAlteracionEKG tipoAlteracionRayosX tipoAlteracionAnalisisLaboratorio fechaEstudio',
+        )
+        .lean(),
+      this.trastornosEstadoAnimoModel
+        .find({
+          idTrabajador: { $in: idsActivos },
+          ...rangoFecha('fechaTrastornosEstadoAnimo'),
+        })
+        .select(teaSelect)
+        .lean(),
+      this.cuestionarioProdromalBreveModel
+        .find({
+          idTrabajador: { $in: idsActivos },
+          ...rangoFecha('fechaCuestionarioProdromalBreve'),
+        })
+        .select(cpbFields)
+        .lean(),
+      this.trastornoLimitePersonalidadModel
+        .find({
+          idTrabajador: { $in: idsActivos },
+          ...rangoFecha('fechaTrastornoLimitePersonalidad'),
+        })
+        .select(tlpSelect)
+        .lean(),
+    ]);
 
     const exploracionesMap = new Map<string, any>();
     for (const exploracion of exploraciones) {
@@ -1212,17 +1369,7 @@ export class TrabajadoresService {
       })),
     );
 
-    // 8. HISTORIAS CLÍNICAS – Obtener la más reciente por trabajador activo
-    const historias = await this.historiaClinicaModel
-      .find({
-        idTrabajador: { $in: idsActivos },
-        ...rangoFecha('fechaHistoriaClinica'),
-      })
-      .select(
-        'idTrabajador alcoholismo tabaquismo diabeticosPP hipertensivosPP cardiopaticosPP epilepticosPP respiratorios alergicos lumbalgias accidentes quirurgicos otros fechaHistoriaClinica',
-      )
-      .lean();
-
+    // 8. HISTORIAS CLÍNICAS – última por trabajador activo (datos ya cargados en paralelo)
     const historiasMap = new Map<string, any>();
     for (const historia of historias) {
       const id = historia.idTrabajador.toString();
@@ -1266,17 +1413,7 @@ export class TrabajadoresService {
       })),
     );
 
-    // 12. EXÁMENES DE VISTA – Obtener el más reciente por trabajador activo
-    const examenesVista = await this.examenVistaModel
-      .find({
-        idTrabajador: { $in: idsActivos },
-        ...rangoFecha('fechaExamenVista'),
-      })
-      .select(
-        'idTrabajador requiereLentesUsoGeneral ojoIzquierdoLejanaSinCorreccion ojoDerechoLejanaSinCorreccion sinCorreccionLejanaInterpretacion ojoIzquierdoLejanaConCorreccion ojoDerechoLejanaConCorreccion conCorreccionLejanaInterpretacion interpretacionIshihara fechaExamenVista',
-      )
-      .lean();
-
+    // 12. EXÁMENES DE VISTA – último por trabajador activo
     const examenesMap = new Map<string, any>();
     for (const examen of examenesVista) {
       const id = examen.idTrabajador.toString();
@@ -1315,15 +1452,7 @@ export class TrabajadoresService {
       })),
     );
 
-    // 15. APTITUD PUESTO – Obtener la más reciente por trabajador (activo o inactivo)
-    const aptitudes = await this.aptitudModel
-      .find({
-        idTrabajador: { $in: idsTodos },
-        ...rangoFecha('fechaAptitudPuesto'),
-      })
-      .select('idTrabajador aptitudPuesto fechaAptitudPuesto')
-      .lean();
-
+    // 15. APTITUD PUESTO – última por trabajador
     const aptitudesMap = new Map<string, any>();
     for (const aptitud of aptitudes) {
       const id = aptitud.idTrabajador.toString();
@@ -1343,57 +1472,14 @@ export class TrabajadoresService {
       })),
     );
 
-    // 16. CONSULTAS – Obtener todas las notas médicas por trabajador (activo o inactivo)
-    const consultas = await this.notaMedicaModel
-      .find({
-        idTrabajador: { $in: idsTodos },
-        ...rangoFecha('fechaNotaMedica'),
-      })
-      .select('idTrabajador fechaNotaMedica')
-      .lean();
-
-    // Se incluyen todas las consultas, no solo la más reciente
+    // 16. CONSULTAS – todas las notas médicas del período
     dashboardData.consultas.push(
       consultas.map((consulta) => ({
         fechaNotaMedica: consulta.fechaNotaMedica ?? null,
       })),
     );
 
-    // 17. MÉTODO DE AUDIOMETRÍA, PERDIDA AUDITIVA BILATERAL y HIPOACUSIA BILATERAL COMBINADA – Obtener la más reciente por trabajador activo
-    const audiometrias = await this.audiometriaModel
-      .find({
-        idTrabajador: { $in: idsActivos },
-        ...rangoFecha('fechaAudiometria'),
-      })
-      .select([
-        'idTrabajador',
-        'fechaAudiometria',
-        'metodoAudiometria',
-        'hipoacusiaBilateralCombinada',
-        'perdidaAuditivaBilateralAMA',
-        // umbrales OD
-        'oidoDerecho125',
-        'oidoDerecho250',
-        'oidoDerecho500',
-        'oidoDerecho1000',
-        'oidoDerecho2000',
-        'oidoDerecho3000',
-        'oidoDerecho4000',
-        'oidoDerecho6000',
-        'oidoDerecho8000',
-        // umbrales OI
-        'oidoIzquierdo125',
-        'oidoIzquierdo250',
-        'oidoIzquierdo500',
-        'oidoIzquierdo1000',
-        'oidoIzquierdo2000',
-        'oidoIzquierdo3000',
-        'oidoIzquierdo4000',
-        'oidoIzquierdo6000',
-        'oidoIzquierdo8000',
-      ])
-      .lean();
-
+    // 17. AUDIOMETRÍA – última por trabajador activo
     const audiometriasMap = new Map<string, any>();
     for (const audiometria of audiometrias) {
       const id = audiometria.idTrabajador.toString();
@@ -1432,25 +1518,7 @@ export class TrabajadoresService {
       caidaMaxDb: getCaidaMaximaDb(a),
     }));
 
-    // 18. RESULTADOS CLÍNICOS (EKG, ESPIROMETRÍA, RAYOS X, ANÁLISIS DE LABORATORIO) – Más reciente por trabajador activo
-    const resultadosClinicos = await this.resultadoClinicoModel
-      .find({
-        idTrabajador: { $in: idsActivos },
-        tipoEstudio: {
-          $in: [
-            TipoEstudio.EKG,
-            TipoEstudio.ESPIROMETRIA,
-            TipoEstudio.RAYOS_X,
-            TipoEstudio.ANALISIS_LABORATORIO,
-          ],
-        },
-        ...rangoFecha('fechaEstudio'),
-      })
-      .select(
-        'idTrabajador tipoEstudio resultadoGlobal tipoAlteracion tipoAlteracionPrincipal tipoAlteracionEspirometria tipoAlteracionEKG tipoAlteracionRayosX tipoAlteracionAnalisisLaboratorio fechaEstudio',
-      )
-      .lean();
-
+    // 18. RESULTADOS CLÍNICOS – más reciente por trabajador activo
     const resultadosEkgMap = new Map<string, any>();
     const resultadosEspirometriaMap = new Map<string, any>();
     const resultadosRayosXMap = new Map<string, any>();
@@ -1517,36 +1585,6 @@ export class TrabajadoresService {
       })),
     );
 
-    const teaSelect = [
-      'idTrabajador',
-      'fechaTrastornosEstadoAnimo',
-      'p1ExaltadoComportamientoNoHabitualOMetidoProblemas',
-      'p1IrritableGritosPeleas',
-      'p1MasSeguridadQueLoHabitual',
-      'p1DormiaMenosSinNecesitarMasSueno',
-      'p1HablabaMasOMasRapido',
-      'p1PensamientosAgolpados',
-      'p1DistraccionDificultadConcentracion',
-      'p1MasEnergiaQueLoHabitual',
-      'p1MasActivoOMasCosasQueLoHabitual',
-      'p1MasSocialExtrovertido',
-      'p1MasApetitoSexual',
-      'p1CosasExageradasRiesgosas',
-      'p1GastoDineroProblemas',
-      'p2SituacionesMismoPeriodo',
-      'p3NivelProblemaCausado',
-      'p4FamiliarDirectoBipolar',
-      'p5DiagnosticoProfesionalBipolar',
-    ].join(' ');
-
-    const trastornosEstadoAnimoDocs = await this.trastornosEstadoAnimoModel
-      .find({
-        idTrabajador: { $in: idsActivos },
-        ...rangoFecha('fechaTrastornosEstadoAnimo'),
-      })
-      .select(teaSelect)
-      .lean();
-
     const trastornosEstadoAnimoMap = new Map<string, any>();
     for (const doc of trastornosEstadoAnimoDocs) {
       const id = doc.idTrabajador.toString();
@@ -1583,20 +1621,6 @@ export class TrabajadoresService {
       })),
     );
 
-    const cpbFields = [
-      'idTrabajador',
-      'fechaCuestionarioProdromalBreve',
-      ...Array.from({ length: 21 }, (_, i) => `p${i + 1}`),
-    ].join(' ');
-
-    const cuestionarioProdromalDocs = await this.cuestionarioProdromalBreveModel
-      .find({
-        idTrabajador: { $in: idsActivos },
-        ...rangoFecha('fechaCuestionarioProdromalBreve'),
-      })
-      .select(cpbFields)
-      .lean();
-
     const cuestionarioProdromalMap = new Map<string, any>();
     for (const doc of cuestionarioProdromalDocs) {
       const id = doc.idTrabajador.toString();
@@ -1621,29 +1645,6 @@ export class TrabajadoresService {
         return row;
       }),
     );
-
-    const tlpSelect = [
-      'idTrabajador',
-      'fechaTrastornoLimitePersonalidad',
-      'relacionesCercanasDiscusionesRupturas',
-      'autolesionIntentoSuicidio',
-      'impulsividadOtrosDosProblemas',
-      'extremadamenteMalHumor',
-      'enojadoFrecuenteActuaEnojadoSarcastico',
-      'desconfianzaOtrasPersonas',
-      'sensacionIrrealidadEntornoIrreal',
-      'vacioCronico',
-      'faltaIdentidadQuienEs',
-      'esfuerzosEvitarAbandono',
-    ].join(' ');
-
-    const trastornoLimiteDocs = await this.trastornoLimitePersonalidadModel
-      .find({
-        idTrabajador: { $in: idsActivos },
-        ...rangoFecha('fechaTrastornoLimitePersonalidad'),
-      })
-      .select(tlpSelect)
-      .lean();
 
     const trastornoLimiteMap = new Map<string, any>();
     for (const doc of trastornoLimiteDocs) {
