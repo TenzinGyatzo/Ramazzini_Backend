@@ -20,6 +20,7 @@ import {
   issueUserToken,
 } from 'src/utils/user-token';
 import { validatePasswordPolicy } from 'src/utils/validate-password-policy';
+import { sanitizePermissionsForRole } from './constants/role-permission-policy';
 
 const MIN_USERNAME_LENGTH = 5;
 
@@ -305,6 +306,27 @@ export class UsersService {
     return this.userModel.findOneAndDelete({ email }).exec();
   }
 
+  sanitizeUserPermissions(user: UserDocument | null): UserDocument | null {
+    if (!user?.permisos || !user.role) {
+      return user;
+    }
+
+    const raw =
+      (user.permisos as { toObject?: () => Record<string, boolean> }).toObject?.() ??
+      user.permisos;
+
+    user.set(
+      'permisos',
+      sanitizePermissionsForRole(user.role, raw as Record<string, boolean>),
+    );
+    return user;
+  }
+
+  sanitizeUsersList(users: UserDocument[] | null): UserDocument[] | null {
+    if (!users) return users;
+    return users.map((user) => this.sanitizeUserPermissions(user) as UserDocument);
+  }
+
   async updateUserPermissions(
     userId: string,
     permisos: any,
@@ -312,20 +334,10 @@ export class UsersService {
     const user = await this.userModel.findById(userId);
     if (!user) return null;
 
-    // Si el usuario es Administrativo, forzar permisos de documentos a false
-    if (user.role === 'Administrativo') {
-      permisos.gestionarDocumentosDiagnostico = false;
-      permisos.gestionarDocumentosEvaluacion = false;
-      permisos.gestionarDocumentosExternos = false;
-      permisos.gestionarOtrosDocumentos = false;
-    }
-    // Si el usuario es Técnico Evaluador, no puede tener gestionarDocumentosDiagnostico
-    if (user.role === 'Técnico Evaluador') {
-      permisos.gestionarDocumentosDiagnostico = false;
-    }
+    const sanitized = sanitizePermissionsForRole(user.role, permisos);
 
     return this.userModel
-      .findByIdAndUpdate(userId, { $set: { permisos } }, { new: true })
+      .findByIdAndUpdate(userId, { $set: { permisos: sanitized } }, { new: true })
       .exec();
   }
 

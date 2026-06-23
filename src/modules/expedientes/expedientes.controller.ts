@@ -74,6 +74,7 @@ import { existsSync, mkdirSync } from 'fs';
 import { convertirFechaISOaDDMMYYYY } from '../../utils/dates';
 import { DailyConsentGuard } from '../../utils/guards/daily-consent.guard';
 import { RequireDailyConsent } from '../../utils/decorators/require-daily-consent.decorator';
+import { assertDocumentPermission } from './utils/assert-document-permission.util';
 
 type AuthenticatedRequest = Request & { userId: string };
 
@@ -136,13 +137,24 @@ export class ExpedientesController {
     informeLongitudinalCardiometabolico: UpdateInformeLongitudinalCardiometabolicoDto,
   };
 
+  private async assertDocumentPermissionForRequest(
+    req: AuthenticatedRequest,
+    documentType: string,
+  ): Promise<void> {
+    const user = await this.usersService.findById(req.userId, 'role permisos');
+    assertDocumentPermission(user, documentType);
+  }
+
   @Post(':documentType/crear')
   @UseGuards(DailyConsentGuard)
   @RequireDailyConsent({ action: 'CREATE_DOCUMENT' })
   async createDocument(
     @Param('documentType') documentType: string,
     @Body() createDto: any,
+    @Req() req: AuthenticatedRequest,
   ) {
+    await this.assertDocumentPermissionForRequest(req, documentType);
+
     const DtoClass = this.createDtos[documentType];
     if (!DtoClass) {
       throw new BadRequestException(
@@ -226,7 +238,10 @@ export class ExpedientesController {
     @Body() createDocumentoExternoDto: CreateDocumentoExternoDto,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     @UploadedFile() _file: Express.Multer.File,
+    @Req() req: AuthenticatedRequest,
   ) {
+    await this.assertDocumentPermissionForRequest(req, 'documentoExterno');
+
     try {
       const document = await this.expedientesService.uploadDocument(
         createDocumentoExternoDto,
@@ -320,10 +335,13 @@ export class ExpedientesController {
     @Param('documentType') documentType: string,
     @Param('id') id: string,
     @Body() updateDto: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!isValidObjectId(id)) {
       throw new BadRequestException('El ID proporcionado no es válido');
     }
+
+    await this.assertDocumentPermissionForRequest(req, documentType);
 
     const DtoClass = this.updateDtos[documentType];
     if (!DtoClass) {
@@ -400,6 +418,8 @@ export class ExpedientesController {
       );
     }
 
+    await this.assertDocumentPermissionForRequest(req, documentType);
+
     const userId = req.userId;
     const user = await this.usersService.findById(userId, 'idProveedorSalud');
     const proveedorSaludId = user?.idProveedorSalud
@@ -458,6 +478,8 @@ export class ExpedientesController {
       throw new BadRequestException('El ID proporcionado no es válido');
     }
 
+    await this.assertDocumentPermissionForRequest(req, documentType);
+
     const result = await this.expedientesService.removeDocument(
       documentType,
       id,
@@ -486,7 +508,12 @@ export class ExpedientesController {
     action: 'CREATE_DOCUMENT',
     skipIfNoTrabajadorId: true,
   })
-  async createDeteccion(@Body() createDeteccionDto: CreateDeteccionDto) {
+  async createDeteccion(
+    @Body() createDeteccionDto: CreateDeteccionDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    await this.assertDocumentPermissionForRequest(req, 'deteccion');
+
     try {
       const deteccion =
         await this.expedientesService.createDeteccion(createDeteccionDto);
@@ -526,10 +553,13 @@ export class ExpedientesController {
   async updateDeteccion(
     @Param('id') id: string,
     @Body() updateDeteccionDto: UpdateDeteccionDto,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!isValidObjectId(id)) {
       throw new BadRequestException('El ID proporcionado no es válido');
     }
+
+    await this.assertDocumentPermissionForRequest(req, 'deteccion');
 
     const dtoInstance = Object.assign(
       new UpdateDeteccionDto(),
@@ -567,6 +597,8 @@ export class ExpedientesController {
       throw new BadRequestException('El ID proporcionado no es válido');
     }
 
+    await this.assertDocumentPermissionForRequest(req, 'deteccion');
+
     const result = await this.expedientesService.deleteDeteccion(
       id,
       req.userId,
@@ -594,6 +626,8 @@ export class ExpedientesController {
     if (!isValidObjectId(id)) {
       throw new BadRequestException('El ID proporcionado no es válido');
     }
+
+    await this.assertDocumentPermissionForRequest(req, 'deteccion');
 
     try {
       const finalizedDeteccion =

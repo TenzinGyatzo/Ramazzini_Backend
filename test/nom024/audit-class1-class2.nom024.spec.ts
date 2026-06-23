@@ -15,6 +15,10 @@ import {
 import { AuditActionType } from '../../src/modules/audit/constants/audit-action-type';
 import { AuditEventClass } from '../../src/modules/audit/constants/audit-event-class';
 import { UsersService } from '../../src/modules/users/users.service';
+import {
+  enableAuditTrailPersist,
+  mockRegulatoryPolicyServiceSires,
+} from '../utils/audit-trail-test.util';
 
 describe('NOM-024 Audit Class 1 / Class 2 (04-06)', () => {
   let auditService: AuditService;
@@ -22,6 +26,7 @@ describe('NOM-024 Audit Class 1 / Class 2 (04-06)', () => {
   let auditOutboxModelMock: any;
 
   beforeEach(async () => {
+    enableAuditTrailPersist();
     auditEventModelMock = {
       findOne: jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnValue({
@@ -40,6 +45,7 @@ describe('NOM-024 Audit Class 1 / Class 2 (04-06)', () => {
       imports: [],
       providers: [
         AuditService,
+        mockRegulatoryPolicyServiceSires,
         {
           provide: getModelToken(AuditEvent.name),
           useValue: auditEventModelMock,

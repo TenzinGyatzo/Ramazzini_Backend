@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
 import bcrypt from 'bcrypt';
 import { ProveedoresSalud } from 'src/modules/proveedores-salud/entities/proveedores-salud.entity';
+import { getDefaultPermissionsForRole } from '../constants/role-permission-policy';
 
 // Define el tipo del documento que extiende los métodos personalizados
 export type UserDocument = User & Document;
@@ -66,74 +67,7 @@ export class User {
       accesoRiesgosTrabajo: { type: Boolean, default: false },
     },
     default: function () {
-      // Permisos por defecto según rol
-      if (this.role === 'Principal' || this.role === 'Administrador') {
-        return {
-          gestionarEmpresas: true,
-          gestionarCentrosTrabajo: true,
-          gestionarTrabajadores: true,
-          gestionarDocumentosDiagnostico: true,
-          gestionarDocumentosEvaluacion: true,
-          gestionarDocumentosExternos: true,
-          gestionarOtrosDocumentos: true,
-          accesoCompletoEmpresasCentros: true,
-          accesoDashboardSalud: true,
-          accesoRiesgosTrabajo: true,
-        };
-      } else if (this.role === 'Médico') {
-        return {
-          gestionarEmpresas: false,
-          gestionarCentrosTrabajo: false,
-          gestionarTrabajadores: true,
-          gestionarDocumentosDiagnostico: true,
-          gestionarDocumentosEvaluacion: true,
-          gestionarDocumentosExternos: true,
-          gestionarOtrosDocumentos: true,
-          accesoCompletoEmpresasCentros: false,
-          accesoDashboardSalud: true,
-          accesoRiesgosTrabajo: true,
-        };
-      } else if (this.role === 'Enfermero/a') {
-        return {
-          gestionarEmpresas: false,
-          gestionarCentrosTrabajo: false,
-          gestionarTrabajadores: true,
-          gestionarDocumentosDiagnostico: false,
-          gestionarDocumentosEvaluacion: true,
-          gestionarDocumentosExternos: true,
-          gestionarOtrosDocumentos: true,
-          accesoCompletoEmpresasCentros: false,
-          accesoDashboardSalud: true,
-          accesoRiesgosTrabajo: true,
-        };
-      } else if (this.role === 'Administrativo') {
-        return {
-          gestionarEmpresas: true,
-          gestionarCentrosTrabajo: true,
-          gestionarTrabajadores: true,
-          gestionarDocumentosDiagnostico: false,
-          gestionarDocumentosEvaluacion: false,
-          gestionarDocumentosExternos: true,
-          gestionarOtrosDocumentos: false,
-          accesoCompletoEmpresasCentros: true,
-          accesoDashboardSalud: true,
-          accesoRiesgosTrabajo: true,
-        };
-      } else if (this.role === 'Técnico Evaluador') {
-        return {
-          gestionarEmpresas: false,
-          gestionarCentrosTrabajo: false,
-          gestionarTrabajadores: true,
-          gestionarDocumentosDiagnostico: false,
-          gestionarDocumentosEvaluacion: true,
-          gestionarDocumentosExternos: true,
-          gestionarOtrosDocumentos: true,
-          accesoCompletoEmpresasCentros: false,
-          accesoDashboardSalud: true,
-          accesoRiesgosTrabajo: false,
-        };
-      }
-      return {};
+      return getDefaultPermissionsForRole(this.role);
     },
   })
   permisos: {

@@ -363,6 +363,70 @@ export const certificadoInforme = (
     margin: [0, 35, 40, 0],
   };
 
+  const contenidoExamenVista: Content[] = examenVista
+    ? [
+        {
+          text: `Examen visual con agudeza lejana sin corrección: OI ${formatearAgudezaVisual(examenVista.ojoIzquierdoLejanaSinCorreccion, getCiegaOI(examenVista))} y OD ${formatearAgudezaVisual(examenVista.ojoDerechoLejanaSinCorreccion, getCiegaOD(examenVista))} `,
+        },
+        {
+          text: `(${examenVista.sinCorreccionLejanaInterpretacion || 'categoría no disponible'}). `,
+        },
+        ...(examenVista.interpretacionIshihara === 'Daltonismo'
+          ? [
+              {
+                text: 'Se detecta alteración en la percepción cromática (Daltonismo). ',
+              },
+            ]
+          : examenVista.interpretacionIshihara === 'Normal'
+            ? [
+                {
+                  text: 'No se detectan alteraciones en la percepción cromática. ',
+                },
+              ]
+            : [
+                {
+                  text: 'No se cuenta con resultado de prueba de percepción cromática. ',
+                },
+              ]),
+      ]
+    : [];
+
+  const contenidoExploracionFisica: Content[] = exploracionFisica
+    ? [
+        {
+          text: `Presenta IMC: ${exploracionFisica.indiceMasaCorporal} (${exploracionFisica.categoriaIMC}). `,
+        },
+        {
+          text: `Frecuencia cardiaca de ${exploracionFisica.frecuenciaCardiaca} lpm (${exploracionFisica.categoriaFrecuenciaCardiaca}). `,
+        },
+        {
+          text: `Saturación de oxígeno del ${exploracionFisica.saturacionOxigeno}% (${exploracionFisica.categoriaSaturacionOxigeno}). `,
+        },
+        {
+          text: `Tensión arterial ${exploracionFisica.tensionArterialSistolica}/${exploracionFisica.tensionArterialDiastolica} mmHg (${exploracionFisica.categoriaTensionArterial || 'no especificada'}). `,
+        },
+        ...(contenidoExamenVista.length > 0
+          ? contenidoExamenVista
+          : [{ text: ' ' }]),
+        { text: generarTextoExploracionFisica(exploracionFisica) },
+        ...(exploracionFisica.resumenExploracionFisica ===
+          'Se encuentra clínicamente sano' ||
+        exploracionFisica.resumenExploracionFisica ===
+          'Se encuentra clínicamente sana'
+          ? [
+              {
+                text: ` ${exploracionFisica.resumenExploracionFisica}.`,
+              },
+            ]
+          : []),
+      ]
+    : [
+        {
+          text: 'Se observó integridad funcional del aparato locomotor y del sistema nervioso, con marcha, coordinación, fuerza y reflejos dentro de parámetros normales. ',
+        },
+        ...contenidoExamenVista,
+      ];
+
   return {
     pageSize: 'LETTER',
     pageMargins: [40, 70, 40, 60],
@@ -524,61 +588,7 @@ export const certificadoInforme = (
                   text: 'Se hace constar la práctica del examen médico conforme a los procedimientos establecidos.',
                 },
               ]
-            : [
-                {
-                  text: `Presenta IMC: ${exploracionFisica.indiceMasaCorporal} (${exploracionFisica.categoriaIMC}). `,
-                },
-                {
-                  text: `Frecuencia cardiaca de ${exploracionFisica.frecuenciaCardiaca} lpm (${exploracionFisica.categoriaFrecuenciaCardiaca}). `,
-                },
-                {
-                  text: `Saturación de oxígeno del ${exploracionFisica.saturacionOxigeno}% (${exploracionFisica.categoriaSaturacionOxigeno}). `,
-                },
-                {
-                  text: `Tensión arterial ${exploracionFisica.tensionArterialSistolica}/${exploracionFisica.tensionArterialDiastolica} mmHg (${exploracionFisica.categoriaTensionArterial || 'no especificada'}). `,
-                },
-
-                ...(examenVista
-                  ? [
-                      {
-                        text: `Examen visual con agudeza lejana sin corrección: OI ${formatearAgudezaVisual(examenVista.ojoIzquierdoLejanaSinCorreccion, getCiegaOI(examenVista))} y OD ${formatearAgudezaVisual(examenVista.ojoDerechoLejanaSinCorreccion, getCiegaOD(examenVista))} `,
-                      },
-                      {
-                        text: `(${examenVista.sinCorreccionLejanaInterpretacion || 'categoría no disponible'}). `,
-                      },
-                      ...(examenVista.interpretacionIshihara === 'Daltonismo'
-                        ? [
-                            {
-                              text: 'Se detecta alteración en la percepción cromática (Daltonismo). ',
-                            },
-                          ]
-                        : examenVista.interpretacionIshihara === 'Normal'
-                          ? [
-                              {
-                                text: 'No se detectan alteraciones en la percepción cromática. ',
-                              },
-                            ]
-                          : [
-                              {
-                                text: 'No se cuenta con resultado de prueba de percepción cromática. ',
-                              },
-                            ]),
-                    ]
-                  : [{ text: ' ' }]),
-
-                { text: generarTextoExploracionFisica(exploracionFisica) },
-
-                ...(exploracionFisica.resumenExploracionFisica ===
-                  'Se encuentra clínicamente sano' ||
-                exploracionFisica.resumenExploracionFisica ===
-                  'Se encuentra clínicamente sana'
-                  ? [
-                      {
-                        text: ` ${exploracionFisica.resumenExploracionFisica}.`,
-                      },
-                    ]
-                  : []),
-              ]),
+            : contenidoExploracionFisica),
         ],
         style: 'paragraph',
         margin: [0, 20, 0, 0],
@@ -597,9 +607,7 @@ export const certificadoInforme = (
             text: formatearNombreTrabajadorCertificado(trabajador),
             bold: true,
           },
-          ...(proveedorSalud.pais === 'GT' && trabajador.sexo === 'Femenino'
-            ? [{ text: ' ' }]
-            : []),
+          { text: ' ' },
           {
             text: certificado.impedimentosFisicos,
           },

@@ -13,6 +13,7 @@ import { AuditEventClass } from './constants/audit-event-class';
 import type { QueryAuditEventsDto } from './dto/query-audit-events.dto';
 import { UsersService } from '../users/users.service';
 import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
+import { isAuditTrailPersistEnabled } from './utils/audit-trail-persist.util';
 
 @Injectable()
 export class AuditService {
@@ -191,6 +192,10 @@ export class AuditService {
       if (policy.regime !== 'SIRES_NOM024') {
         return;
       }
+    }
+
+    if (!isAuditTrailPersistEnabled()) {
+      return;
     }
 
     const timestamp = new Date();

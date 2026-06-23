@@ -22,6 +22,10 @@ import {
 import { AuditActionType } from '../../src/modules/audit/constants/audit-action-type';
 import { AuditEventClass } from '../../src/modules/audit/constants/audit-event-class';
 import { UsersService } from '../../src/modules/users/users.service';
+import {
+  enableAuditTrailPersist,
+  mockRegulatoryPolicyServiceSires,
+} from '../utils/audit-trail-test.util';
 
 describe('NOM-024 Audit Trail (04-06)', () => {
   let uri: string;
@@ -37,6 +41,7 @@ describe('NOM-024 Audit Trail (04-06)', () => {
   });
 
   beforeEach(async () => {
+    enableAuditTrailPersist();
     await clearDatabase();
     const module: TestingModule = await Test.createTestingModule({
       imports: [
@@ -48,6 +53,7 @@ describe('NOM-024 Audit Trail (04-06)', () => {
       ],
       providers: [
         AuditService,
+        mockRegulatoryPolicyServiceSires,
         {
           provide: UsersService,
           useValue: {
@@ -141,6 +147,29 @@ describe('NOM-024 Audit Trail (04-06)', () => {
         expect(e.actionType).toBeDefined();
         expect(typeof e.actorId === 'string' || e.actorId === null).toBe(true);
       }
+    });
+  });
+
+  describe('AUDIT_TRAIL_PERSIST gate', () => {
+    it('does not persist events when AUDIT_TRAIL_PERSIST is disabled', async () => {
+      delete process.env.AUDIT_TRAIL_PERSIST;
+      const proveedorSaludId = new Types.ObjectId().toString();
+
+      await auditService.record({
+        proveedorSaludId,
+        actorId: 'user1',
+        actionType: AuditActionType.LOGIN_SUCCESS,
+        resourceType: null,
+        resourceId: null,
+        payload: null,
+        eventClass: AuditEventClass.CLASS_2_SOFT_FAIL,
+      });
+
+      const events = await auditEventModel
+        .find({ proveedorSaludId: new Types.ObjectId(proveedorSaludId) })
+        .lean()
+        .exec();
+      expect(events.length).toBe(0);
     });
   });
 });

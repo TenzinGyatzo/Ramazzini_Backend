@@ -44,17 +44,41 @@ export class TecnicoFirmante extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   idUser: User;
 
-  // NOM-024: CURP for healthcare professionals (required for MX providers)
   @Prop()
   curp?: string;
 
-  // NOM-024 GIIS-B015: Tipo de personal de salud (código numérico oficial DGIS)
   @Prop({ required: false })
-  tipoPersonalId?: number; // Código numérico oficial DGIS (ej: 1, 15, 30)
+  tipoPersonalId?: number;
 
-  // NOM-024 GIIS: País de nacimiento (CATALOG_KEY de cat_pais)
-  @Prop({ required: false })
+  @Prop()
+  entidadNacimiento?: string;
+
+  @Prop({
+    required: false,
+    match: /^$|^(0[1-9]|[12][0-9]|3[0-2]|NE|00)$/,
+  })
+  entidadResidencia?: string;
+
+  @Prop({
+    required: false,
+    match: /^$|^[0-9]{3}$/,
+  })
+  municipioResidencia?: string;
+
+  @Prop({
+    required: false,
+    match: /^$|^[0-9]{4}$/,
+  })
+  localidadResidencia?: string;
+
+  @Prop()
+  paisResidencia?: number;
+
+  @Prop()
   paisNacimiento?: number;
+
+  @Prop({ required: false })
+  fechaNacimiento?: Date;
 }
 
 export const TecnicoFirmanteSchema =

@@ -6,6 +6,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { GiisExportAudit } from './schemas/giis-export-audit.schema';
+import { isAuditTrailPersistEnabled } from '../audit/utils/audit-trail-persist.util';
 
 export interface RecordGenerationAuditPayload {
   proveedorSaludId?: string; // Phase 4 D5: required for new records
@@ -28,6 +29,10 @@ export class GiisExportAuditService {
   ) {}
 
   async recordGenerationAudit(payload: RecordGenerationAuditPayload) {
+    if (!isAuditTrailPersistEnabled()) {
+      return null;
+    }
+
     const clues = payload.establecimientoClues?.trim() ?? '';
     const doc = await this.auditModel.create({
       proveedorSaludId: payload.proveedorSaludId

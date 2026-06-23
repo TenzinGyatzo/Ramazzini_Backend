@@ -1,13 +1,17 @@
+import { Type, Transform } from 'class-transformer';
 import {
-  IsMongoId,
-  IsNotEmpty,
-  IsOptional,
   IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsMongoId,
+  IsOptional,
   IsNumber,
+  IsDateString,
   Matches,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+
+const sexos = ['Masculino', 'Femenino'];
 
 class FirmaDto {
   @ApiProperty({ description: 'Nombre de archivo de la firma' })
@@ -37,7 +41,7 @@ export class CreateTecnicoFirmanteDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsString()
+  @IsEnum(sexos, { message: 'El sexo debe ser Masculino o Femenino' })
   sexo?: string;
 
   @ApiProperty({
@@ -65,6 +69,7 @@ export class CreateTecnicoFirmanteDto {
 
   @ApiProperty({ required: false, type: FirmaDto })
   @IsOptional()
+  @Type(() => FirmaDto)
   firma?: FirmaDto;
 
   @ApiProperty()
@@ -72,8 +77,46 @@ export class CreateTecnicoFirmanteDto {
   @IsNotEmpty()
   idUser: string;
 
-  // NOM-024: CURP for healthcare professionals
-  // Required for MX providers, optional for non-MX (validation in service layer)
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  entidadNacimiento?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @Matches(/^$|^(0[1-9]|[12][0-9]|3[0-2]|NE|00)$/, {
+    message:
+      'Entidad de residencia debe ser código INEGI válido (01-32, NE, o 00)',
+  })
+  entidadResidencia?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @Matches(/^$|^[0-9]{3}$/, {
+    message:
+      'Municipio de residencia debe ser código INEGI válido (3 dígitos, ej: 001)',
+  })
+  municipioResidencia?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @Matches(/^$|^[0-9]{4}$/, {
+    message:
+      'Localidad de residencia debe ser código INEGI válido (4 dígitos, ej: 0001)',
+  })
+  localidadResidencia?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  @Transform(({ value }) =>
+    value === '' || value == null ? undefined : Number(value),
+  )
+  paisResidencia?: number;
+
   @ApiProperty({
     required: false,
     description: 'CURP del técnico (requerido para proveedores MX)',
@@ -91,10 +134,18 @@ export class CreateTecnicoFirmanteDto {
     required: false,
     description: 'País de nacimiento (CATALOG_KEY de cat_pais)',
   })
-  @IsOptional()
+  @IsNotEmpty({ message: 'El país de nacimiento no puede estar vacío' })
   @IsNumber()
   @Transform(({ value }) =>
     value === '' || value == null ? undefined : Number(value),
   )
-  paisNacimiento?: number;
+  paisNacimiento: number;
+
+  @ApiProperty({ required: false })
+  @IsNotEmpty({ message: 'La fecha de nacimiento no puede estar vacía' })
+  @IsDateString(
+    {},
+    { message: 'La fecha de nacimiento debe ser una fecha válida (YYYY-MM-DD)' },
+  )
+  fechaNacimiento: string;
 }

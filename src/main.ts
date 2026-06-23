@@ -4,6 +4,7 @@ config({
 });
 
 import { NestFactory } from '@nestjs/core';
+import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -12,9 +13,20 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { EnoentSilencerFilter } from './filters/enoent-silencer.filter';
 import * as express from 'express';
 import cookieParser from 'cookie-parser';
+import { isAuditTrailPersistEnabled } from './modules/audit/utils/audit-trail-persist.util';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  if (
+    process.env.NODE_ENV === 'production' &&
+    !isAuditTrailPersistEnabled()
+  ) {
+    Logger.warn(
+      'AUDIT_TRAIL_PERSIST is not enabled in production; NOM-024 audit events will not be persisted.',
+      'Bootstrap',
+    );
+  }
 
   app.set('trust proxy', 1);
 

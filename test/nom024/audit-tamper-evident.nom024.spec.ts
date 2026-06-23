@@ -22,6 +22,10 @@ import {
 import { AuditActionType } from '../../src/modules/audit/constants/audit-action-type';
 import { AuditEventClass } from '../../src/modules/audit/constants/audit-event-class';
 import { UsersService } from '../../src/modules/users/users.service';
+import {
+  enableAuditTrailPersist,
+  mockRegulatoryPolicyServiceSires,
+} from '../utils/audit-trail-test.util';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -39,6 +43,7 @@ describe('NOM-024 Audit Tamper-Evident (04-06)', () => {
   });
 
   beforeEach(async () => {
+    enableAuditTrailPersist();
     await clearDatabase();
     const module: TestingModule = await Test.createTestingModule({
       imports: [
@@ -50,6 +55,7 @@ describe('NOM-024 Audit Tamper-Evident (04-06)', () => {
       ],
       providers: [
         AuditService,
+        mockRegulatoryPolicyServiceSires,
         {
           provide: UsersService,
           useValue: {

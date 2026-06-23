@@ -2214,12 +2214,6 @@ export class InformesService {
       .replace(/\\/g, '-');
     const nombreArchivo = `Certificado ${fecha}.pdf`;
 
-    if (!datosExploracionFisica) {
-      throw new BadRequestException(
-        'No se puede generar el certificado sin datos de exploración física.',
-      );
-    }
-
     const rutaDirectorio = path.resolve(certificado.rutaPDF);
     if (!fs.existsSync(rutaDirectorio)) {
       fs.mkdirSync(rutaDirectorio, { recursive: true });

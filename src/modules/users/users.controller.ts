@@ -652,7 +652,7 @@ export class UsersController {
 
     const users =
       await this.usersService.findByProveedorSaludId(idProveedorSalud);
-    res.json(users);
+    res.json(this.usersService.sanitizeUsersList(users));
   }
 
   @Delete('delete-user/:email')
@@ -775,7 +775,7 @@ export class UsersController {
       if (!user) {
         throw new Error('Usuario no encontrado');
       }
-      res.json(user);
+      res.json(this.usersService.sanitizeUserPermissions(user));
     } catch (error) {
       res.status(401).json({ msg: error.message });
     }

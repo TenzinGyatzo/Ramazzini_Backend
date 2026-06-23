@@ -20,6 +20,10 @@ import {
 } from '../../src/modules/audit/schemas/audit-outbox.schema';
 import { DocumentoEstado } from '../../src/modules/expedientes/enums/documento-estado.enum';
 import { UsersService } from '../../src/modules/users/users.service';
+import {
+  enableAuditTrailPersist,
+  mockRegulatoryPolicyServiceSires,
+} from '../utils/audit-trail-test.util';
 
 describe('NOM-024 Audit Reconstruction (04-06)', () => {
   let uri: string;
@@ -33,6 +37,7 @@ describe('NOM-024 Audit Reconstruction (04-06)', () => {
   });
 
   beforeEach(async () => {
+    enableAuditTrailPersist();
     await clearDatabase();
     await Test.createTestingModule({
       imports: [
@@ -44,6 +49,7 @@ describe('NOM-024 Audit Reconstruction (04-06)', () => {
       ],
       providers: [
         AuditService,
+        mockRegulatoryPolicyServiceSires,
         {
           provide: UsersService,
           useValue: {

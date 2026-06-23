@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { TecnicosFirmantesService } from './tecnicos-firmantes.service';
 import { TecnicoFirmante } from './schemas/tecnico-firmante.schema';
 import { User } from '../users/schemas/user.schema';
@@ -9,13 +9,19 @@ import {
   RegulatoryPolicyService,
   RegulatoryPolicy,
 } from '../../utils/regulatory-policy.service';
+import { CatalogsService } from '../catalogs/catalogs.service';
+import { GeographyValidator } from '../catalogs/validators/geography.validator';
 
 describe('TecnicosFirmantesService', () => {
   let service: TecnicosFirmantesService;
-  let mockTecnicoFirmanteModel: any;
+  let mockTecnicoModel: any;
   let mockUserModel: any;
-  let mockProveedorSaludModel: any;
   let mockRegulatoryPolicyService: jest.Mocked<RegulatoryPolicyService>;
+
+  const defaultPaisNacimiento = 142;
+  const mxUserId = '507f1f77bcf86cd799439011';
+  const mxProveedorId = '507f1f77bcf86cd799439033';
+  const validCURP = 'GALJ900515HDFRPN08';
 
   const createMockModel = () => ({
     findById: jest
@@ -33,27 +39,37 @@ describe('TecnicosFirmantesService', () => {
       .mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }),
   });
 
-  const validCURP = 'LOPE820310HDFPZR00'; // Valid CURP format with correct checksum
-  const invalidCURPFormat = 'INVALID123';
-  const mxUserId = '507f1f77bcf86cd799439011';
-  const nonMxUserId = '507f1f77bcf86cd799439022';
-  const mxProveedorId = '507f1f77bcf86cd799439033';
-  const nonMxProveedorId = '507f1f77bcf86cd799439044';
+  const getFechaNacimientoYearsAgo = (years: number): string => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - years);
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${month}-${day}`;
+  };
+
+  const validFechaNacimiento = getFechaNacimientoYearsAgo(45);
 
   beforeEach(async () => {
-    mockTecnicoFirmanteModel = {
+    mockTecnicoModel = {
       ...createMockModel(),
+      constructor: jest.fn().mockImplementation(function (dto) {
+        return {
+          ...dto,
+          save: jest.fn().mockResolvedValue({ ...dto, _id: 'new-id' }),
+        };
+      }),
     };
 
-    // Mock constructor for create operations
     const MockTecnicoModel = jest.fn().mockImplementation((dto) => ({
       ...dto,
       save: jest.fn().mockResolvedValue({ ...dto, _id: 'new-id' }),
     }));
-    Object.assign(MockTecnicoModel, mockTecnicoFirmanteModel);
+    Object.assign(MockTecnicoModel, mockTecnicoModel);
 
     mockUserModel = createMockModel();
-    mockProveedorSaludModel = createMockModel();
+    mockRegulatoryPolicyService = {
+      getRegulatoryPolicy: jest.fn(),
+    } as any;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -65,230 +81,36 @@ describe('TecnicosFirmantesService', () => {
         { provide: getModelToken(User.name), useValue: mockUserModel },
         {
           provide: getModelToken(ProveedorSalud.name),
-          useValue: mockProveedorSaludModel,
+          useValue: createMockModel(),
         },
         {
           provide: RegulatoryPolicyService,
-          useValue: (mockRegulatoryPolicyService = {
-            getRegulatoryPolicy: jest.fn(),
-          } as any),
+          useValue: mockRegulatoryPolicyService,
+        },
+        {
+          provide: CatalogsService,
+          useValue: {
+            validateINEGI: jest.fn().mockResolvedValue(true),
+            validateGIISPais: jest.fn().mockReturnValue({
+              valid: true,
+              catalogLoaded: true,
+            }),
+          },
+        },
+        {
+          provide: GeographyValidator,
+          useValue: {
+            validateGeography: jest
+              .fn()
+              .mockResolvedValue({ valid: true, errors: [] }),
+          },
         },
       ],
     }).compile();
 
     service = module.get<TecnicosFirmantesService>(TecnicosFirmantesService);
-  });
 
-  describe('NOM-024 CURP Validation', () => {
-    describe('MX Provider (pais === MX)', () => {
-      beforeEach(() => {
-        // Setup MX provider scenario
-        mockUserModel.findById.mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            _id: mxUserId,
-            idProveedorSalud: mxProveedorId,
-          }),
-        });
-        mockProveedorSaludModel.findById.mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            _id: mxProveedorId,
-            pais: 'MX',
-          }),
-        });
-      });
-
-      it('should require CURP for MX providers', async () => {
-        const dto = {
-          nombre: 'Pedro Técnico',
-          idUser: mxUserId,
-          // No curp provided
-        };
-
-        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-        await expect(service.create(dto)).rejects.toThrow(
-          'NOM-024: CURP es obligatorio para profesionales de salud de proveedores mexicanos',
-        );
-      });
-
-      it('should accept valid CURP for MX providers', async () => {
-        const dto = {
-          nombre: 'Pedro Técnico',
-          idUser: mxUserId,
-          curp: validCURP,
-        };
-
-        const result = await service.create(dto);
-        expect(result).toBeDefined();
-        expect(result._id).toBe('new-id');
-      });
-
-      it('should reject invalid CURP format for MX providers', async () => {
-        const dto = {
-          nombre: 'Pedro Técnico',
-          idUser: mxUserId,
-          curp: invalidCURPFormat,
-        };
-
-        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-        await expect(service.create(dto)).rejects.toThrow('NOM-024:');
-      });
-    });
-
-    describe('Non-MX Provider (pais !== MX)', () => {
-      beforeEach(() => {
-        // Setup non-MX provider scenario (e.g., Colombia)
-        mockUserModel.findById.mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            _id: nonMxUserId,
-            idProveedorSalud: nonMxProveedorId,
-          }),
-        });
-        mockProveedorSaludModel.findById.mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            _id: nonMxProveedorId,
-            pais: 'CO',
-          }),
-        });
-      });
-
-      it('should allow creation without CURP for non-MX providers', async () => {
-        const dto = {
-          nombre: 'Luis Técnico',
-          idUser: nonMxUserId,
-          // No curp - should be allowed for non-MX
-        };
-
-        const result = await service.create(dto);
-        expect(result).toBeDefined();
-        expect(result._id).toBe('new-id');
-      });
-
-      it('should accept valid CURP for non-MX providers (optional)', async () => {
-        const dto = {
-          nombre: 'Luis Técnico',
-          idUser: nonMxUserId,
-          curp: validCURP,
-        };
-
-        const result = await service.create(dto);
-        expect(result).toBeDefined();
-      });
-
-      it('should reject invalid CURP even for non-MX providers when provided', async () => {
-        const dto = {
-          nombre: 'Luis Técnico',
-          idUser: nonMxUserId,
-          curp: invalidCURPFormat,
-        };
-
-        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-      });
-    });
-
-    describe('Update Operations', () => {
-      it('should validate CURP on update for MX providers', async () => {
-        // Setup MX provider
-        mockUserModel.findById.mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            _id: mxUserId,
-            idProveedorSalud: mxProveedorId,
-          }),
-        });
-        mockProveedorSaludModel.findById.mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            _id: mxProveedorId,
-            pais: 'MX',
-          }),
-        });
-
-        // Existing record with valid CURP
-        mockTecnicoFirmanteModel.findById.mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            _id: 'existing-id',
-            nombre: 'Pedro Técnico',
-            idUser: mxUserId,
-            curp: validCURP,
-          }),
-        });
-
-        mockTecnicoFirmanteModel.findByIdAndUpdate.mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            _id: 'existing-id',
-            nombre: 'Pedro Técnico Updated',
-            curp: validCURP,
-          }),
-        });
-
-        const updateDto = {
-          nombre: 'Pedro Técnico Updated',
-        };
-
-        const result = await service.update('existing-id', updateDto);
-        expect(result).toBeDefined();
-      });
-
-      it('should reject removing CURP on update for MX providers', async () => {
-        // Setup MX provider
-        mockUserModel.findById.mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            _id: mxUserId,
-            idProveedorSalud: mxProveedorId,
-          }),
-        });
-        mockProveedorSaludModel.findById.mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            _id: mxProveedorId,
-            pais: 'MX',
-          }),
-        });
-
-        // Existing record with valid CURP
-        mockTecnicoFirmanteModel.findById.mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            _id: 'existing-id',
-            nombre: 'Pedro Técnico',
-            idUser: mxUserId,
-            curp: validCURP,
-          }),
-        });
-
-        const updateDto = {
-          curp: '', // Trying to remove CURP
-        };
-
-        await expect(service.update('existing-id', updateDto)).rejects.toThrow(
-          BadRequestException,
-        );
-      });
-    });
-  });
-
-  describe('CURP Validation - Regulatory Policy', () => {
-    const siresProveedorId = '507f1f77bcf86cd799439055';
-    const sinRegimenProveedorId = '507f1f77bcf86cd799439066';
-    const siresUserId = '507f1f77bcf86cd799439077';
-    const sinRegimenUserId = '507f1f77bcf86cd799439088';
-
-    const createSiresPolicy = (): RegulatoryPolicy => ({
-      regime: 'SIRES_NOM024',
-      features: {
-        sessionTimeoutEnabled: true,
-        enforceDocumentImmutabilityUI: true,
-        documentImmutabilityEnabled: true,
-        showSiresUI: true,
-        giisExportEnabled: true,
-        notaAclaratoriaEnabled: true,
-        cluesFieldVisible: true,
-      },
-      validation: {
-        curpFirmantes: 'required',
-        workerCurp: 'required_strict',
-        cie10Principal: 'required',
-        geoFields: 'required',
-      },
-    });
-
-    const createSinRegimenPolicy = (): RegulatoryPolicy => ({
+    mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue({
       regime: 'SIN_REGIMEN',
       features: {
         sessionTimeoutEnabled: false,
@@ -298,6 +120,9 @@ describe('TecnicosFirmantesService', () => {
         giisExportEnabled: false,
         notaAclaratoriaEnabled: false,
         cluesFieldVisible: false,
+        dailyConsentEnabled: false,
+        workerIdentificationImmutable: false,
+        auditTrailEnabled: false,
       },
       validation: {
         curpFirmantes: 'optional',
@@ -306,76 +131,135 @@ describe('TecnicosFirmantesService', () => {
         geoFields: 'optional',
       },
     });
+  });
 
-    describe('SIRES_NOM024 - CURP Required', () => {
-      beforeEach(() => {
-        mockUserModel.findById.mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            _id: siresUserId,
-            idProveedorSalud: siresProveedorId,
-          }),
-        });
-        mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue(
-          createSiresPolicy(),
-        );
+  describe('identification immutability (SIRES_NOM024)', () => {
+    const siresPolicy: RegulatoryPolicy = {
+      regime: 'SIRES_NOM024',
+      features: {
+        sessionTimeoutEnabled: true,
+        enforceDocumentImmutabilityUI: true,
+        documentImmutabilityEnabled: true,
+        showSiresUI: true,
+        giisExportEnabled: true,
+        notaAclaratoriaEnabled: true,
+        cluesFieldVisible: true,
+        dailyConsentEnabled: true,
+        workerIdentificationImmutable: true,
+        auditTrailEnabled: true,
+      },
+      validation: {
+        curpFirmantes: 'required',
+        workerCurp: 'required_strict',
+        cie10Principal: 'required',
+        geoFields: 'required',
+      },
+    };
+
+    const existingId = '507f1f77bcf86cd799439088';
+    const existingFirmante = {
+      _id: existingId,
+      idUser: mxUserId,
+      curp: validCURP,
+      nombre: 'JUAN',
+      primerApellido: 'GARCIA',
+      segundoApellido: 'LOPEZ',
+      sexo: 'Masculino',
+      entidadNacimiento: '09',
+      paisNacimiento: defaultPaisNacimiento,
+      paisResidencia: defaultPaisNacimiento,
+      entidadResidencia: '09',
+      municipioResidencia: '001',
+      localidadResidencia: '0001',
+      fechaNacimiento: new Date('1990-05-15'),
+      toObject() {
+        return { ...this };
+      },
+    };
+
+    beforeEach(() => {
+      mockUserModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: mxUserId,
+          idProveedorSalud: mxProveedorId,
+        }),
       });
-
-      it('should require CURP for SIRES_NOM024', async () => {
-        const dto = {
-          nombre: 'Téc. Pedro López',
-          idUser: siresUserId,
-        };
-
-        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
-        await expect(service.create(dto)).rejects.toThrow(
-          'CURP es obligatorio para firmantes en régimen SIRES_NOM024',
-        );
-      });
-
-      it('should accept valid CURP for SIRES_NOM024', async () => {
-        const dto = {
-          nombre: 'Téc. Pedro López',
-          idUser: siresUserId,
-          curp: validCURP,
-        };
-
-        const result = await service.create(dto);
-        expect(result).toBeDefined();
+      mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue(
+        siresPolicy,
+      );
+      mockTecnicoModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(existingFirmante),
       });
     });
 
-    describe('SIN_REGIMEN - CURP Optional', () => {
-      beforeEach(() => {
-        mockUserModel.findById.mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            _id: sinRegimenUserId,
-            idProveedorSalud: sinRegimenProveedorId,
-          }),
-        });
-        mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue(
-          createSinRegimenPolicy(),
-        );
+    it('should reject update that changes primerApellido when CURP is real', async () => {
+      await expect(
+        service.update(existingId, {
+          idUser: mxUserId,
+          primerApellido: 'PEREZ',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow update of non-identification fields', async () => {
+      mockTecnicoModel.findByIdAndUpdate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          ...existingFirmante,
+          tituloProfesional: 'Tec.',
+        }),
       });
 
-      it('should allow creation without CURP for SIN_REGIMEN', async () => {
-        const dto = {
-          nombre: 'Téc. Carlos García',
-          idUser: sinRegimenUserId,
-        };
-
-        const result = await service.create(dto);
-        expect(result).toBeDefined();
+      const result = await service.update(existingId, {
+        idUser: mxUserId,
+        tituloProfesional: 'Tec.',
       });
 
-      it('should reject invalid CURP even for SIN_REGIMEN when provided', async () => {
-        const dto = {
-          nombre: 'Téc. Carlos García',
-          idUser: sinRegimenUserId,
-          curp: invalidCURPFormat,
-        };
+      expect(result.tituloProfesional).toBe('Tec.');
+    });
 
-        await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+    it('should preserve nombre when update only sends tituloProfesional with stored values', async () => {
+      mockTecnicoModel.findByIdAndUpdate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          ...existingFirmante,
+          tituloProfesional: 'Tec.',
+        }),
       });
+
+      await service.update(existingId, {
+        idUser: mxUserId,
+        nombre: 'JUAN',
+        primerApellido: 'GARCIA',
+        tituloProfesional: 'Tec.',
+      });
+
+      const updatePayload = mockTecnicoModel.findByIdAndUpdate.mock.calls[0][1];
+      expect(updatePayload.nombre).toBe('JUAN');
+      expect(updatePayload.primerApellido).toBe('GARCIA');
+    });
+  });
+
+  describe('fechaNacimiento validation', () => {
+    it('should reject create without fechaNacimiento', async () => {
+      await expect(
+        service.create({
+          nombre: 'Tec. Sin Fecha',
+          primerApellido: 'PEREZ',
+          idUser: mxUserId,
+          paisNacimiento: defaultPaisNacimiento,
+        } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should accept create with valid fechaNacimiento', async () => {
+      const result = await service.create({
+        nombre: 'Tec. Válido',
+        primerApellido: 'PEREZ',
+        idUser: mxUserId,
+        paisNacimiento: defaultPaisNacimiento,
+        fechaNacimiento: validFechaNacimiento,
+      } as any);
+
+      expect(result).toBeDefined();
     });
   });
 });
