@@ -1193,7 +1193,10 @@ export class TrabajadoresService {
     const cpbFields = [
       'idTrabajador',
       'fechaCuestionarioProdromalBreve',
-      ...Array.from({ length: 21 }, (_, i) => `p${i + 1}`),
+      ...Array.from({ length: 21 }, (_, i) => {
+        const n = i + 1;
+        return [`p${n}`, `p${n}GradoAcuerdoStatement`];
+      }).flat(),
     ].join(' ');
 
     const tlpSelect = [
@@ -1641,6 +1644,7 @@ export class TrabajadoresService {
         for (let n = 1; n <= 21; n++) {
           const key = `p${n}`;
           row[key] = d[key] ?? null;
+          row[`p${n}GradoAcuerdoStatement`] = d[`p${n}GradoAcuerdoStatement`] ?? null;
         }
         return row;
       }),
