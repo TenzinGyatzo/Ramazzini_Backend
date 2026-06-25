@@ -1,10 +1,70 @@
-import { Controller, Get, Post, Param, Query, Body, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Query,
+  Body,
+  Res,
+  Req,
+  BadRequestException,
+} from '@nestjs/common';
 import { InformesService } from './informes.service';
-import { Response } from 'express';
+import { Response, Request } from 'express';
+import { AuditService } from '../audit/audit.service';
+import { AuditActionType } from '../audit/constants/audit-action-type';
+import { AuditEventClass } from '../audit/constants/audit-event-class';
+import { UsersService } from '../users/users.service';
+import { OrganizationalAccessService } from 'src/utils/organizational-access.service';
+import { getUserIdFromRequest } from '../../utils/auth-helpers';
+import { RegistrarExportacionDashboardDto } from './dto/registrar-exportacion-dashboard.dto';
+import { isValidObjectId } from 'mongoose';
 
 @Controller('informes')
 export class InformesController {
-  constructor(private readonly informesService: InformesService) {}
+  constructor(
+    private readonly informesService: InformesService,
+    private readonly auditService: AuditService,
+    private readonly usersService: UsersService,
+    private readonly organizationalAccessService: OrganizationalAccessService,
+  ) {}
+
+  @Post('dashboard/registrar-exportacion')
+  async registrarExportacionDashboard(
+    @Body() dto: RegistrarExportacionDashboardDto,
+    @Req() req: Request,
+  ) {
+    if (!isValidObjectId(dto.empresaId)) {
+      throw new BadRequestException('El ID de empresa no es válido');
+    }
+
+    const userId = getUserIdFromRequest(req);
+    await this.organizationalAccessService.assertUserCanAccessDashboardExport(
+      userId,
+      dto.empresaId,
+      dto.centroTrabajo,
+    );
+
+    const user = await this.usersService.findById(userId, 'idProveedorSalud');
+    if (user?.idProveedorSalud) {
+      await this.auditService.record({
+        proveedorSaludId: String(user.idProveedorSalud),
+        actorId: userId,
+        actionType: AuditActionType.DASHBOARD_REPORT_EXPORTED,
+        resourceType: 'Empresa',
+        resourceId: dto.empresaId,
+        payload: {
+          modo: dto.modo,
+          periodo: dto.periodo,
+          centroTrabajo: dto.centroTrabajo,
+          totalTrabajadores: dto.totalTrabajadores ?? null,
+        },
+        eventClass: AuditEventClass.CLASS_2_SOFT_FAIL,
+      });
+    }
+
+    return { ok: true };
+  }
 
   @Get('antidoping/:empresaId/:trabajadorId/:antidopingId/:userId')
   async getInformeAntidoping(

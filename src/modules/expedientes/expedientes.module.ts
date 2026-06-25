@@ -95,12 +95,12 @@ import { NOM024ComplianceModule } from '../nom024-compliance/nom024-compliance.m
 import { CatalogsModule } from '../catalogs/catalogs.module';
 import { Cie10CatalogLookupService } from './services/cie10-catalog-lookup.service';
 import { ProveedoresSaludModule } from '../proveedores-salud/proveedores-salud.module';
-import { ConsentimientoDiarioModule } from '../consentimiento-diario/consentimiento-diario.module';
+import { ConsentimientosModule } from '../consentimientos/consentimientos.module';
 import {
-  ConsentimientoDiario,
-  ConsentimientoDiarioSchema,
-} from '../consentimiento-diario/schemas/consentimiento-diario.schema';
-import { DailyConsentGuard } from '../../utils/guards/daily-consent.guard';
+  Consentimiento,
+  ConsentimientoSchema,
+} from '../consentimientos/schemas/consentimiento.schema';
+import { TreatmentConsentGuard } from '../../utils/guards/treatment-consent.guard';
 import { AuditModule } from '../audit/audit.module';
 import { UsersModule } from '../users/users.module';
 import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
@@ -116,7 +116,7 @@ import { FirmanteHelperModule } from './firmante-helper.module';
     PdfCleanerService,
     SeguimientoProgramadoCardiometabolicoService,
     Cie10CatalogLookupService,
-    DailyConsentGuard,
+    TreatmentConsentGuard,
   ],
   imports: [
     MongooseModule.forFeature([
@@ -140,7 +140,7 @@ import { FirmanteHelperModule } from './firmante-helper.module';
       { name: Deteccion.name, schema: DeteccionSchema },
       { name: CentroTrabajo.name, schema: CentroTrabajoSchema },
       { name: Empresa.name, schema: EmpresaSchema },
-      { name: ConsentimientoDiario.name, schema: ConsentimientoDiarioSchema },
+      { name: Consentimiento.name, schema: ConsentimientoSchema },
       { name: EntrevistaPsicologica.name, schema: EntrevistaPsicologicaSchema },
       { name: TrastornosEstadoAnimo.name, schema: TrastornosEstadoAnimoSchema },
       {
@@ -169,7 +169,7 @@ import { FirmanteHelperModule } from './firmante-helper.module';
     NOM024ComplianceModule,
     CatalogsModule,
     ProveedoresSaludModule,
-    ConsentimientoDiarioModule,
+    ConsentimientosModule,
     AuditModule,
     UsersModule,
     TrabajadoresModule,

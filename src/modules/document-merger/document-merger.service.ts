@@ -13,7 +13,7 @@ const MAX_FILES_PER_MERGE = 50;
 export class DocumentMergerService {
   constructor(private readonly clinicalFilesService: ClinicalFilesService) {}
 
-  async mergeFiles(filePaths: string[]): Promise<Buffer> {
+  async mergeFiles(userId: string, filePaths: string[]): Promise<Buffer> {
     if (!Array.isArray(filePaths) || filePaths.length === 0) {
       throw new BadRequestException('Se requiere al menos un archivo para fusionar');
     }
@@ -24,12 +24,14 @@ export class DocumentMergerService {
       );
     }
 
-    const resolvedPaths = filePaths.map((filePath) =>
-      this.clinicalFilesService.resolveSafePath(filePath),
-    );
-
-    for (const absolutePath of resolvedPaths) {
-      await this.clinicalFilesService.assertFileExists(absolutePath);
+    const resolvedPaths: string[] = [];
+    for (const filePath of filePaths) {
+      const absolutePath =
+        await this.clinicalFilesService.assertClinicalFileAccessibleForUser(
+          userId,
+          filePath,
+        );
+      resolvedPaths.push(absolutePath);
     }
 
     try {

@@ -14,6 +14,8 @@ import { UsersModule } from '../users/users.module';
 import { CentrosTrabajoModule } from '../centros-trabajo/centros-trabajo.module';
 import { ResultadosClinicosModule } from '../resultados-clinicos/resultados-clinicos.module';
 import { FirmanteHelperModule } from '../expedientes/firmante-helper.module';
+import { AuditModule } from '../audit/audit.module';
+import { OrganizationalAccessModule } from 'src/utils/organizational-access.module';
 
 @Module({
   controllers: [InformesController],
@@ -32,6 +34,8 @@ import { FirmanteHelperModule } from '../expedientes/firmante-helper.module';
     CentrosTrabajoModule,
     ResultadosClinicosModule,
     FirmanteHelperModule,
+    forwardRef(() => AuditModule),
+    OrganizationalAccessModule,
   ],
   exports: [InformesService],
 })

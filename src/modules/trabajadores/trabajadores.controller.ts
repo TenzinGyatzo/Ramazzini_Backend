@@ -32,10 +32,15 @@ import {
 } from './dto/fusion-trabajadores.dto';
 import { WorkerDuplicateAlertDto } from './dto/worker-duplicate-alert.dto';
 import { assertManageTrabajadores } from './utils/assert-manage-trabajadores.util';
+import { OrganizationalAccessService } from 'src/utils/organizational-access.service';
 import { ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { isValidObjectId } from 'mongoose';
 import { Response, Request } from 'express';
 import { DeletionPasswordGuard } from 'src/utils/guards/deletion-password.guard';
+import { AuditService } from '../audit/audit.service';
+import { AuditActionType } from '../audit/constants/audit-action-type';
+import { AuditEventClass } from '../audit/constants/audit-event-class';
+import { RegistrarExportacionExcelDto } from './dto/registrar-exportacion-excel.dto';
 
 type AuthenticatedRequest = Request & { userId: string };
 
@@ -46,11 +51,34 @@ export class TrabajadoresController {
     private readonly trabajadoresService: TrabajadoresService,
     private readonly workerFusionService: WorkerFusionService,
     private readonly usersService: UsersService,
+    private readonly organizationalAccessService: OrganizationalAccessService,
+    private readonly auditService: AuditService,
   ) {}
 
   private async assertCanManageTrabajadores(userId: string): Promise<void> {
     const user = await this.usersService.findById(userId);
     assertManageTrabajadores(user as any);
+  }
+
+  private async recordWorkersExportExcel(
+    req: AuthenticatedRequest,
+    empresaId: string,
+    centroId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const user = await this.usersService.findById(req.userId, 'idProveedorSalud');
+    if (!user?.idProveedorSalud) {
+      return;
+    }
+    await this.auditService.record({
+      proveedorSaludId: String(user.idProveedorSalud),
+      actorId: req.userId,
+      actionType: AuditActionType.WORKERS_EXPORT_EXCEL,
+      resourceType: 'CentroTrabajo',
+      resourceId: centroId,
+      payload: { empresaId, ...payload },
+      eventClass: AuditEventClass.CLASS_2_SOFT_FAIL,
+    });
   }
 
   @Get('/exportar-trabajadores')
@@ -67,7 +95,7 @@ export class TrabajadoresController {
   async exportarTrabajadores(
     @Param('empresaId') empresaId: string,
     @Param('centroId') centroId: string,
-    @Req() _req: AuthenticatedRequest,
+    @Req() req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
     if (!isValidObjectId(empresaId)) {
@@ -78,9 +106,20 @@ export class TrabajadoresController {
       throw new BadRequestException('El ID proporcionado no es válido');
     }
 
-    // Llamar al servicio para generar el archivo .xlsx temporalmente
+    await this.assertCanManageTrabajadores(req.userId);
+    await this.organizationalAccessService.assertUserCanAccessCentro(
+      req.userId,
+      empresaId,
+      centroId,
+    );
+
     const workbookBuffer =
       await this.trabajadoresService.exportarTrabajadores(centroId);
+
+    await this.recordWorkersExportExcel(req, empresaId, centroId, {
+      origen: 'servidor',
+      filtered: false,
+    });
 
     // Configurar encabezados de respuesta para la descarga del archivo
     res.setHeader(
@@ -94,6 +133,45 @@ export class TrabajadoresController {
 
     // Enviar el archivo al cliente
     res.send(workbookBuffer);
+  }
+
+  @Post('/registrar-exportacion-excel')
+  @ApiOperation({
+    summary:
+      'Registra en auditoría una exportación Excel de trabajadores generada en el cliente',
+  })
+  @ApiResponse({ status: 201, description: 'Evento de auditoría registrado' })
+  @ApiResponse({ status: 400, description: 'El ID proporcionado no es válido' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  async registrarExportacionExcel(
+    @Param('empresaId') empresaId: string,
+    @Param('centroId') centroId: string,
+    @Body() dto: RegistrarExportacionExcelDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!isValidObjectId(empresaId)) {
+      throw new BadRequestException('El ID de empresa no es válido');
+    }
+
+    if (!isValidObjectId(centroId)) {
+      throw new BadRequestException('El ID proporcionado no es válido');
+    }
+
+    await this.assertCanManageTrabajadores(req.userId);
+    await this.organizationalAccessService.assertUserCanAccessCentro(
+      req.userId,
+      empresaId,
+      centroId,
+    );
+
+    await this.recordWorkersExportExcel(req, empresaId, centroId, {
+      origen: 'cliente',
+      filtered: dto.filtered ?? true,
+      rowCount: dto.rowCount,
+      filename: dto.filename,
+    });
+
+    return { ok: true };
   }
 
   @Post('registrar-trabajador')

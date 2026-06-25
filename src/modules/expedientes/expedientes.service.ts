@@ -65,8 +65,7 @@ import { ProveedoresSaludService } from '../proveedores-salud/proveedores-salud.
 import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
 import { createRegulatoryError } from '../../utils/regulatory-error-helper';
 import { RegulatoryErrorCode } from '../../utils/regulatory-error-codes';
-import { ConsentimientoDiario } from '../consentimiento-diario/schemas/consentimiento-diario.schema';
-import { calculateDateKey } from '../../utils/date-key.util';
+import { ConsentimientosService } from '../consentimientos/consentimientos.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
@@ -78,6 +77,7 @@ import { WorkerFusionService } from '../trabajadores/worker-fusion.service';
 export class ExpedientesService {
   private readonly models: Record<string, Model<any>>;
   private readonly dateFields: Record<string, string>;
+  private readonly documentTypeToStoreKey: Record<string, string>;
 
   constructor(
     @InjectModel(Antidoping.name) private antidopingModel: Model<Antidoping>,
@@ -122,8 +122,7 @@ export class ExpedientesService {
     @InjectModel(CentroTrabajo.name)
     private centroTrabajoModel: Model<CentroTrabajo>,
     @InjectModel(Empresa.name) private empresaModel: Model<Empresa>,
-    @InjectModel(ConsentimientoDiario.name)
-    private consentimientoDiarioModel: Model<ConsentimientoDiario>,
+    private readonly consentimientosService: ConsentimientosService,
     private readonly filesService: FilesService,
     private readonly nom024Util: NOM024ComplianceUtil,
     private readonly catalogsService: CatalogsService,
@@ -187,6 +186,31 @@ export class ExpedientesService {
       trastornoLimitePersonalidad: 'fechaTrastornoLimitePersonalidad',
       eventoSeguimientoCardiometabolico: 'fechaEventoSeguimientoCardiometabolico',
       informeLongitudinalCardiometabolico: 'fechaInformeLongitudinalCardiometabolico',
+    };
+
+    this.documentTypeToStoreKey = {
+      antidoping: 'antidopings',
+      aptitud: 'aptitudes',
+      audiometria: 'audiometrias',
+      certificado: 'certificados',
+      certificadoExpedito: 'certificadosExpedito',
+      documentoExterno: 'documentosExternos',
+      examenVista: 'examenesVista',
+      exploracionFisica: 'exploracionesFisicas',
+      historiaClinica: 'historiasClinicas',
+      notaMedica: 'notasMedicas',
+      notaAclaratoria: 'notasAclaratorias',
+      controlPrenatal: 'controlPrenatal',
+      historiaOtologica: 'historiaOtologica',
+      previoEspirometria: 'previoEspirometria',
+      receta: 'recetas',
+      constanciaAptitud: 'constanciasAptitud',
+      entrevistaPsicologica: 'entrevistasPsicologicas',
+      trastornosEstadoAnimo: 'trastornosEstadoAnimo',
+      cuestionarioProdromalBreve: 'cuestionarioProdromalBreve',
+      trastornoLimitePersonalidad: 'trastornoLimitePersonalidad',
+      eventoSeguimientoCardiometabolico: 'eventoSeguimientoCardiometabolico',
+      informeLongitudinalCardiometabolico: 'informeLongitudinalCardiometabolico',
     };
   }
 
@@ -657,7 +681,7 @@ export class ExpedientesService {
       }
     }
 
-    // Vincular Consentimiento Diario (NOM-024)
+    // Vincular consentimiento para tratamiento de información (SIRES)
     if (createDto.idTrabajador) {
       try {
         const proveedorSaludId = await this.getProveedorSaludIdFromTrabajador(
@@ -669,30 +693,19 @@ export class ExpedientesService {
               proveedorSaludId,
             );
           if (policy.features.dailyConsentEnabled) {
-            // Obtener proveedor para calcular dateKey con timezone
-            const proveedor =
-              await this.proveedoresSaludService.findOne(proveedorSaludId);
-            const dateKey = calculateDateKey(proveedor || null);
+            const consentimiento =
+              await this.consentimientosService.findCurrentConsentimientoForTrabajador(
+                createDto.idTrabajador,
+              );
 
-            // Buscar consentimiento del día
-            const consentimiento = await this.consentimientoDiarioModel
-              .findOne({
-                proveedorSaludId: new Types.ObjectId(proveedorSaludId),
-                trabajadorId: new Types.ObjectId(createDto.idTrabajador),
-                dateKey,
-              })
-              .lean();
-
-            if (consentimiento) {
-              createDto.consentimientoDiarioId = consentimiento._id;
+            if (consentimiento?._id) {
+              createDto.consentimientoId = consentimiento._id;
             }
           }
         }
       } catch (error) {
-        // Si hay error al obtener consentimiento, no bloquear la creación
-        // El guard ya validó que el consentimiento existe
         console.warn(
-          'Error al obtener consentimiento diario para documento:',
+          'Error al obtener consentimiento para documento:',
           error,
         );
       }
@@ -1477,11 +1490,11 @@ export class ExpedientesService {
       .populate('finalizadoPor', 'username')
       .populate('anuladoPor', 'username');
 
-    // documentoExterno no tiene consentimientoDiarioId en su schema
+    // documentoExterno no tiene consentimientoId en su schema
     if (documentType !== 'documentoExterno') {
       query.populate({
-        path: 'consentimientoDiarioId',
-        select: '_id acceptedAt consentMethod acceptedByUserId',
+        path: 'consentimientoId',
+        select: '_id acceptedAt metodo acceptedByUserId version',
         populate: {
           path: 'acceptedByUserId',
           select: 'username nombre',
@@ -1497,6 +1510,22 @@ export class ExpedientesService {
     const docs = await query.exec();
 
     return docs;
+  }
+
+  async findAllDocuments(
+    trabajadorId: string,
+  ): Promise<Record<string, any[]>> {
+    const documentTypes = Object.keys(this.models);
+    const entries = await Promise.all(
+      documentTypes.map(async (documentType) => {
+        const docs = await this.findDocuments(documentType, trabajadorId);
+        const storeKey =
+          this.documentTypeToStoreKey[documentType] ?? documentType;
+        return [storeKey, docs] as const;
+      }),
+    );
+
+    return Object.fromEntries(entries);
   }
 
   async findDocument(documentType: string, id: string): Promise<any> {
@@ -1522,8 +1551,8 @@ export class ExpedientesService {
 
     if (documentType !== 'documentoExterno') {
       query.populate({
-        path: 'consentimientoDiarioId',
-        select: '_id acceptedAt consentMethod acceptedByUserId',
+        path: 'consentimientoId',
+        select: '_id acceptedAt metodo acceptedByUserId version',
         populate: {
           path: 'acceptedByUserId',
           select: 'username nombre',

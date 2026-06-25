@@ -85,9 +85,9 @@ import {
   SeguimientoProgramadoCardiometabolicoSchema,
 } from '../expedientes/schemas/seguimiento-programado-cardiometabolico.schema';
 import {
-  ConsentimientoDiario,
-  ConsentimientoDiarioSchema,
-} from '../consentimiento-diario/schemas/consentimiento-diario.schema';
+  Consentimiento,
+  ConsentimientoSchema,
+} from '../consentimientos/schemas/consentimiento.schema';
 import {
   WorkerDuplicateAlert,
   WorkerDuplicateAlertSchema,
@@ -106,6 +106,7 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 import { Empresa, EmpresaSchema } from '../empresas/schemas/empresa.schema';
 import { UsersModule } from '../users/users.module';
 import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
+import { OrganizationalAccessModule } from 'src/utils/organizational-access.module';
 
 @Module({
   imports: [
@@ -152,7 +153,7 @@ import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
         name: SeguimientoProgramadoCardiometabolico.name,
         schema: SeguimientoProgramadoCardiometabolicoSchema,
       },
-      { name: ConsentimientoDiario.name, schema: ConsentimientoDiarioSchema },
+      { name: Consentimiento.name, schema: ConsentimientoSchema },
       { name: WorkerDuplicateAlert.name, schema: WorkerDuplicateAlertSchema },
       { name: WorkerFusionHistory.name, schema: WorkerFusionHistorySchema },
       { name: CentroTrabajo.name, schema: CentroTrabajoSchema },
@@ -164,6 +165,7 @@ import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
     forwardRef(() => ProveedoresSaludModule),
     forwardRef(() => UsersModule),
     DeletionAuthModule,
+    OrganizationalAccessModule,
     forwardRef(() => AuditModule),
   ],
   controllers: [TrabajadoresController, TransferenciasController],

@@ -328,13 +328,13 @@ export class InformeLongitudinalCardiometabolico extends Document {
   @Prop()
   rutaPDF?: string;
 
-  // Consentimiento Diario (NOM-024)
+  // Consentimiento tratamiento información SIRES
   @Prop({
     type: MongooseSchema.Types.ObjectId,
-    ref: 'ConsentimientoDiario',
+    ref: 'Consentimiento',
     required: false,
   })
-  consentimientoDiarioId?: MongooseSchema.Types.ObjectId;
+  consentimientoId?: MongooseSchema.Types.ObjectId;
 
   // Document State Management (NOM-024)
   @Prop({

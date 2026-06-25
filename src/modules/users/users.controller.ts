@@ -678,15 +678,23 @@ export class UsersController {
     if (!existingUser) {
       throw new NotFoundException('Usuario no encontrado');
     }
+
+    const actorId = getUserIdFromRequest(req);
+    const targetUserId = (existingUser as any)._id?.toString?.();
+    if (!targetUserId) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    await this.usersService.assertActorCanManageTargetUser(actorId, targetUserId);
+
     const snapshot = {
       email: existingUser.email,
       username: existingUser.username,
       role: (existingUser as any).role ?? null,
     };
-    const resourceId = (existingUser as any)._id?.toString?.() ?? null;
+    const resourceId = targetUserId;
 
     const user = await this.usersService.removeUserByEmail(email);
-    const actorId = getUserIdFromRequest(req);
     const actorProveedorSaludId =
       await this.usersService.getIdProveedorSaludByUserId(actorId);
     await this.auditService.record({

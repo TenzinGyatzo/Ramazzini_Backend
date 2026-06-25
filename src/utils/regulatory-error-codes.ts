@@ -45,16 +45,21 @@ export enum RegulatoryErrorCode {
   CONSENT_ALREADY_EXISTS = 'CONSENT_ALREADY_EXISTS',
 
   /**
-   * Se requiere consentimiento informado diario para realizar esta acción
-   * Ocurre cuando se intenta realizar una acción protegida sin consentimiento del día
+   * Se requiere consentimiento para tratamiento de información (versión vigente)
+   * para realizar esta acción bajo régimen SIRES_NOM024.
    */
   CONSENT_REQUIRED = 'CONSENT_REQUIRED',
 
   /**
-   * El consentimiento usado corresponde a una fecha diferente
-   * Ocurre cuando el consentimiento existe pero su dateKey no coincide con el dateKey actual del servidor
+   * @deprecated Ya no se usa (modelo versionado sin dateKey). Conservado por compatibilidad de clientes.
    */
   CONSENT_INVALID_DATE = 'CONSENT_INVALID_DATE',
+
+  /**
+   * Se requiere aceptar el acuerdo de confidencialidad y uso de la información
+   * Ocurre cuando un usuario SIRES intenta usar el sistema sin haber aceptado la versión vigente
+   */
+  CONFIDENTIALITY_AGREEMENT_REQUIRED = 'CONFIDENTIALITY_AGREEMENT_REQUIRED',
 }
 
 /**
@@ -91,9 +96,9 @@ export interface RegulatoryErrorDetails {
   trabajadorId?: string;
 
   /**
-   * DateKey (YYYY-MM-DD) para errores de consentimiento requerido
+   * Versión vigente del consentimiento para errores CONSENT_REQUIRED
    */
-  dateKey?: string;
+  currentVersion?: string;
 
   /**
    * Acción que requiere consentimiento

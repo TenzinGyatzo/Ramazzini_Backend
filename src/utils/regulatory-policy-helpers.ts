@@ -68,6 +68,12 @@ export const policyFeatures = {
     policy.features.dailyConsentEnabled,
 
   /**
+   * Indica si el acuerdo de confidencialidad está habilitado
+   */
+  confidentialityAgreementEnabled: (policy: RegulatoryPolicy): boolean =>
+    policy.features.confidentialityAgreementEnabled,
+
+  /**
    * Indica si los datos de identificación del trabajador son inmutables tras el alta
    */
   workerIdentificationImmutable: (policy: RegulatoryPolicy): boolean =>

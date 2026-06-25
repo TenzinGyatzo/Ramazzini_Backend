@@ -4,35 +4,43 @@ import * as path from 'path';
 import { DocumentMergerService } from './document-merger.service';
 import { ClinicalFilesService } from '../files/clinical-files.service';
 import { EXPEDIENTES_DIR } from 'src/utils/expedientes-dir';
+import { OrganizationalAccessService } from 'src/utils/organizational-access.service';
 
 describe('DocumentMergerService', () => {
   let service: DocumentMergerService;
   let clinicalFilesService: ClinicalFilesService;
+  const userId = '507f1f77bcf86cd799439015';
 
   beforeEach(() => {
-    clinicalFilesService = new ClinicalFilesService();
+    const organizationalAccessService = {
+      assertUserCanAccessClinicalPath: jest.fn().mockResolvedValue(undefined),
+    } as unknown as OrganizationalAccessService;
+    clinicalFilesService = new ClinicalFilesService(organizationalAccessService);
     service = new DocumentMergerService(clinicalFilesService);
   });
 
   it('rechaza filePaths vacío', async () => {
-    await expect(service.mergeFiles([])).rejects.toThrow(BadRequestException);
+    await expect(service.mergeFiles(userId, [])).rejects.toThrow(
+      BadRequestException,
+    );
   });
 
   it('rechaza rutas fuera de expedientes-medicos', async () => {
     await expect(
-      service.mergeFiles(['/var/www/backend/.env']),
+      service.mergeFiles(userId, ['/var/www/backend/.env']),
     ).rejects.toThrow(ForbiddenException);
   });
 
   it('rechaza path traversal', async () => {
     await expect(
-      service.mergeFiles(['../../package.json']),
+      service.mergeFiles(userId, ['../../package.json']),
     ).rejects.toThrow(ForbiddenException);
   });
 
   it('fusiona PDFs válidos dentro de expedientes-medicos', async () => {
-    const relativeDir = path.join('__tests__', 'document-merger');
-    const absoluteDir = path.join(EXPEDIENTES_DIR, relativeDir);
+    const trabajadorId = '507f1f77bcf86cd799439014';
+    const relativeWorkerDir = path.join('Empresa', 'Centro', `Juan_${trabajadorId}`);
+    const absoluteDir = path.join(EXPEDIENTES_DIR, relativeWorkerDir);
     await fs.mkdir(absoluteDir, { recursive: true });
 
     const fileA = path.join(absoluteDir, 'a.pdf');
@@ -43,12 +51,15 @@ describe('DocumentMergerService', () => {
     await fs.writeFile(fileA, minimalPdf);
     await fs.writeFile(fileB, minimalPdf);
 
-    const routeA = `expedientes-medicos/${relativeDir.replace(/\\/g, '/')}/a.pdf`;
-    const routeB = `expedientes-medicos/${relativeDir.replace(/\\/g, '/')}/b.pdf`;
+    const routeA = `expedientes-medicos/Empresa/Centro/Juan_${trabajadorId}/a.pdf`;
+    const routeB = `expedientes-medicos/Empresa/Centro/Juan_${trabajadorId}/b.pdf`;
 
-    const merged = await service.mergeFiles([routeA, routeB]);
+    const merged = await service.mergeFiles(userId, [routeA, routeB]);
     expect(merged.subarray(0, 4).toString()).toBe('%PDF');
 
-    await fs.rm(absoluteDir, { recursive: true, force: true });
+    await fs.rm(path.join(EXPEDIENTES_DIR, 'Empresa'), {
+      recursive: true,
+      force: true,
+    });
   });
 });

@@ -1,11 +1,11 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ConsentimientoDiarioController } from './consentimiento-diario.controller';
-import { ConsentimientoDiarioService } from './consentimiento-diario.service';
+import { ConsentimientosController } from './consentimientos.controller';
+import { ConsentimientosService } from './consentimientos.service';
 import {
-  ConsentimientoDiario,
-  ConsentimientoDiarioSchema,
-} from './schemas/consentimiento-diario.schema';
+  Consentimiento,
+  ConsentimientoSchema,
+} from './schemas/consentimiento.schema';
 import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
 import { ProveedoresSaludModule } from '../proveedores-salud/proveedores-salud.module';
 import {
@@ -17,20 +17,22 @@ import {
   CentroTrabajoSchema,
 } from '../centros-trabajo/schemas/centro-trabajo.schema';
 import { Empresa, EmpresaSchema } from '../empresas/schemas/empresa.schema';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: ConsentimientoDiario.name, schema: ConsentimientoDiarioSchema },
+      { name: Consentimiento.name, schema: ConsentimientoSchema },
       { name: Trabajador.name, schema: TrabajadorSchema },
       { name: CentroTrabajo.name, schema: CentroTrabajoSchema },
       { name: Empresa.name, schema: EmpresaSchema },
     ]),
     forwardRef(() => TrabajadoresModule),
     forwardRef(() => ProveedoresSaludModule),
+    AuditModule,
   ],
-  controllers: [ConsentimientoDiarioController],
-  providers: [ConsentimientoDiarioService],
-  exports: [ConsentimientoDiarioService], // Por si otros módulos necesitan verificar consentimiento
+  controllers: [ConsentimientosController],
+  providers: [ConsentimientosService],
+  exports: [ConsentimientosService],
 })
-export class ConsentimientoDiarioModule {}
+export class ConsentimientosModule {}

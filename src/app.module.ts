@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { AppThrottlerGuard } from './utils/guards/app-throttler.guard';
 import { JwtAuthGuard } from './utils/guards/jwt-auth.guard';
 import { SessionInactivityGuard } from './utils/guards/session-inactivity.guard';
+import { ConfidentialityAgreementGuard } from './utils/guards/confidentiality-agreement.guard';
 import { SessionActivityModule } from './modules/users/session-activity.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -28,7 +30,8 @@ import { InformePersonalizacionModule } from './modules/informe-personalizacion/
 import { CatalogsModule } from './modules/catalogs/catalogs.module';
 import { NOM024ComplianceModule } from './modules/nom024-compliance/nom024-compliance.module';
 import { GIISExportModule } from './modules/giis-export/giis-export.module';
-import { ConsentimientoDiarioModule } from './modules/consentimiento-diario/consentimiento-diario.module';
+import { ConsentimientosModule } from './modules/consentimientos/consentimientos.module';
+import { AcuerdoConfidencialidadModule } from './modules/acuerdo-confidencialidad/acuerdo-confidencialidad.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ResultadosClinicosModule } from './modules/resultados-clinicos/resultados-clinicos.module';
 
@@ -62,7 +65,8 @@ import { ResultadosClinicosModule } from './modules/resultados-clinicos/resultad
     CatalogsModule,
     NOM024ComplianceModule,
     GIISExportModule,
-    ConsentimientoDiarioModule,
+    ConsentimientosModule,
+    AcuerdoConfidencialidadModule,
     AuditModule,
     EmpresasModule,
     CentrosTrabajoModule,
@@ -87,7 +91,7 @@ import { ResultadosClinicosModule } from './modules/resultados-clinicos/resultad
   providers: [
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: AppThrottlerGuard,
     },
     {
       provide: APP_GUARD,
@@ -96,6 +100,10 @@ import { ResultadosClinicosModule } from './modules/resultados-clinicos/resultad
     {
       provide: APP_GUARD,
       useClass: SessionInactivityGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ConfidentialityAgreementGuard,
     },
   ],
 })

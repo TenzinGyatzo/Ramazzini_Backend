@@ -7,6 +7,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { Response } from 'express';
 import { EXPEDIENTES_DIR } from 'src/utils/expedientes-dir';
+import { OrganizationalAccessService } from 'src/utils/organizational-access.service';
 
 const ALLOWED_EXTENSIONS = new Set(['.pdf', '.png', '.jpg', '.jpeg']);
 
@@ -19,6 +20,10 @@ const MIME_BY_EXTENSION: Record<string, string> = {
 
 @Injectable()
 export class ClinicalFilesService {
+  constructor(
+    private readonly organizationalAccessService: OrganizationalAccessService,
+  ) {}
+
   resolveSafePath(relativePath: string): string {
     const withoutPrefix = relativePath
       .replace(/^\/+/, '')
@@ -39,6 +44,31 @@ export class ClinicalFilesService {
     }
 
     return absolute;
+  }
+
+  async assertClinicalFileAccessibleForUser(
+    userId: string,
+    relativePath: string,
+  ): Promise<string> {
+    const absolutePath = this.resolveSafePath(relativePath);
+    await this.organizationalAccessService.assertUserCanAccessClinicalPath(
+      userId,
+      relativePath,
+    );
+    await this.assertFileExists(absolutePath);
+    return absolutePath;
+  }
+
+  async sendClinicalFileForUser(
+    userId: string,
+    relativePath: string,
+    res: Response,
+  ): Promise<void> {
+    const absolutePath = await this.assertClinicalFileAccessibleForUser(
+      userId,
+      relativePath,
+    );
+    await this.sendClinicalFile(absolutePath, res);
   }
 
   async assertFileExists(absolutePath: string): Promise<void> {

@@ -35,7 +35,7 @@ import { WORKER_LINKED_COLLECTIONS, EXPEDIENTE_DOCUMENT_MODEL_NAMES } from './co
 import { AuditService } from '../audit/audit.service';
 import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
-import { ConsentimientoDiario } from '../consentimiento-diario/schemas/consentimiento-diario.schema';
+import { Consentimiento } from '../consentimientos/schemas/consentimiento.schema';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { EXPEDIENTES_DIR } from 'src/utils/expedientes-dir';
@@ -85,8 +85,8 @@ export class WorkerFusionService {
     private duplicateAlertModel: Model<WorkerDuplicateAlert>,
     @InjectModel(WorkerFusionHistory.name)
     private fusionHistoryModel: Model<WorkerFusionHistory>,
-    @InjectModel(ConsentimientoDiario.name)
-    private consentimientoModel: Model<ConsentimientoDiario>,
+    @InjectModel(Consentimiento.name)
+    private consentimientoModel: Model<Consentimiento>,
     @InjectConnection() private connection: Connection,
     @Inject(forwardRef(() => AuditService))
     private auditService: AuditService,
@@ -808,12 +808,14 @@ export class WorkerFusionService {
 
     for (const consent of fuenteConsents) {
       const provId = (consent as any).proveedorSaludId;
-      const dateKey = (consent as any).dateKey;
+      const tipoConsentimiento = (consent as any).tipoConsentimiento;
+      const version = (consent as any).version;
       const destExists = await this.consentimientoModel
         .exists({
           proveedorSaludId: provId,
           trabajadorId: new Types.ObjectId(destinoId),
-          dateKey,
+          tipoConsentimiento,
+          version,
         })
         .session(session);
 
@@ -1010,9 +1012,10 @@ export class WorkerFusionService {
 
   private consentimientoCollisionKey(
     proveedorSaludId: unknown,
-    dateKey: unknown,
+    tipoConsentimiento: unknown,
+    version: unknown,
   ): string {
-    return `${String(proveedorSaludId)}:${String(dateKey)}`;
+    return `${String(proveedorSaludId)}:${String(tipoConsentimiento)}:${String(version)}`;
   }
 
   private async countConsentimientoCollisions(
@@ -1025,12 +1028,12 @@ export class WorkerFusionService {
     const [destConsents, fuenteConsents] = await Promise.all([
       this.consentimientoModel
         .find({ trabajadorId: destinoOid })
-        .select('proveedorSaludId dateKey')
+        .select('proveedorSaludId tipoConsentimiento version')
         .lean()
         .exec(),
       this.consentimientoModel
         .find({ trabajadorId: fuenteOid })
-        .select('proveedorSaludId dateKey')
+        .select('proveedorSaludId tipoConsentimiento version')
         .lean()
         .exec(),
     ]);
@@ -1039,7 +1042,8 @@ export class WorkerFusionService {
       destConsents.map((c) =>
         this.consentimientoCollisionKey(
           (c as any).proveedorSaludId,
-          (c as any).dateKey,
+          (c as any).tipoConsentimiento,
+          (c as any).version,
         ),
       ),
     );
@@ -1048,7 +1052,8 @@ export class WorkerFusionService {
       destKeys.has(
         this.consentimientoCollisionKey(
           (c as any).proveedorSaludId,
-          (c as any).dateKey,
+          (c as any).tipoConsentimiento,
+          (c as any).version,
         ),
       ),
     ).length;

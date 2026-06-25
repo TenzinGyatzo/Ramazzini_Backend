@@ -17,6 +17,7 @@ export interface RegulatoryPolicy {
     notaAclaratoriaEnabled: boolean;
     cluesFieldVisible: boolean; // CLUES visible solo en SIRES
     dailyConsentEnabled: boolean; // Consentimiento informado diario
+    confidentialityAgreementEnabled: boolean; // Acuerdo de confidencialidad y uso de información
     workerIdentificationImmutable: boolean; // Identificación trabajador inmutable post-alta
     auditTrailEnabled: boolean; // Trail de auditoría NOM-024 (consulta/exportación)
   };
@@ -110,6 +111,7 @@ export class RegulatoryPolicyService {
         notaAclaratoriaEnabled: true,
         cluesFieldVisible: true,
         dailyConsentEnabled: true,
+        confidentialityAgreementEnabled: true,
         workerIdentificationImmutable: true,
         auditTrailEnabled: true,
       },
@@ -138,6 +140,7 @@ export class RegulatoryPolicyService {
         notaAclaratoriaEnabled: false,
         cluesFieldVisible: false,
         dailyConsentEnabled: false,
+        confidentialityAgreementEnabled: false,
         workerIdentificationImmutable: false,
         auditTrailEnabled: false,
       },

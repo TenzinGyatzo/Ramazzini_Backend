@@ -5,7 +5,7 @@ import { Trabajador } from './schemas/trabajador.schema';
 import { CentroTrabajo } from '../centros-trabajo/schemas/centro-trabajo.schema';
 import { WorkerDuplicateAlert } from './schemas/worker-duplicate-alert.schema';
 import { WorkerFusionHistory } from './schemas/worker-fusion-history.schema';
-import { ConsentimientoDiario } from '../consentimiento-diario/schemas/consentimiento-diario.schema';
+import { Consentimiento } from '../consentimientos/schemas/consentimiento.schema';
 import { AuditService } from '../audit/audit.service';
 
 describe('WorkerFusionService', () => {
@@ -60,7 +60,7 @@ describe('WorkerFusionService', () => {
         { provide: getModelToken(CentroTrabajo.name), useValue: mockCentroTrabajoModel },
         { provide: getModelToken(WorkerDuplicateAlert.name), useValue: mockDuplicateAlertModel },
         { provide: getModelToken(WorkerFusionHistory.name), useValue: mockFusionHistoryModel },
-        { provide: getModelToken(ConsentimientoDiario.name), useValue: mockConsentimientoModel },
+        { provide: getModelToken(Consentimiento.name), useValue: mockConsentimientoModel },
         { provide: getConnectionToken(), useValue: mockConnection },
         { provide: AuditService, useValue: mockAuditService },
       ],

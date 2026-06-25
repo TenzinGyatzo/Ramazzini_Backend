@@ -3,12 +3,21 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ClinicalFilesService } from './clinical-files.service';
 import { EXPEDIENTES_DIR } from 'src/utils/expedientes-dir';
+import { OrganizationalAccessService } from 'src/utils/organizational-access.service';
 
 describe('ClinicalFilesService', () => {
   let service: ClinicalFilesService;
+  let organizationalAccessService: {
+    assertUserCanAccessClinicalPath: jest.Mock;
+  };
 
   beforeEach(() => {
-    service = new ClinicalFilesService();
+    organizationalAccessService = {
+      assertUserCanAccessClinicalPath: jest.fn().mockResolvedValue(undefined),
+    };
+    service = new ClinicalFilesService(
+      organizationalAccessService as unknown as OrganizationalAccessService,
+    );
   });
 
   it('rechaza path traversal fuera del directorio base', () => {
@@ -48,5 +57,22 @@ describe('ClinicalFilesService', () => {
     await expect(service.assertFileExists(missing)).rejects.toThrow(
       NotFoundException,
     );
+  });
+
+  it('valida acceso organizacional antes de servir archivo', async () => {
+    const relativePath =
+      'expedientes-medicos/Empresa/Centro/Juan_507f1f77bcf86cd799439011/doc.pdf';
+
+    organizationalAccessService.assertUserCanAccessClinicalPath.mockRejectedValue(
+      new ForbiddenException('Ruta de expediente no autorizada'),
+    );
+
+    await expect(
+      service.assertClinicalFileAccessibleForUser('actor-id', relativePath),
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(
+      organizationalAccessService.assertUserCanAccessClinicalPath,
+    ).toHaveBeenCalledWith('actor-id', relativePath);
   });
 });

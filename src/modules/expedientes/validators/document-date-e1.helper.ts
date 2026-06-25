@@ -3,7 +3,7 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { CentroTrabajo } from '../../centros-trabajo/schemas/centro-trabajo.schema';
 import { Empresa } from '../../empresas/schemas/empresa.schema';
 import { RegulatoryPolicyService } from '../../../utils/regulatory-policy.service';
-import { getProveedorSaludIdFromTrabajador } from '../../../utils/helpers/daily-consent.helper';
+import { getProveedorSaludIdFromTrabajador } from '../../../utils/helpers/treatment-consent.helper';
 import { validateFechaDocumento } from './date-validators';
 
 export interface DocumentDateE1Deps {

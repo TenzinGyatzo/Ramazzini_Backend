@@ -72,8 +72,8 @@ import { diskStorage } from 'multer';
 import path from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { convertirFechaISOaDDMMYYYY } from '../../utils/dates';
-import { DailyConsentGuard } from '../../utils/guards/daily-consent.guard';
-import { RequireDailyConsent } from '../../utils/decorators/require-daily-consent.decorator';
+import { TreatmentConsentGuard } from '../../utils/guards/treatment-consent.guard';
+import { RequireTreatmentConsent } from '../../utils/decorators/require-treatment-consent.decorator';
 import { assertDocumentPermission } from './utils/assert-document-permission.util';
 
 type AuthenticatedRequest = Request & { userId: string };
@@ -146,8 +146,8 @@ export class ExpedientesController {
   }
 
   @Post(':documentType/crear')
-  @UseGuards(DailyConsentGuard)
-  @RequireDailyConsent({ action: 'CREATE_DOCUMENT' })
+  @UseGuards(TreatmentConsentGuard)
+  @RequireTreatmentConsent({ action: 'CREATE_DOCUMENT' })
   async createDocument(
     @Param('documentType') documentType: string,
     @Body() createDto: any,
@@ -289,6 +289,11 @@ export class ExpedientesController {
         'Error al consultar el motivoExamen reciente',
       );
     }
+  }
+
+  @Get('todos')
+  async findAllDocuments(@Param('trabajadorId') trabajadorId: string) {
+    return this.expedientesService.findAllDocuments(trabajadorId);
   }
 
   @Get(':documentType')
@@ -503,8 +508,8 @@ export class ExpedientesController {
   // ==================== GIIS-B019 Detección CRUD Endpoints ====================
 
   @Post('deteccion')
-  @UseGuards(DailyConsentGuard)
-  @RequireDailyConsent({
+  @UseGuards(TreatmentConsentGuard)
+  @RequireTreatmentConsent({
     action: 'CREATE_DOCUMENT',
     skipIfNoTrabajadorId: true,
   })

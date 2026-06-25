@@ -156,6 +156,9 @@ function generateBaseMessage(
     case RegulatoryErrorCode.CONSENT_INVALID_DATE:
       return 'El consentimiento usado corresponde a una fecha diferente. Se requiere consentimiento del día actual.';
 
+    case RegulatoryErrorCode.CONFIDENTIALITY_AGREEMENT_REQUIRED:
+      return 'Debe aceptar el Acuerdo de Confidencialidad y Uso de la Información para continuar';
+
     default:
       return 'Error regulatorio';
   }
@@ -172,6 +175,7 @@ function getStatusCodeForErrorCode(errorCode: RegulatoryErrorCode): number {
     case RegulatoryErrorCode.CONSENT_NOT_ENABLED:
     case RegulatoryErrorCode.CONSENT_REQUIRED:
     case RegulatoryErrorCode.CONSENT_INVALID_DATE:
+    case RegulatoryErrorCode.CONFIDENTIALITY_AGREEMENT_REQUIRED:
       return 403; // Forbidden
     case RegulatoryErrorCode.REGIMEN_FIELD_REQUIRED:
       return 400; // Bad Request (validación)

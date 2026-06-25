@@ -5,26 +5,23 @@ import { CentroTrabajo } from '../../modules/centros-trabajo/schemas/centro-trab
 import { Empresa } from '../../modules/empresas/schemas/empresa.schema';
 
 /**
- * Helper para extraer trabajadorId desde múltiples fuentes del request
- * Orden de prioridad:
- * 1. Parámetro de ruta (@Param('trabajadorId'))
- * 2. Body del request (dto.trabajadorId)
- * 3. Query parameter (@Query('trabajadorId'))
+ * Extrae trabajadorId desde route params, body o query.
  */
 export function extractTrabajadorId(context: ExecutionContext): string | null {
   const request = context.switchToHttp().getRequest();
 
-  // 1. Parámetro de ruta (prioridad más alta)
   if (request.params?.trabajadorId) {
     return request.params.trabajadorId;
   }
 
-  // 2. Body del request
   if (request.body?.trabajadorId) {
     return request.body.trabajadorId;
   }
 
-  // 3. Query parameter
+  if (request.body?.idTrabajador) {
+    return request.body.idTrabajador;
+  }
+
   if (request.query?.trabajadorId) {
     return request.query.trabajadorId;
   }
@@ -32,13 +29,6 @@ export function extractTrabajadorId(context: ExecutionContext): string | null {
   return null;
 }
 
-/**
- * Helper para obtener proveedorSaludId desde un trabajadorId
- * Trabajador -> CentroTrabajo -> Empresa -> ProveedorSalud
- *
- * Esta función replica la lógica de ConsentimientoDiarioService.getProveedorSaludIdFromTrabajador
- * para evitar dependencias circulares
- */
 export async function getProveedorSaludIdFromTrabajador(
   trabajadorId: string,
   trabajadorModel: Model<Trabajador>,

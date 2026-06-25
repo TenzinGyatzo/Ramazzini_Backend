@@ -38,7 +38,7 @@ export const WORKER_LINKED_COLLECTIONS: WorkerLinkedCollectionConfig[] = [
   { modelName: 'DocumentoExterno', collectionName: 'documentoexternos', fkField: 'idTrabajador', fileField: 'rutaDocumento' },
   { modelName: 'RiesgoTrabajo', collectionName: 'riesgotrabajos', fkField: 'idTrabajador' },
   { modelName: 'ResultadoClinico', collectionName: 'resultadoclinicos', fkField: 'idTrabajador' },
-  { modelName: 'ConsentimientoDiario', collectionName: 'consentimientodiarios', fkField: 'trabajadorId' },
+  { modelName: 'Consentimiento', collectionName: 'consentimientos', fkField: 'trabajadorId' },
 ];
 
 /**
@@ -76,5 +76,5 @@ export const LINKED_RECORD_LABELS: Record<string, string> = {
   Deteccion: 'Detección',
   RiesgoTrabajo: 'Riesgo de trabajo',
   ResultadoClinico: 'Resultado clínico (estudio)',
-  ConsentimientoDiario: 'Consentimiento diario',
+  Consentimiento: 'Consentimiento para tratamiento de información',
 };
