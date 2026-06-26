@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { InformesService } from './informes.service';
 import { InformesController } from './informes.controller';
+import { InformeAccessInterceptor } from './informe-access.interceptor';
 import { PrinterModule } from '../printer/printer.module';
 import { EmpresasModule } from '../empresas/empresas.module';
 import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
@@ -19,7 +20,7 @@ import { OrganizationalAccessModule } from 'src/utils/organizational-access.modu
 
 @Module({
   controllers: [InformesController],
-  providers: [InformesService],
+  providers: [InformesService, InformeAccessInterceptor],
   imports: [
     PrinterModule,
     EmpresasModule,

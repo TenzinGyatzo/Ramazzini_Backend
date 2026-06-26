@@ -125,6 +125,48 @@ export class OrganizationalAccessService {
     );
   }
 
+  async assertUserCanAccessTrabajador(
+    userId: string,
+    empresaId: string,
+    trabajadorId: string,
+  ): Promise<void> {
+    const trabajador = await this.trabajadorModel.findById(trabajadorId).exec();
+    if (!trabajador) {
+      throw new NotFoundException('Trabajador no encontrado');
+    }
+
+    const centro = await this.centroTrabajoModel
+      .findById(trabajador.idCentroTrabajo)
+      .exec();
+    if (!centro) {
+      throw new ForbiddenException(
+        'No tiene permiso para acceder a este recurso',
+      );
+    }
+
+    if (String(centro.idEmpresa) !== String(empresaId)) {
+      throw new ForbiddenException(
+        'El trabajador no pertenece a la empresa indicada',
+      );
+    }
+
+    const empresa = await this.empresaModel.findById(empresaId).exec();
+    if (!empresa) {
+      throw new NotFoundException('Empresa no encontrada');
+    }
+
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) {
+      throw new ForbiddenException('Usuario no encontrado');
+    }
+
+    this.assertUserCanAccessEmpresaCentro(
+      user,
+      empresa.idProveedorSalud,
+      String(centro._id),
+    );
+  }
+
   async assertUserCanAccessClinicalPath(
     userId: string,
     relativePath: string,
@@ -146,20 +188,10 @@ export class OrganizationalAccessService {
       throw new ForbiddenException('Ruta de expediente no autorizada');
     }
 
-    const empresa = await this.empresaModel.findById(centro.idEmpresa).exec();
-    if (!empresa) {
-      throw new ForbiddenException('Ruta de expediente no autorizada');
-    }
-
-    const user = await this.userModel.findById(userId).exec();
-    if (!user) {
-      throw new ForbiddenException('Usuario no encontrado');
-    }
-
-    this.assertUserCanAccessEmpresaCentro(
-      user,
-      empresa.idProveedorSalud,
-      String(centro._id),
+    await this.assertUserCanAccessTrabajador(
+      userId,
+      String(centro.idEmpresa),
+      trabajadorId,
     );
   }
 

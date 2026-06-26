@@ -29,6 +29,7 @@ import * as fs from 'fs';
 import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
 import { getUserIdFromRequest } from '../../utils/auth-helpers';
 import { Public } from 'src/utils/decorators/public.decorator';
+import { resolveProvidersLogosDir } from 'src/utils/branding-assets-dir.util';
 
 @Controller('proveedores-salud')
 export class ProveedoresSaludController {
@@ -42,10 +43,7 @@ export class ProveedoresSaludController {
   @UseInterceptors(
     FileInterceptor('logotipoEmpresa', {
       storage: diskStorage({
-        destination: path.resolve(
-          __dirname,
-          `../../../../${process.env.PROVIDERS_UPLOADS_DIR}`,
-        ),
+        destination: resolveProvidersLogosDir(),
         filename: (req, file, callback) => {
           // Genera un nombre de archivo único basado en el nombre del proveedor.
           const sanitizedCompanyName = req.body.nombre
@@ -155,10 +153,7 @@ export class ProveedoresSaludController {
   @UseInterceptors(
     FileInterceptor('logotipoEmpresa', {
       storage: diskStorage({
-        destination: path.resolve(
-          __dirname,
-          `../../../../${process.env.PROVIDERS_UPLOADS_DIR}`,
-        ),
+        destination: resolveProvidersLogosDir(),
         filename: (req, file, callback) => {
           // Genera un nombre de archivo único basado en el nombre comercial de la empresa.
           const sanitizedCompanyName = req.body.nombre
@@ -378,11 +373,7 @@ export class ProveedoresSaludController {
   @Get('/logo/:filename')
   async getLogo(@Param('filename') filename: string, @Res() res: any) {
     try {
-      const logoPath = path.resolve(
-        __dirname,
-        `../../../../${process.env.PROVIDERS_UPLOADS_DIR}`,
-        filename,
-      );
+      const logoPath = path.resolve(resolveProvidersLogosDir(), filename);
 
       // Verificar que el archivo existe
       if (!fs.existsSync(logoPath)) {

@@ -8,7 +8,6 @@ import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { join } from 'path';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { EnoentSilencerFilter } from './filters/enoent-silencer.filter';
 import * as express from 'express';
@@ -18,10 +17,7 @@ import { isAuditTrailPersistEnabled } from './modules/audit/utils/audit-trail-pe
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  if (
-    process.env.NODE_ENV === 'production' &&
-    !isAuditTrailPersistEnabled()
-  ) {
+  if (process.env.NODE_ENV === 'production' && !isAuditTrailPersistEnabled()) {
     Logger.warn(
       'AUDIT_TRAIL_PERSIST is not enabled in production; NOM-024 audit events will not be persisted.',
       'Bootstrap',
@@ -38,17 +34,7 @@ async function bootstrap() {
   // Registrar el filtro global para silenciar ENOENT en expedientes-medicos
   app.useGlobalFilters(new EnoentSilencerFilter());
 
-  // Servir firmas y logos desde el mismo directorio donde se guardan (evitar 404 en local/prod)
-  const signatoriesDir =
-    process.env.SIGNATORIES_UPLOADS_DIR || 'assets/signatories';
-  const providersLogosDir =
-    process.env.PROVIDERS_UPLOADS_DIR || 'assets/providers-logos';
-  app.useStaticAssets(join(process.cwd(), signatoriesDir), {
-    prefix: '/assets/signatories',
-  });
-  app.useStaticAssets(join(process.cwd(), providersLogosDir), {
-    prefix: '/assets/providers-logos',
-  });
+  // Firmas y logos se sirven vía BrandingAssetsController (JWT + tenant)
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -56,11 +42,14 @@ async function bootstrap() {
     }),
   );
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    process.env.SWAGGER_ENABLED !== 'false'
+  ) {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Ramazzini API')
       .setDescription('Documentación de desarrollo (no expuesta en producción)')
-      .setVersion('1.0')
+      .setVersion('1.0.1')
       .build();
     const document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup('api', app, document);

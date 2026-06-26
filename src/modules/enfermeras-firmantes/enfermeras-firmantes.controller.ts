@@ -28,6 +28,7 @@ import { UsersService } from '../users/users.service';
 import { getUserIdFromRequest } from '../../utils/auth-helpers';
 import { toSignerPayloadSnapshot } from '../../utils/signer-audit-payload.util';
 import { sanitizarNombreFirmanteParaArchivo } from 'src/utils/names';
+import { resolveSignatoriesDir } from 'src/utils/branding-assets-dir.util';
 
 @Controller('enfermeras-firmantes')
 export class EnfermerasFirmantesController {
@@ -41,10 +42,7 @@ export class EnfermerasFirmantesController {
   @UseInterceptors(
     FileInterceptor('firma', {
       storage: diskStorage({
-        destination: path.join(
-          process.cwd(),
-          process.env.SIGNATORIES_UPLOADS_DIR || 'assets/signatories',
-        ),
+        destination: resolveSignatoriesDir(),
         filename: (req, file, callback) => {
           const sanitizedDoctorName = sanitizarNombreFirmanteParaArchivo({
             nombre: req.body.nombre,
@@ -158,10 +156,7 @@ export class EnfermerasFirmantesController {
   @UseInterceptors(
     FileInterceptor('firma', {
       storage: diskStorage({
-        destination: path.join(
-          process.cwd(),
-          process.env.SIGNATORIES_UPLOADS_DIR || 'assets/signatories',
-        ),
+        destination: resolveSignatoriesDir(),
         filename: (req, file, callback) => {
           const sanitizedDoctorName = sanitizarNombreFirmanteParaArchivo({
             nombre: req.body.nombre,

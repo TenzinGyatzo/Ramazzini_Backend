@@ -125,6 +125,63 @@ describe('OrganizationalAccessService', () => {
     });
   });
 
+  describe('assertUserCanAccessTrabajador', () => {
+    it('permite acceso cuando trabajador pertenece a empresa y tenant coincide', async () => {
+      trabajadorModel.findById.mockReturnValue(
+        mockExec({ _id: trabajadorId, idCentroTrabajo: centroId }),
+      );
+      centroTrabajoModel.findById.mockReturnValue(
+        mockExec({ _id: centroId, idEmpresa: empresaId }),
+      );
+      empresaModel.findById.mockReturnValue(
+        mockExec({ _id: empresaId, idProveedorSalud: proveedorId }),
+      );
+      userModel.findById.mockReturnValue(mockExec(limitedUser));
+
+      await expect(
+        service.assertUserCanAccessTrabajador(userId, empresaId, trabajadorId),
+      ).resolves.toBeUndefined();
+    });
+
+    it('rechaza cuando empresaId no coincide con el centro del trabajador', async () => {
+      trabajadorModel.findById.mockReturnValue(
+        mockExec({ _id: trabajadorId, idCentroTrabajo: centroId }),
+      );
+      centroTrabajoModel.findById.mockReturnValue(
+        mockExec({ _id: centroId, idEmpresa: '507f1f77bcf86cd799439077' }),
+      );
+
+      await expect(
+        service.assertUserCanAccessTrabajador(userId, empresaId, trabajadorId),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rechaza usuario de otro proveedor', async () => {
+      trabajadorModel.findById.mockReturnValue(
+        mockExec({ _id: trabajadorId, idCentroTrabajo: centroId }),
+      );
+      centroTrabajoModel.findById.mockReturnValue(
+        mockExec({ _id: centroId, idEmpresa: empresaId }),
+      );
+      empresaModel.findById.mockReturnValue(
+        mockExec({ _id: empresaId, idProveedorSalud: proveedorId }),
+      );
+      userModel.findById.mockReturnValue(mockExec(otherTenantUser));
+
+      await expect(
+        service.assertUserCanAccessTrabajador(userId, empresaId, trabajadorId),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('lanza NotFound cuando el trabajador no existe', async () => {
+      trabajadorModel.findById.mockReturnValue(mockExec(null));
+
+      await expect(
+        service.assertUserCanAccessTrabajador(userId, empresaId, trabajadorId),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('assertUserCanAccessClinicalPath', () => {
     const clinicalPath = `expedientes-medicos/Empresa/Centro/Juan_${trabajadorId}/Historia Clinica.pdf`;
 

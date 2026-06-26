@@ -8,7 +8,9 @@ import {
   Res,
   Req,
   BadRequestException,
+  UseInterceptors,
 } from '@nestjs/common';
+import { InformeAccessInterceptor } from './informe-access.interceptor';
 import { InformesService } from './informes.service';
 import { Response, Request } from 'express';
 import { AuditService } from '../audit/audit.service';
@@ -21,6 +23,7 @@ import { RegistrarExportacionDashboardDto } from './dto/registrar-exportacion-da
 import { isValidObjectId } from 'mongoose';
 
 @Controller('informes')
+@UseInterceptors(InformeAccessInterceptor)
 export class InformesController {
   constructor(
     private readonly informesService: InformesService,
