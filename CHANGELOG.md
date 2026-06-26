@@ -8,6 +8,8 @@ Registro de cambios del proyecto. Este documento cumple con la política de cont
 
 ---
 
+
+
 ## 1. Resumen de Versiones
 
 **Versión vigente del software:** `v1.0.1`  
@@ -15,27 +17,35 @@ Registro de cambios del proyecto. Este documento cumple con la política de cont
 
 > Fuente de verdad para la interfaz y despliegues. Actualizar al liberar una versión nueva, según la política de la **sección 3** (formato `vX.Y.Z`).
 
-| VERSIÓN | FECHA | DESCRIPCIÓN GENERAL | TIPO |
-|---------|-------|---------------------|------|
-| v1.0.1 | 2026-06-26 | Parche de mejoras identificadas durante la elaboración de TEC-001, TEC-002 y TEC-003 (seguridad, confidencialidad, consentimiento, auditoría). | Parche |
-| v1.0.0 | 2026-06-07 | Primera versión candidata a certificación NOM-024-SSA3-2012. Primera versión oficial con trazabilidad regulatoria. Desarrollo acumulado en rama `nom024`. | Mayor |
-| v0.2.0 | 2025-04 | Versión comercial. Nuevo repositorio. Mejoras, correcciones y nuevas funcionalidades. | Desarrollo previo |
-| v0.1.0 | 2024-09 | Primera versión. Aplicación no comercial para uso privado en AMES. | Desarrollo previo |
+
+| VERSIÓN | FECHA      | DESCRIPCIÓN GENERAL                                                                                                                                       | TIPO              |
+| ------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| v1.0.1  | 2026-06-25 | Parche de mejoras identificadas durante la elaboración de TEC-001, TEC-002 y TEC-003 (seguridad, confidencialidad, consentimiento, auditoría).            | Parche            |
+| v1.0.0  | 2026-06-07 | Primera versión candidata a certificación NOM-024-SSA3-2012. Primera versión oficial con trazabilidad regulatoria. Desarrollo acumulado en rama `nom024`. | Mayor             |
+| v0.2.0  | 2025-04    | Versión comercial. Nuevo repositorio. Mejoras, correcciones y nuevas funcionalidades.                                                                     | Desarrollo previo |
+| v0.1.0  | 2024-09    | Primera versión. Aplicación no comercial para uso privado en AMES.                                                                                        | Desarrollo previo |
+
 
 ---
+
+
 
 ## 2. Clasificación del Cambio
 
 Previo a pruebas formales, el cambio se clasifica según la siguiente tabla:
 
-| Tipo de Cambio | Impacto | Incremento de Versión |
-|----------------|---------|------------------------|
-| Corrección de errores, mejoras de rendimiento, seguridad, UX o ampliaciones compatibles con el alcance vigente | Bajo/Medio | Parche (`vX.Y.Z+1`) |
-| Ampliación relevante del alcance funcional, normativo o de interoperabilidad | Alto | Menor (`vX.Y+1.0`) |
-| Modificación significativa de arquitectura, alcance general o naturaleza del sistema | Muy alto | Mayor (`vX+1.0.0`) |
-| Cambio normativo o de interoperabilidad certificada | Alto | Menor o Mayor (según §3.2 y §3.3) |
+
+| Tipo de Cambio                                                                                                 | Impacto    | Incremento de Versión             |
+| -------------------------------------------------------------------------------------------------------------- | ---------- | --------------------------------- |
+| Corrección de errores, mejoras de rendimiento, seguridad, UX o ampliaciones compatibles con el alcance vigente | Bajo/Medio | Parche (`vX.Y.Z+1`)               |
+| Ampliación relevante del alcance funcional, normativo o de interoperabilidad                                   | Alto       | Menor (`vX.Y+1.0`)                |
+| Modificación significativa de arquitectura, alcance general o naturaleza del sistema                           | Muy alto   | Mayor (`vX+1.0.0`)                |
+| Cambio normativo o de interoperabilidad certificada                                                            | Alto       | Menor o Mayor (según §3.2 y §3.3) |
+
 
 ---
+
+
 
 ## 3. Reglas de Versionamiento
 
@@ -48,6 +58,8 @@ Donde:
 - **MAYOR** identifica cambios de gran alcance que modifican significativamente la naturaleza o arquitectura general del sistema.
 - **MENOR** identifica ampliaciones relevantes del alcance funcional, normativo o de interoperabilidad previamente liberado.
 - **PARCHE** identifica correcciones, mejoras o ampliaciones compatibles con el alcance de la versión vigente.
+
+
 
 ### 3.1 Versiones de Parche (`vX.Y.x`)
 
@@ -111,6 +123,8 @@ El valor **Versión vigente del software** (sección 1) debe mantenerse alineado
 
 ---
 
+
+
 ## 4. Registro y Trazabilidad
 
 Para cada versión se documenta:
@@ -127,53 +141,71 @@ El registro se conserva en archivo interno de control de versiones.
 
 ---
 
+
+
 ## 5. Historial Detallado
+
+
 
 ### v1.0.1 — 2026-06-26
 
-| Campo | Valor |
-|-------|-------|
-| **Descripción** | Parche de la línea **v1.0** que consolida mejoras aplicadas tras el despliegue de v1.0.0 (7-jun-2026), identificadas al elaborar y revisar los documentos técnicos TEC-001, TEC-002 y TEC-003. **(1) Seguridad de salidas (TEC-001 §5.6, TEC-003 v2.0):** eliminación de exposición anónima de archivos clínicos; `ClinicalFilesController` con `assertUserCanAccessClinicalPath`; `InformeAccessInterceptor` y `assertUserCanAccessTrabajador` en `/informes/*`; `BrandingAssetsController` para firmas y logos con validación de tenant; alineación de Nginx en producción según `docs/NGINX_CAMBIOS_SEGURIDAD_SALIDAS.md`. **(2) Acuerdo de confidencialidad (PRO-006, TEC-002 v2.0):** módulo `acuerdo-confidencialidad`, `ConfidentialityAgreementGuard` global y flujo de aceptación en frontend. **(3) Consentimiento para tratamiento de información:** sustitución del modelo de consentimiento diario por consentimiento versionado por trabajador (`ConsentimientosModule`, `TreatmentConsentGuard`, API `/api/consentimientos`). **(4) Auditoría NOM-024:** persistencia opt-in del trail mediante `AUDIT_TRAIL_PERSIST=true` en producción SIRES; aviso de arranque si el entorno opera sin la variable activa. Documentación técnica actualizada en paralelo: TEC-001, TEC-002 v2.0 (24-jun-2026) y TEC-003 v2.0 (25-jun-2026); versiones anteriores resguardadas en `SGSI/8. Histórico/`. |
-| **Tipo de cambio** | Parche |
-| **Evidencia de pruebas** | `npm run test:nom024`; specs `clinical-files.service.spec.ts`, `branding-assets.service.spec.ts`, `informe-access.interceptor.spec.ts`, `jwt-auth.guard.spec.ts`, `audit-trail-persist.util.spec.ts`, `audit.service.persist.spec.ts`, `giis-export-audit.service.spec.ts`; pruebas manuales §8 de `docs/NGINX_CAMBIOS_SEGURIDAD_SALIDAS.md` |
-| **Resultado de aceptación** | Aprobado |
-| **Responsable de autorización** | — |
+
+| Campo                           | Valor                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Descripción**                 | Parche de la línea **v1.0** que consolida mejoras aplicadas tras el despliegue de v1.0.0 (7-jun-2026), identificadas al elaborar y revisar los documentos técnicos TEC-001, TEC-002 y TEC-003. **(1) Seguridad de salidas (TEC-001 §5.6, TEC-003 v2.0):** eliminación de exposición anónima de archivos clínicos; `ClinicalFilesController` con `assertUserCanAccessClinicalPath`; `InformeAccessInterceptor` y `assertUserCanAccessTrabajador` en `/informes/`*; `BrandingAssetsController` para firmas y logos con validación de tenant; alineación de Nginx en producción según `docs/NGINX_CAMBIOS_SEGURIDAD_SALIDAS.md`. **(2) Acuerdo de confidencialidad (PRO-006, TEC-002 v2.0):** módulo `acuerdo-confidencialidad`, `ConfidentialityAgreementGuard` global y flujo de aceptación en frontend. **(3) Consentimiento para tratamiento de información:** sustitución del modelo de consentimiento diario por consentimiento versionado por trabajador (`ConsentimientosModule`, `TreatmentConsentGuard`, API `/api/consentimientos`). **(4) Auditoría NOM-024:** persistencia opt-in del trail mediante `AUDIT_TRAIL_PERSIST=true` en producción SIRES; aviso de arranque si el entorno opera sin la variable activa. Documentación técnica actualizada en paralelo: TEC-001, TEC-002 v2.0 (24-jun-2026) y TEC-003 v2.0 (25-jun-2026); versiones anteriores resguardadas en `SGSI/8. Histórico/`. |
+| **Tipo de cambio**              | Parche                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Evidencia de pruebas**        | `npm run test:nom024`; specs `clinical-files.service.spec.ts`, `branding-assets.service.spec.ts`, `informe-access.interceptor.spec.ts`, `jwt-auth.guard.spec.ts`, `audit-trail-persist.util.spec.ts`, `audit.service.persist.spec.ts`, `giis-export-audit.service.spec.ts`; pruebas manuales §8 de `docs/NGINX_CAMBIOS_SEGURIDAD_SALIDAS.md`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **Resultado de aceptación**     | Aprobado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Responsable de autorización** | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+
 
 ---
+
+
 
 ### v1.0.0 — 2026-06-07
 
-| Campo | Valor |
-|-------|-------|
-| **Descripción** | Primera versión **candidata** a certificación NOM-024-SSA3-2012 y primera versión oficial de Ramazzini con trazabilidad regulatoria. Inicia la línea de producto **v1.0**. Consolida meses de desarrollo en la rama `nom024` sobre la base del sistema existente (v0.x). Despliegue registrado el 7 de junio de 2026. El proceso de certificación formal permanece en curso. |
-| **Tipo de cambio** | Mayor |
-| **Evidencia de pruebas** | Pendiente — proceso de certificación |
-| **Resultado de aceptación** | Pendiente |
-| **Responsable de autorización** | — |
+
+| Campo                           | Valor                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Descripción**                 | Primera versión **candidata** a certificación NOM-024-SSA3-2012 y primera versión oficial de Ramazzini con trazabilidad regulatoria. Inicia la línea de producto **v1.0**. Consolida meses de desarrollo en la rama `nom024` sobre la base del sistema existente (v0.x). Despliegue registrado el 7 de junio de 2026. El proceso de certificación formal permanece en curso. |
+| **Tipo de cambio**              | Mayor                                                                                                                                                                                                                                                                                                                                                                        |
+| **Evidencia de pruebas**        | Pendiente — proceso de certificación                                                                                                                                                                                                                                                                                                                                         |
+| **Resultado de aceptación**     | Pendiente                                                                                                                                                                                                                                                                                                                                                                    |
+| **Responsable de autorización** | —                                                                                                                                                                                                                                                                                                                                                                            |
+
 
 ---
+
+
 
 ### v0.2.0 — 2025-04
 
-| Campo | Valor |
-|-------|-------|
-| **Descripción** | Versión comercial. Desarrollo en nuevo repositorio desde enero 2025. Incluye mejoras, correcciones y nuevas funcionalidades acumuladas durante el ciclo de desarrollo. |
-| **Tipo de cambio** | Desarrollo previo (sin trazabilidad formal) |
-| **Evidencia de pruebas** | No documentada en changelog formal |
-| **Resultado de aceptación** | — |
-| **Responsable de autorización** | — |
+
+| Campo                           | Valor                                                                                                                                                                  |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Descripción**                 | Versión comercial. Desarrollo en nuevo repositorio desde enero 2025. Incluye mejoras, correcciones y nuevas funcionalidades acumuladas durante el ciclo de desarrollo. |
+| **Tipo de cambio**              | Desarrollo previo (sin trazabilidad formal)                                                                                                                            |
+| **Evidencia de pruebas**        | No documentada en changelog formal                                                                                                                                     |
+| **Resultado de aceptación**     | —                                                                                                                                                                      |
+| **Responsable de autorización** | —                                                                                                                                                                      |
+
 
 ---
 
+
+
 ### v0.1.0 — 2024-09
 
-| Campo | Valor |
-|-------|-------|
-| **Descripción** | Primera versión de Ramazzini. Aplicación no comercial para uso privado en la empresa AMES. Desarrollo iniciado en enero 2024. |
-| **Tipo de cambio** | Desarrollo previo (sin trazabilidad formal) |
-| **Evidencia de pruebas** | No documentada |
-| **Resultado de aceptación** | — |
-| **Responsable de autorización** | — |
+
+| Campo                           | Valor                                                                                                                         |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **Descripción**                 | Primera versión de Ramazzini. Aplicación no comercial para uso privado en la empresa AMES. Desarrollo iniciado en enero 2024. |
+| **Tipo de cambio**              | Desarrollo previo (sin trazabilidad formal)                                                                                   |
+| **Evidencia de pruebas**        | No documentada                                                                                                                |
+| **Resultado de aceptación**     | —                                                                                                                             |
+| **Responsable de autorización** | —                                                                                                                             |
+
 
 ---
 
@@ -190,3 +222,4 @@ El registro se conserva en archivo interno de control de versiones.
 | **Resultado de aceptación** | [Aprobado/Rechazado] |
 | **Responsable de autorización** | [Nombre] |
 ```
+

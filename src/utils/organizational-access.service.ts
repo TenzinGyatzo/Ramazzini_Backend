@@ -200,11 +200,11 @@ export class OrganizationalAccessService {
       .replace(/^\/+/, '')
       .replace(/^expedientes-medicos\/?/, '');
     const segments = normalized.split('/').filter(Boolean);
-    if (segments.length < 3) {
+    if (segments.length < 2) {
       return null;
     }
 
-    const workerFolder = segments[2];
+    const workerFolder = segments[segments.length - 2];
     const match = workerFolder.match(TRABAJADOR_ID_FROM_FOLDER);
     return match?.[1] ?? null;
   }

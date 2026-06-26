@@ -237,5 +237,14 @@ describe('OrganizationalAccessService', () => {
         ),
       ).toBe(trabajadorId);
     });
+
+    it('extrae ObjectId cuando el nombre del centro contiene barra', () => {
+      const acerosTrabajadorId = '6a3d25e4cd1e8332593053fc';
+      expect(
+        service.extractTrabajadorIdFromClinicalPath(
+          `expedientes-medicos/ACEROS DE GUATEMALA/MEGA PRODUCTO / NUEVOS INGRESOS/JAIME EMANUEL_${acerosTrabajadorId}/Examen Vista 25-06-2026.pdf`,
+        ),
+      ).toBe(acerosTrabajadorId);
+    });
   });
 });
