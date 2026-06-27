@@ -266,7 +266,7 @@ export const examenVistaInforme = (
   const marginBottomSmall = esGT ? 10 : 12;
   const paddingCell = esGT ? 1 : 2;
   const pageMarginsV = esGT
-    ? ([55, 65] as [number, number])
+    ? ([55, 80] as [number, number])
     : ([70, 80] as [number, number]);
 
   if (esGT) {
