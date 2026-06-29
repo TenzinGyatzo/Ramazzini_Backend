@@ -17,10 +17,12 @@ import { ResultadosClinicosModule } from '../resultados-clinicos/resultados-clin
 import { FirmanteHelperModule } from '../expedientes/firmante-helper.module';
 import { AuditModule } from '../audit/audit.module';
 import { OrganizationalAccessModule } from 'src/utils/organizational-access.module';
+import { ExpedienteColaboracionModule } from '../expediente-colaboracion/expediente-colaboracion.module';
+import { ProveedorInformeResolver } from './helpers/proveedor-informe.resolver';
 
 @Module({
   controllers: [InformesController],
-  providers: [InformesService, InformeAccessInterceptor],
+  providers: [InformesService, InformeAccessInterceptor, ProveedorInformeResolver],
   imports: [
     PrinterModule,
     EmpresasModule,
@@ -37,6 +39,7 @@ import { OrganizationalAccessModule } from 'src/utils/organizational-access.modu
     FirmanteHelperModule,
     forwardRef(() => AuditModule),
     OrganizationalAccessModule,
+    ExpedienteColaboracionModule,
   ],
   exports: [InformesService],
 })

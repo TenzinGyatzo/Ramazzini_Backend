@@ -1,0 +1,391 @@
+    const fecha = convertirFechaADDMMAAAA(certificado.fechaCertificado)
+      .replace(/\//g, '-')
+      .replace(/\\/g, '-');
+    const nombreArchivo = `Certificado ${fecha}.pdf`;
+
+    const rutaDirectorio = path.resolve(certificado.rutaPDF);
+    if (!fs.existsSync(rutaDirectorio)) {
+      fs.mkdirSync(rutaDirectorio, { recursive: true });
+    }
+
+    const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+
+    const docDefinition = certificadoInforme(
+      nombreEmpresa,
+      datosTrabajador,
+      datosCertificado,
+      datosExploracionFisica,
+      datosExamenVista,
+      datosMedicoFirmante,
+      datosProveedorSalud,
+      footerData,
+    );
+    await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'certificado',
+      certificadoId,
+    );
+
+    return rutaCompleta;
+  }
+
+  async getInformeCertificadoExpedito(
+    empresaId: string,
+    trabajadorId: string,
+    certificadoExpeditoId: string,
+    userId: string,
+    footerFirmantesData?: FooterFirmantesData,
+  ): Promise<string> {
+    const empresa = await this.empresasService.findOne(empresaId);
+    const nombreEmpresa = empresa.nombreComercial;
+
+    const trabajador = await this.trabajadoresService.findOne(trabajadorId);
+    const datosTrabajador = {
+      primerApellido: trabajador.primerApellido,
+      segundoApellido: trabajador.segundoApellido,
+      nombre: trabajador.nombre,
+      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
+      escolaridad: trabajador.escolaridad,
+      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
+      puesto: trabajador.puesto,
+      sexo: trabajador.sexo,
+      antiguedad: trabajador.fechaIngreso
+        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
+        : '-',
+      telefono: trabajador.telefono,
+      estadoCivil: trabajador.estadoCivil,
+      numeroEmpleado: trabajador.numeroEmpleado,
+      nss: trabajador.nss,
+      curp: trabajador.curp,
+    };
+
+    const certificadoExpedito = await this.expedientesService.findDocument(
+      'certificadoExpedito',
+      certificadoExpeditoId,
+    );
+    const datosCertificadoExpedito = {
+      fechaCertificadoExpedito: certificadoExpedito.fechaCertificadoExpedito,
+      cuerpoCertificado: certificadoExpedito.cuerpoCertificado,
+      impedimentosFisicos: certificadoExpedito.impedimentosFisicos,
+      peso: certificadoExpedito.peso,
+      altura: certificadoExpedito.altura,
+      indiceMasaCorporal: certificadoExpedito.indiceMasaCorporal,
+      tensionArterialSistolica: certificadoExpedito.tensionArterialSistolica,
+      tensionArterialDiastolica: certificadoExpedito.tensionArterialDiastolica,
+      frecuenciaCardiaca: certificadoExpedito.frecuenciaCardiaca,
+      frecuenciaRespiratoria: certificadoExpedito.frecuenciaRespiratoria,
+      temperaturaCorporal: certificadoExpedito.temperaturaCorporal,
+      gradoSalud: certificadoExpedito.gradoSalud,
+      aptitudPuesto: certificadoExpedito.aptitudPuesto,
+      descripcionSobreAptitud: certificadoExpedito.descripcionSobreAptitud,
+      observaciones: certificadoExpedito.observaciones,
+    };
+
+    let footerData: FooterFirmantesData | undefined = footerFirmantesData;
+    if (
+      !footerData &&
+      (certificadoExpedito.estado === DocumentoEstado.FINALIZADO ||
+        certificadoExpedito.estado === DocumentoEstado.ANULADO)
+    ) {
+      const creadorId =
+        (certificadoExpedito.createdBy?._id || certificadoExpedito.createdBy)?.toString() ||
+        userId;
+      const finalizadorId =
+        (certificadoExpedito.finalizadoPor?._id || certificadoExpedito.finalizadoPor)?.toString() ||
+        userId;
+      if (creadorId !== finalizadorId) {
+        const elaborador = await this.obtenerDatosFirmante(creadorId);
+        const finalizador = await this.obtenerDatosFirmante(finalizadorId);
+        footerData = {
+          elaborador,
+          finalizador,
+          esDocumentoFinalizado: true,
+        };
+      }
+    }
+
+    const firmanteUserId =
+      certificadoExpedito.estado === DocumentoEstado.BORRADOR
+        ? (certificadoExpedito.createdBy?._id || certificadoExpedito.createdBy)?.toString() ||
+          userId
+        : certificadoExpedito.estado === DocumentoEstado.FINALIZADO ||
+            certificadoExpedito.estado === DocumentoEstado.ANULADO
+          ? (certificadoExpedito.finalizadoPor?._id || certificadoExpedito.finalizadoPor)?.toString() ||
+            userId
+          : userId;
+
+    const medicoFirmante =
+      await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
+    const datosMedicoFirmante = this.mapMedicoFirmante(
+      medicoFirmante
+        ? {
+            nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
+            tituloProfesional: medicoFirmante.tituloProfesional,
+            universidad: medicoFirmante.universidad,
+            numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
+            especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo,
+            numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista,
+            nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional,
+            numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional,
+            firma:
+              (medicoFirmante.firma as { data: string; contentType: string }) ||
+              null,
+          }
+        : null,
+    );
+
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
+
+    const fecha = convertirFechaADDMMAAAA(
+      certificadoExpedito.fechaCertificadoExpedito,
+    )
+      .replace(/\//g, '-')
+      .replace(/\\/g, '-');
+    const nombreArchivo = `Certificado Expedito ${fecha}.pdf`;
+
+    const rutaDirectorio = path.resolve(certificadoExpedito.rutaPDF);
+    if (!fs.existsSync(rutaDirectorio)) {
+      fs.mkdirSync(rutaDirectorio, { recursive: true });
+    }
+
+    const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+
+    const docDefinition = certificadoExpeditoInforme(
+      nombreEmpresa,
+      datosTrabajador,
+      datosCertificadoExpedito,
+      datosMedicoFirmante,
+      datosProveedorSalud,
+      footerData,
+    );
+    await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'certificadoExpedito',
+      certificadoExpeditoId,
+    );
+
+    return rutaCompleta;
+  }
+
+  async getInformeExamenVista(
+    empresaId: string,
+    trabajadorId: string,
+    examenVistaId: string,
+    userId: string,
+    footerFirmantesData?: FooterFirmantesData,
+  ): Promise<string> {
+    const empresa = await this.empresasService.findOne(empresaId);
+    const nombreEmpresa = empresa.nombreComercial;
+
+    const trabajador = await this.trabajadoresService.findOne(trabajadorId);
+    const datosTrabajador = {
+      primerApellido: trabajador.primerApellido,
+      segundoApellido: trabajador.segundoApellido,
+      nombre: trabajador.nombre,
+      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
+      escolaridad: trabajador.escolaridad,
+      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
+      puesto: trabajador.puesto,
+      sexo: trabajador.sexo,
+      antiguedad: trabajador.fechaIngreso
+        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
+        : '-',
+      telefono: trabajador.telefono,
+      estadoCivil: trabajador.estadoCivil,
+      numeroEmpleado: trabajador.numeroEmpleado,
+      nss: trabajador.nss,
+      curp: trabajador.curp,
+    };
+
+    const examenVista = await this.expedientesService.findDocument(
+      'examenVista',
+      examenVistaId,
+    );
+    const datosExamenVistaDoc = {
+      fechaExamenVista: examenVista.fechaExamenVista,
+      ojoIzquierdoCegueraTotal: examenVista.ojoIzquierdoCegueraTotal,
+      ojoDerechoCegueraTotal: examenVista.ojoDerechoCegueraTotal,
+      ojoIzquierdoLejanaCegueraTotal: examenVista.ojoIzquierdoLejanaCegueraTotal,
+      ojoDerechoLejanaCegueraTotal: examenVista.ojoDerechoLejanaCegueraTotal,
+      ojoIzquierdoCercanaCegueraTotal: examenVista.ojoIzquierdoCercanaCegueraTotal,
+      ojoDerechoCercanaCegueraTotal: examenVista.ojoDerechoCercanaCegueraTotal,
+      ojoIzquierdoLejanaSinCorreccion: examenVista.ojoIzquierdoLejanaSinCorreccion,
+      ojoDerechoLejanaSinCorreccion: examenVista.ojoDerechoLejanaSinCorreccion,
+      sinCorreccionLejanaInterpretacion: examenVista.sinCorreccionLejanaInterpretacion,
+      requiereLentesUsoGeneral: examenVista.requiereLentesUsoGeneral,
+      ojoIzquierdoCercanaSinCorreccion: examenVista.ojoIzquierdoCercanaSinCorreccion,
+      ojoDerechoCercanaSinCorreccion: examenVista.ojoDerechoCercanaSinCorreccion,
+      sinCorreccionCercanaInterpretacion: examenVista.sinCorreccionCercanaInterpretacion,
+      requiereLentesParaLectura: examenVista.requiereLentesParaLectura,
+      ojoIzquierdoLejanaConCorreccion: examenVista.ojoIzquierdoLejanaConCorreccion,
+      ojoDerechoLejanaConCorreccion: examenVista.ojoDerechoLejanaConCorreccion,
+      conCorreccionLejanaInterpretacion: examenVista.conCorreccionLejanaInterpretacion,
+      ojoIzquierdoCercanaConCorreccion: examenVista.ojoIzquierdoCercanaConCorreccion,
+      ojoDerechoCercanaConCorreccion: examenVista.ojoDerechoCercanaConCorreccion,
+      conCorreccionCercanaInterpretacion: examenVista.conCorreccionCercanaInterpretacion,
+      placasCorrectas: examenVista.placasCorrectas,
+      porcentajeIshihara: examenVista.porcentajeIshihara,
+      interpretacionIshihara: examenVista.interpretacionIshihara,
+    };
+
+    let footerData: FooterFirmantesData | undefined = footerFirmantesData;
+    if (
+      !footerData &&
+      (examenVista.estado === DocumentoEstado.FINALIZADO ||
+        examenVista.estado === DocumentoEstado.ANULADO)
+    ) {
+      const creadorId =
+        (examenVista.createdBy?._id || examenVista.createdBy)?.toString() ||
+        userId;
+      const finalizadorId =
+        (examenVista.finalizadoPor?._id || examenVista.finalizadoPor)?.toString() ||
+        userId;
+      if (creadorId !== finalizadorId) {
+        const elaborador = await this.obtenerDatosFirmante(creadorId);
+        const finalizador = await this.obtenerDatosFirmante(finalizadorId);
+        footerData = {
+          elaborador,
+          finalizador,
+          esDocumentoFinalizado: true,
+        };
+      }
+    }
+
+    const firmanteUserId =
+      examenVista.estado === DocumentoEstado.BORRADOR
+        ? (examenVista.createdBy?._id || examenVista.createdBy)?.toString() ||
+          userId
+        : examenVista.estado === DocumentoEstado.FINALIZADO ||
+            examenVista.estado === DocumentoEstado.ANULADO
+          ? (examenVista.finalizadoPor?._id || examenVista.finalizadoPor)?.toString() ||
+            userId
+          : userId;
+
+    const medicoFirmante =
+      await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
+    const datosMedicoFirmante = this.mapMedicoFirmante(
+      medicoFirmante
+        ? {
+            nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
+            tituloProfesional: medicoFirmante.tituloProfesional,
+            universidad: medicoFirmante.universidad,
+            numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
+            especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo,
+            numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista,
+            nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional,
+            numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional,
+            firma:
+              (medicoFirmante.firma as { data: string; contentType: string }) ||
+              null,
+          }
+        : null,
+    );
+
+    const enfermeraFirmante =
+      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
+    const datosEnfermeraFirmante = enfermeraFirmante
+      ? {
+          nombre: enfermeraFirmante.nombre || '',
+          primerApellido: enfermeraFirmante.primerApellido || '',
+          segundoApellido: enfermeraFirmante.segundoApellido || '',
+          sexo: enfermeraFirmante.sexo || '',
+          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
+          numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || '',
+          nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || '',
+          firma:
+            (enfermeraFirmante.firma as { data: string; contentType: string }) ||
+            null,
+        }
+      : {
+          nombre: '',
+          primerApellido: '',
+          segundoApellido: '',
+          sexo: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const tecnicoFirmante =
+      await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
+    const datosTecnicoFirmante = tecnicoFirmante
+      ? {
+          nombre: tecnicoFirmante.nombre || '',
+          primerApellido: tecnicoFirmante.primerApellido || '',
+          segundoApellido: tecnicoFirmante.segundoApellido || '',
+          sexo: tecnicoFirmante.sexo || '',
+          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
+          numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || '',
+          nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || '',
+          firma:
+            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
+            null,
+        }
+      : {
+          nombre: '',
+          primerApellido: '',
+          segundoApellido: '',
+          sexo: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
+
+    const fecha = convertirFechaADDMMAAAA(examenVista.fechaExamenVista)
+      .replace(/\//g, '-')
+      .replace(/\\/g, '-');
+    const nombreArchivo = `Examen Vista ${fecha}.pdf`;
+
+    const rutaDirectorio = path.resolve(examenVista.rutaPDF);
+    if (!fs.existsSync(rutaDirectorio)) {
+      fs.mkdirSync(rutaDirectorio, { recursive: true });
+    }
+
+    const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+
+    const docDefinition = examenVistaInforme(
+      nombreEmpresa,
+      datosTrabajador,
+      datosExamenVistaDoc,
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      datosProveedorSalud,
+      footerData,
+    );
+    await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'examenVista',
+      examenVistaId,
+    );
+
+    return rutaCompleta;
+  }

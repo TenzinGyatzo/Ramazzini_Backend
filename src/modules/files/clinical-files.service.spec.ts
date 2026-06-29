@@ -59,7 +59,7 @@ describe('ClinicalFilesService', () => {
     );
   });
 
-  it('valida acceso organizacional antes de servir archivo', async () => {
+  it('rechaza acceso cuando la autorizacion organizacional falla', async () => {
     const relativePath =
       'expedientes-medicos/Empresa/Centro/Juan_507f1f77bcf86cd799439011/doc.pdf';
 
@@ -74,5 +74,26 @@ describe('ClinicalFilesService', () => {
     expect(
       organizationalAccessService.assertUserCanAccessClinicalPath,
     ).toHaveBeenCalledWith('actor-id', relativePath);
+  });
+
+  it('permite acceso cuando la autorizacion organizacional resuelve', async () => {
+    const relativeDir = path.join('__tests__', 'clinical-files-auth');
+    const absoluteDir = path.join(EXPEDIENTES_DIR, relativeDir);
+    await fs.mkdir(absoluteDir, { recursive: true });
+    const fileName = 'doc.pdf';
+    const absoluteFile = path.join(absoluteDir, fileName);
+    await fs.writeFile(absoluteFile, '%PDF-1.4 sample');
+
+    const relativePath = `expedientes-medicos/${relativeDir.replace(/\\/g, '/')}/${fileName}`;
+
+    await expect(
+      service.assertClinicalFileAccessibleForUser('actor-id', relativePath),
+    ).resolves.toBe(absoluteFile);
+
+    expect(
+      organizationalAccessService.assertUserCanAccessClinicalPath,
+    ).toHaveBeenCalledWith('actor-id', relativePath);
+
+    await fs.rm(absoluteDir, { recursive: true, force: true });
   });
 });

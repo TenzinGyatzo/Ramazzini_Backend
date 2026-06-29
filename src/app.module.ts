@@ -34,6 +34,7 @@ import { ConsentimientosModule } from './modules/consentimientos/consentimientos
 import { AcuerdoConfidencialidadModule } from './modules/acuerdo-confidencialidad/acuerdo-confidencialidad.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ResultadosClinicosModule } from './modules/resultados-clinicos/resultados-clinicos.module';
+import { ExpedienteColaboracionModule } from './modules/expediente-colaboracion/expediente-colaboracion.module';
 
 @Module({
   imports: [
@@ -87,6 +88,7 @@ import { ResultadosClinicosModule } from './modules/resultados-clinicos/resultad
     InformePersonalizacionModule,
     ResultadosClinicosModule,
     SessionActivityModule,
+    ExpedienteColaboracionModule,
   ],
   providers: [
     {

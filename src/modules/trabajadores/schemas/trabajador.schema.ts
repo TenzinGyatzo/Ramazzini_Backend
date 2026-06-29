@@ -160,6 +160,20 @@ export class Trabajador extends Document {
     required: false,
   })
   idTrabajadorCanonico?: MongooseSchema.Types.ObjectId;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Trabajador',
+    required: false,
+  })
+  idTrabajadorOrigen?: MongooseSchema.Types.ObjectId;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'ProveedoresSalud',
+    required: false,
+  })
+  idProveedorSaludOrigen?: MongooseSchema.Types.ObjectId;
 }
 
 export const TrabajadorSchema = SchemaFactory.createForClass(Trabajador).set(
@@ -173,3 +187,4 @@ TrabajadorSchema.index({ numeroEmpleado: 1 });
 TrabajadorSchema.index({ estadoLaboral: 1 });
 TrabajadorSchema.index({ folio: 1 });
 TrabajadorSchema.index({ curp: 1 });
+TrabajadorSchema.index({ idTrabajadorOrigen: 1 });

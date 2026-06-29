@@ -1,0 +1,455 @@
+  async getInformeAptitudPuesto(
+    empresaId: string,
+    trabajadorId: string,
+    aptitudId: string,
+    userId: string,
+    footerFirmantesData?: FooterFirmantesData,
+    includeResultadosClinicos = true,
+  ): Promise<string> {
+    const empresa = await this.empresasService.findOne(empresaId);
+    const nombreEmpresa = empresa.nombreComercial;
+
+    const trabajador = await this.trabajadoresService.findOne(trabajadorId);
+    const datosTrabajador = {
+      primerApellido: trabajador.primerApellido,
+      segundoApellido: trabajador.segundoApellido,
+      nombre: trabajador.nombre,
+      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
+      escolaridad: trabajador.escolaridad,
+      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
+      puesto: trabajador.puesto,
+      sexo: trabajador.sexo,
+      antiguedad: trabajador.fechaIngreso
+        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
+        : '-',
+      telefono: trabajador.telefono,
+      estadoCivil: trabajador.estadoCivil,
+      numeroEmpleado: trabajador.numeroEmpleado,
+      nss: trabajador.nss,
+      curp: trabajador.curp,
+    };
+
+    const aptitud = await this.expedientesService.findDocument(
+      'aptitud',
+      aptitudId,
+    );
+
+    const datosAptitud = {
+      fechaAptitudPuesto: aptitud.fechaAptitudPuesto,
+      evaluacionAdicional1: aptitud.evaluacionAdicional1,
+      fechaEvaluacionAdicional1: aptitud.fechaEvaluacionAdicional1,
+      resultadosEvaluacionAdicional1: aptitud.resultadosEvaluacionAdicional1,
+      evaluacionAdicional2: aptitud.evaluacionAdicional2,
+      fechaEvaluacionAdicional2: aptitud.fechaEvaluacionAdicional2,
+      resultadosEvaluacionAdicional2: aptitud.resultadosEvaluacionAdicional2,
+      evaluacionAdicional3: aptitud.evaluacionAdicional3,
+      fechaEvaluacionAdicional3: aptitud.fechaEvaluacionAdicional3,
+      resultadosEvaluacionAdicional3: aptitud.resultadosEvaluacionAdicional3,
+      evaluacionAdicional4: aptitud.evaluacionAdicional4,
+      fechaEvaluacionAdicional4: aptitud.fechaEvaluacionAdicional4,
+      resultadosEvaluacionAdicional4: aptitud.resultadosEvaluacionAdicional4,
+      evaluacionAdicional5: aptitud.evaluacionAdicional5,
+      fechaEvaluacionAdicional5: aptitud.fechaEvaluacionAdicional5,
+      resultadosEvaluacionAdicional5: aptitud.resultadosEvaluacionAdicional5,
+      aptitudPuesto: aptitud.aptitudPuesto,
+      alteracionesSalud: aptitud.alteracionesSalud,
+      resultados: aptitud.resultados,
+      medidasPreventivas: aptitud.medidasPreventivas,
+    };
+
+    let footerData: FooterFirmantesData | undefined = footerFirmantesData;
+
+    if (
+      !footerData &&
+      (aptitud.estado === DocumentoEstado.FINALIZADO ||
+        aptitud.estado === DocumentoEstado.ANULADO)
+    ) {
+      const creadorId =
+        (aptitud.createdBy?._id || aptitud.createdBy)?.toString() || userId;
+      const finalizadorId =
+        (aptitud.finalizadoPor?._id || aptitud.finalizadoPor)?.toString() ||
+        userId;
+
+      if (creadorId !== finalizadorId) {
+        const elaborador = await this.obtenerDatosFirmante(creadorId);
+        const finalizador = await this.obtenerDatosFirmante(finalizadorId);
+
+        footerData = {
+          elaborador,
+          finalizador,
+          esDocumentoFinalizado: true,
+        };
+      }
+    }
+
+    const firmanteUserId =
+      aptitud.estado === DocumentoEstado.BORRADOR
+        ? (aptitud.createdBy?._id || aptitud.createdBy)?.toString() || userId
+        : aptitud.estado === DocumentoEstado.FINALIZADO ||
+            aptitud.estado === DocumentoEstado.ANULADO
+          ? (aptitud.finalizadoPor?._id || aptitud.finalizadoPor)?.toString() ||
+            userId
+          : userId;
+
+    const medicoFirmante =
+      await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
+    const datosMedicoFirmante = this.mapMedicoFirmante(
+      medicoFirmante
+        ? {
+            nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
+            tituloProfesional: medicoFirmante.tituloProfesional,
+            universidad: medicoFirmante.universidad,
+            numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
+            especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo,
+            numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista,
+            nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional,
+            numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional,
+            firma:
+              (medicoFirmante.firma as { data: string; contentType: string }) ||
+              null,
+          }
+        : null,
+    );
+
+    const [
+      historiasClinicasList,
+      exploracionesFisicasList,
+      examenesVistaList,
+      audiometriasList,
+      antidopingsList,
+      entrevistasPsicologicasList,
+      trastornosEstadoAnimoList,
+      cuestionariosProdromalBreveList,
+      trastornosLimitePersonalidadList,
+      resultadosClinicosList,
+    ] = await Promise.all([
+      this.expedientesService.findDocuments('historiaClinica', trabajadorId),
+      this.expedientesService.findDocuments('exploracionFisica', trabajadorId),
+      this.expedientesService.findDocuments('examenVista', trabajadorId),
+      this.expedientesService.findDocuments('audiometria', trabajadorId),
+      this.expedientesService.findDocuments('antidoping', trabajadorId),
+      this.expedientesService.findDocuments(
+        'entrevistaPsicologica',
+        trabajadorId,
+      ),
+      this.expedientesService.findDocuments(
+        'trastornosEstadoAnimo',
+        trabajadorId,
+      ),
+      this.expedientesService.findDocuments(
+        'cuestionarioProdromalBreve',
+        trabajadorId,
+      ),
+      this.expedientesService.findDocuments(
+        'trastornoLimitePersonalidad',
+        trabajadorId,
+      ),
+      includeResultadosClinicos
+        ? this.resultadosClinicosService.findByTrabajador(trabajadorId)
+        : Promise.resolve([]),
+    ]);
+
+    const fechaAptitudRef = aptitud.fechaAptitudPuesto;
+    const referenceYear = fechaAptitudRef
+      ? new Date(fechaAptitudRef).getFullYear()
+      : null;
+
+    const nearestHistoriaClinica = findNearestDocumentSameYear(
+      historiasClinicasList,
+      fechaAptitudRef,
+      'fechaHistoriaClinica',
+    );
+    const nearestExploracionFisica = findNearestDocumentSameYear(
+      exploracionesFisicasList,
+      fechaAptitudRef,
+      'fechaExploracionFisica',
+    );
+    const nearestExamenVista = findNearestDocumentSameYear(
+      examenesVistaList,
+      fechaAptitudRef,
+      'fechaExamenVista',
+    );
+    const nearestAudiometria = findNearestDocumentSameYear(
+      audiometriasList,
+      fechaAptitudRef,
+      'fechaAudiometria',
+    );
+    const nearestAntidoping = findNearestDocumentSameYear(
+      antidopingsList,
+      fechaAptitudRef,
+      'fechaAntidoping',
+    );
+
+    const nearestEntrevistaPsicologica = findNearestDocumentSameYear(
+      entrevistasPsicologicasList,
+      fechaAptitudRef,
+      'fechaEntrevistaPsicologica',
+    );
+    const nearestTrastornosEstadoAnimo = findNearestDocumentSameYear(
+      trastornosEstadoAnimoList,
+      fechaAptitudRef,
+      'fechaTrastornosEstadoAnimo',
+    );
+    const nearestCuestionarioProdromalBreve = findNearestDocumentSameYear(
+      cuestionariosProdromalBreveList,
+      fechaAptitudRef,
+      'fechaCuestionarioProdromalBreve',
+    );
+    const nearestTrastornoLimitePersonalidad = findNearestDocumentSameYear(
+      trastornosLimitePersonalidadList,
+      fechaAptitudRef,
+      'fechaTrastornoLimitePersonalidad',
+    );
+
+    const datosHistoriaClinica = nearestHistoriaClinica
+      ? {
+          fechaHistoriaClinica: nearestHistoriaClinica.fechaHistoriaClinica,
+          resumenHistoriaClinica: nearestHistoriaClinica.resumenHistoriaClinica,
+        }
+      : null;
+
+    const datosExploracionFisica = nearestExploracionFisica
+      ? {
+          fechaExploracionFisica:
+            nearestExploracionFisica.fechaExploracionFisica,
+          tensionArterialSistolica:
+            nearestExploracionFisica.tensionArterialSistolica,
+          tensionArterialDiastolica:
+            nearestExploracionFisica.tensionArterialDiastolica,
+          categoriaTensionArterial:
+            nearestExploracionFisica.categoriaTensionArterial,
+          indiceMasaCorporal: nearestExploracionFisica.indiceMasaCorporal,
+          categoriaIMC: nearestExploracionFisica.categoriaIMC,
+          circunferenciaCintura: nearestExploracionFisica.circunferenciaCintura,
+          categoriaCircunferenciaCintura:
+            nearestExploracionFisica.categoriaCircunferenciaCintura,
+          resumenExploracionFisica:
+            nearestExploracionFisica.resumenExploracionFisica,
+        }
+      : null;
+
+    const datosExamenVista = nearestExamenVista
+      ? {
+          fechaExamenVista: nearestExamenVista.fechaExamenVista,
+          ojoIzquierdoCegueraTotal: nearestExamenVista.ojoIzquierdoCegueraTotal,
+          ojoDerechoCegueraTotal: nearestExamenVista.ojoDerechoCegueraTotal,
+          ojoIzquierdoLejanaCegueraTotal:
+            nearestExamenVista.ojoIzquierdoLejanaCegueraTotal,
+          ojoDerechoLejanaCegueraTotal:
+            nearestExamenVista.ojoDerechoLejanaCegueraTotal,
+          ojoIzquierdoCercanaCegueraTotal:
+            nearestExamenVista.ojoIzquierdoCercanaCegueraTotal,
+          ojoDerechoCercanaCegueraTotal:
+            nearestExamenVista.ojoDerechoCercanaCegueraTotal,
+          ojoIzquierdoLejanaSinCorreccion:
+            nearestExamenVista.ojoIzquierdoLejanaSinCorreccion,
+          ojoDerechoLejanaSinCorreccion:
+            nearestExamenVista.ojoDerechoLejanaSinCorreccion,
+          sinCorreccionLejanaInterpretacion:
+            nearestExamenVista.sinCorreccionLejanaInterpretacion,
+          ojoIzquierdoLejanaConCorreccion:
+            nearestExamenVista.ojoIzquierdoLejanaConCorreccion,
+          ojoDerechoLejanaConCorreccion:
+            nearestExamenVista.ojoDerechoLejanaConCorreccion,
+          conCorreccionLejanaInterpretacion:
+            nearestExamenVista.conCorreccionLejanaInterpretacion,
+          porcentajeIshihara: nearestExamenVista.porcentajeIshihara,
+          interpretacionIshihara: nearestExamenVista.interpretacionIshihara,
+        }
+      : null;
+
+    const datosAudiometria = nearestAudiometria
+      ? {
+          fechaAudiometria: nearestAudiometria.fechaAudiometria,
+          diagnosticoAudiometria: nearestAudiometria.diagnosticoAudiometria,
+          hipoacusiaBilateralCombinada:
+            nearestAudiometria.hipoacusiaBilateralCombinada,
+        }
+      : null;
+
+    const datosAntidopingAptitud = nearestAntidoping
+      ? {
+          fechaAntidoping: nearestAntidoping.fechaAntidoping,
+          marihuana: nearestAntidoping.marihuana,
+          cocaina: nearestAntidoping.cocaina,
+          anfetaminas: nearestAntidoping.anfetaminas,
+          metanfetaminas: nearestAntidoping.metanfetaminas,
+          opiaceos: nearestAntidoping.opiaceos,
+          benzodiacepinas: nearestAntidoping.benzodiacepinas || null,
+          fenciclidina: nearestAntidoping.fenciclidina || null,
+          metadona: nearestAntidoping.metadona || null,
+          barbituricos: nearestAntidoping.barbituricos || null,
+          antidepresivosTriciclicos:
+            nearestAntidoping.antidepresivosTriciclicos || null,
+        }
+      : null;
+
+    const nearestTipoSangre = includeResultadosClinicos
+      ? this.findMostRecentResultadoClinicoByTipo(
+          resultadosClinicosList as Array<Record<string, unknown>>,
+          'TIPO_SANGRE',
+        )
+      : null;
+    const nearestEKG = includeResultadosClinicos
+      ? this.findMostRecentResultadoClinicoByTipo(
+          resultadosClinicosList as Array<Record<string, unknown>>,
+          'EKG',
+          referenceYear,
+        )
+      : null;
+    const nearestEspirometria = includeResultadosClinicos
+      ? this.findMostRecentResultadoClinicoByTipo(
+          resultadosClinicosList as Array<Record<string, unknown>>,
+          'ESPIROMETRIA',
+          referenceYear,
+        )
+      : null;
+    const nearestRayosX = includeResultadosClinicos
+      ? this.findMostRecentResultadoClinicoByTipo(
+          resultadosClinicosList as Array<Record<string, unknown>>,
+          'RAYOS_X',
+          referenceYear,
+        )
+      : null;
+    const nearestAnalisisLaboratorio = includeResultadosClinicos
+      ? this.findMostRecentResultadoClinicoByTipo(
+          resultadosClinicosList as Array<Record<string, unknown>>,
+          'ANALISIS_LABORATORIO',
+          referenceYear,
+        )
+      : null;
+
+    const datosResultadoClinicoTipoSangre = nearestTipoSangre
+      ? {
+          fechaEstudio: nearestTipoSangre.fechaEstudio,
+          tipoSangre: nearestTipoSangre.tipoSangre,
+        }
+      : null;
+    const datosResultadoClinicoEKG = nearestEKG
+      ? {
+          fechaEstudio: nearestEKG.fechaEstudio,
+          resultadoGlobal: nearestEKG.resultadoGlobal,
+          hallazgoEspecifico: nearestEKG.hallazgoEspecifico,
+          tipoAlteracionEKG: nearestEKG.tipoAlteracionEKG,
+        }
+      : null;
+    const datosResultadoClinicoEspirometria = nearestEspirometria
+      ? {
+          fechaEstudio: nearestEspirometria.fechaEstudio,
+          resultadoGlobal: nearestEspirometria.resultadoGlobal,
+          hallazgoEspecifico: nearestEspirometria.hallazgoEspecifico,
+          tipoAlteracionEspirometria: nearestEspirometria.tipoAlteracionEspirometria,
+        }
+      : null;
+    const datosResultadoClinicoRayosX = nearestRayosX
+      ? {
+          fechaEstudio: nearestRayosX.fechaEstudio,
+          resultadoGlobal: nearestRayosX.resultadoGlobal,
+          hallazgoEspecifico: nearestRayosX.hallazgoEspecifico,
+          tipoAlteracionRayosX: nearestRayosX.tipoAlteracionRayosX,
+        }
+      : null;
+    const datosResultadoClinicoAnalisisLaboratorio = nearestAnalisisLaboratorio
+      ? {
+          fechaEstudio: nearestAnalisisLaboratorio.fechaEstudio,
+          resultadoGlobal: nearestAnalisisLaboratorio.resultadoGlobal,
+          hallazgoEspecifico: nearestAnalisisLaboratorio.hallazgoEspecifico,
+          tipoAlteracionAnalisisLaboratorio:
+            nearestAnalisisLaboratorio.tipoAlteracionAnalisisLaboratorio,
+        }
+      : null;
+
+    const filasTamizajePsicologia: {
+      titulo: string;
+      fecha: Date;
+      resumen: string;
+    }[] = [];
+    if (nearestEntrevistaPsicologica) {
+      filasTamizajePsicologia.push({
+        titulo: 'ENTREVISTA PSICOLÓGICA',
+        fecha: nearestEntrevistaPsicologica.fechaEntrevistaPsicologica,
+        resumen: resumenTablaEntrevistaPsicologica(
+          nearestEntrevistaPsicologica as Record<string, unknown>,
+        ),
+      });
+    }
+    if (nearestTrastornosEstadoAnimo) {
+      filasTamizajePsicologia.push({
+        titulo: 'TRASTORNOS DEL ESTADO DE ÁNIMO',
+        fecha: nearestTrastornosEstadoAnimo.fechaTrastornosEstadoAnimo,
+        resumen: resumenTablaTrastornosEstadoAnimo(
+          nearestTrastornosEstadoAnimo as Record<string, unknown>,
+        ),
+      });
+    }
+    if (nearestCuestionarioProdromalBreve) {
+      filasTamizajePsicologia.push({
+        titulo: 'CUESTIONARIO PRODROMAL BREVE',
+        fecha: nearestCuestionarioProdromalBreve.fechaCuestionarioProdromalBreve,
+        resumen: resumenTablaCuestionarioProdromalBreve(
+          nearestCuestionarioProdromalBreve as Record<string, unknown>,
+        ),
+      });
+    }
+    if (nearestTrastornoLimitePersonalidad) {
+      filasTamizajePsicologia.push({
+        titulo: 'TRASTORNO LÍMITE PERSONALIDAD',
+        fecha: nearestTrastornoLimitePersonalidad.fechaTrastornoLimitePersonalidad,
+        resumen: resumenTablaTrastornoLimitePersonalidad(
+          nearestTrastornoLimitePersonalidad as Record<string, unknown>,
+        ),
+      });
+    }
+
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+        includeSemaforizacion: true,
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
+
+    const fecha = convertirFechaADDMMAAAA(aptitud.fechaAptitudPuesto)
+      .replace(/\//g, '-')
+      .replace(/\\/g, '-');
+    const nombreArchivo = `Aptitud ${fecha}.pdf`;
+
+    const rutaDirectorio = path.resolve(aptitud.rutaPDF);
+    if (!fs.existsSync(rutaDirectorio)) {
+      fs.mkdirSync(rutaDirectorio, { recursive: true });
+    }
+
+    const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+
+    const docDefinition = aptitudPuestoInforme(
+      nombreEmpresa,
+      datosTrabajador,
+      datosAptitud,
+      datosHistoriaClinica,
+      datosExploracionFisica,
+      datosExamenVista,
+      datosAudiometria,
+      datosAntidopingAptitud,
+      datosResultadoClinicoTipoSangre,
+      datosResultadoClinicoEKG,
+      datosResultadoClinicoEspirometria,
+      datosResultadoClinicoRayosX,
+      datosResultadoClinicoAnalisisLaboratorio,
+      datosMedicoFirmante,
+      datosProveedorSalud,
+      footerData,
+      filasTamizajePsicologia,
+    );
+
+    await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'aptitud',
+      aptitudId,
+    );
+
+    return rutaCompleta;
+  }

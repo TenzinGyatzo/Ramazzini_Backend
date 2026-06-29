@@ -28,6 +28,16 @@ export class CentroTrabajo extends Document {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   updatedBy: User;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'CentroTrabajo', required: false })
+  idCentroOrigen?: MongooseSchema.Types.ObjectId;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'ExpedienteColaboracion',
+    required: false,
+  })
+  idExpedienteColaboracion?: MongooseSchema.Types.ObjectId;
 }
 
 export const CentroTrabajoSchema = SchemaFactory.createForClass(

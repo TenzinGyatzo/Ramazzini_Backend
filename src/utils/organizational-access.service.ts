@@ -2,6 +2,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -9,6 +10,7 @@ import { User } from 'src/modules/users/entities/user.entity';
 import { CentroTrabajo } from 'src/modules/centros-trabajo/schemas/centro-trabajo.schema';
 import { Empresa } from 'src/modules/empresas/schemas/empresa.schema';
 import { Trabajador } from 'src/modules/trabajadores/schemas/trabajador.schema';
+import { ExpedienteColaboracionService } from 'src/modules/expediente-colaboracion/expediente-colaboracion.service';
 
 const TRABAJADOR_ID_FROM_FOLDER = /_([0-9a-fA-F]{24})$/;
 
@@ -21,6 +23,8 @@ export class OrganizationalAccessService {
     @InjectModel(Empresa.name) private readonly empresaModel: Model<Empresa>,
     @InjectModel(Trabajador.name)
     private readonly trabajadorModel: Model<Trabajador>,
+    @Optional()
+    private readonly expedienteColaboracionService?: ExpedienteColaboracionService,
   ) {}
 
   async assertUserCanAccessCentro(
@@ -188,10 +192,23 @@ export class OrganizationalAccessService {
       throw new ForbiddenException('Ruta de expediente no autorizada');
     }
 
-    await this.assertUserCanAccessTrabajador(
+    try {
+      await this.assertUserCanAccessTrabajador(
+        userId,
+        String(centro.idEmpresa),
+        trabajadorId,
+      );
+      return;
+    } catch (error) {
+      if (!(error instanceof ForbiddenException)) {
+        throw error;
+      }
+    }
+
+    await this.assertDelegatedClinicalPathAccess(
       userId,
-      String(centro.idEmpresa),
       trabajadorId,
+      relativePath,
     );
   }
 
@@ -207,6 +224,67 @@ export class OrganizationalAccessService {
     const workerFolder = segments[segments.length - 2];
     const match = workerFolder.match(TRABAJADOR_ID_FROM_FOLDER);
     return match?.[1] ?? null;
+  }
+
+  private async assertDelegatedClinicalPathAccess(
+    userId: string,
+    trabajadorOrigenId: string,
+    relativePath: string,
+  ): Promise<void> {
+    if (!this.expedienteColaboracionService) {
+      throw new ForbiddenException(
+        'No tiene permiso para acceder a recursos de otro proveedor de salud',
+      );
+    }
+
+    const user = await this.userModel.findById(userId).exec();
+    if (!user?.idProveedorSalud) {
+      throw new ForbiddenException(
+        'No tiene permiso para acceder a este recurso',
+      );
+    }
+
+    const delegation =
+      await this.expedienteColaboracionService.resolveTrabajadorDestinoPorOrigen(
+        trabajadorOrigenId,
+        String(user.idProveedorSalud),
+      );
+
+    if (!delegation) {
+      throw new ForbiddenException(
+        'No tiene permiso para acceder a recursos de otro proveedor de salud',
+      );
+    }
+
+    const trabajadorDestino = await this.trabajadorModel
+      .findById(delegation.trabajadorDestinoId)
+      .exec();
+    if (!trabajadorDestino) {
+      throw new ForbiddenException('Ruta de expediente no autorizada');
+    }
+
+    const centroDestino = await this.centroTrabajoModel
+      .findById(trabajadorDestino.idCentroTrabajo)
+      .exec();
+    if (!centroDestino) {
+      throw new ForbiddenException('Ruta de expediente no autorizada');
+    }
+
+    await this.assertUserCanAccessTrabajador(
+      userId,
+      String(centroDestino.idEmpresa),
+      delegation.trabajadorDestinoId,
+    );
+
+    const hasDocument =
+      await this.expedienteColaboracionService.hasDocumentAtPathForTrabajador(
+        delegation.trabajadorDestinoId,
+        relativePath,
+      );
+
+    if (!hasDocument) {
+      throw new ForbiddenException('Ruta de expediente no autorizada');
+    }
   }
 
   private assertUserCanAccessEmpresaCentro(

@@ -68,7 +68,11 @@ import {
   MedicoFirmanteInforme,
   TecnicoFirmanteInforme,
 } from './types/firmante-informe.types';
-
+import { ProveedorInformeResolver } from './helpers/proveedor-informe.resolver';
+import { ResolveProveedorInformeResult } from './types/proveedor-informe.types';
+import { AuditService } from '../audit/audit.service';
+import { AuditActionType } from '../audit/constants/audit-action-type';
+import { AuditEventClass } from '../audit/constants/audit-event-class';
 @Injectable()
 export class InformesService {
   // Mapeo de tipos de documentos técnicos a nombres legibles
@@ -122,7 +126,35 @@ export class InformesService {
     private readonly catalogsService: CatalogsService,
     private readonly resultadosClinicosService: ResultadosClinicosService,
     private readonly firmanteHelper: FirmanteHelper,
+    private readonly proveedorInformeResolver: ProveedorInformeResolver,
+    @Inject(forwardRef(() => AuditService))
+    private readonly auditService: AuditService,
   ) {}
+
+  private async recordDelegatedPdfRegenerationIfNeeded(
+    proveedorInforme: ResolveProveedorInformeResult,
+    actorUserId: string,
+    documentType: string,
+    documentId: string,
+  ): Promise<void> {
+    if (!proveedorInforme.delegated || !proveedorInforme.proveedorBrandingId) {
+      return;
+    }
+
+    await this.auditService.record({
+      proveedorSaludId: proveedorInforme.proveedorBrandingId,
+      actorId: actorUserId,
+      actionType: AuditActionType.EXPEDIENTE_PDF_REGENERADO_DELEGADO,
+      resourceType: documentType,
+      resourceId: documentId,
+      payload: {
+        colaboracionId: proveedorInforme.colaboracionId,
+        proveedorBrandingId: proveedorInforme.proveedorBrandingId,
+        trabajadorContext: true,
+      },
+      eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
+    });
+  }
 
   private mapMedicoFirmante(
     medicoFirmante: {
@@ -846,7 +878,7 @@ export class InformesService {
     );
 
     const enfermeraFirmante =
-      await this.enfermerasFirmantesService.findOneByUserId(userId);
+      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
@@ -897,54 +929,18 @@ export class InformesService {
         firma: null,
       };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
-    // Formatear la fecha para el nombre del archivo
     const fecha = convertirFechaADDMMAAAA(antidoping.fechaAntidoping)
       .replace(/\//g, '-')
       .replace(/\\/g, '-');
     const nombreArchivo = `Antidoping ${fecha}.pdf`;
 
-    // Obtener la ruta específica del documento
     const rutaDirectorio = path.resolve(antidoping.rutaPDF);
     if (!fs.existsSync(rutaDirectorio)) {
       fs.mkdirSync(rutaDirectorio, { recursive: true });
@@ -962,15 +958,56 @@ export class InformesService {
       datosProveedorSalud,
       footerData,
     );
-    // Generar y guardar el PDF
-    try {
-      await this.printer.createPdf(docDefinition, rutaCompleta);
-    } catch (error) {
-      console.error('[getInformeAntidoping] Error al generar el PDF:', error);
-      throw error;
+
+    await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'antidoping',
+      antidopingId,
+    );
+
+    return rutaCompleta;
+  }
+
+  private findMostRecentResultadoClinicoByTipo(
+    items: Array<Record<string, unknown>> | null | undefined,
+    tipoEstudio: string,
+    referenceYear?: number | null,
+  ): Record<string, unknown> | null {
+    if (!items?.length) {
+      return null;
     }
 
-    return rutaCompleta; // Retorna la ruta del archivo generado
+    let candidates = items.filter(
+      (item) => item?.tipoEstudio === tipoEstudio && item?.fechaEstudio,
+    );
+
+    if (referenceYear != null && !Number.isNaN(referenceYear)) {
+      candidates = candidates.filter((item) => {
+        const d = new Date(item.fechaEstudio as string | number | Date);
+        return !Number.isNaN(d.getTime()) && d.getFullYear() === referenceYear;
+      });
+    }
+
+    return candidates.reduce<Record<string, unknown> | null>(
+      (latest, current) => {
+        const currentDate = new Date(
+          current.fechaEstudio as string | number | Date,
+        );
+        if (Number.isNaN(currentDate.getTime())) {
+          return latest;
+        }
+        if (!latest) {
+          return current;
+        }
+        const latestDate = new Date(
+          latest.fechaEstudio as string | number | Date,
+        );
+        return currentDate > latestDate ? current : latest;
+      },
+      null,
+    );
   }
 
   async getInformeAptitudPuesto(
@@ -1008,6 +1045,7 @@ export class InformesService {
       'aptitud',
       aptitudId,
     );
+
     const datosAptitud = {
       fechaAptitudPuesto: aptitud.fechaAptitudPuesto,
       evaluacionAdicional1: aptitud.evaluacionAdicional1,
@@ -1025,16 +1063,12 @@ export class InformesService {
       evaluacionAdicional5: aptitud.evaluacionAdicional5,
       fechaEvaluacionAdicional5: aptitud.fechaEvaluacionAdicional5,
       resultadosEvaluacionAdicional5: aptitud.resultadosEvaluacionAdicional5,
-      evaluacionAdicional6: aptitud.evaluacionAdicional6,
-      fechaEvaluacionAdicional6: aptitud.fechaEvaluacionAdicional6,
-      resultadosEvaluacionAdicional6: aptitud.resultadosEvaluacionAdicional6,
       aptitudPuesto: aptitud.aptitudPuesto,
       alteracionesSalud: aptitud.alteracionesSalud,
       resultados: aptitud.resultados,
       medidasPreventivas: aptitud.medidasPreventivas,
     };
 
-    // Determinar footerFirmantesData según estado del documento
     let footerData: FooterFirmantesData | undefined = footerFirmantesData;
 
     if (
@@ -1049,7 +1083,6 @@ export class InformesService {
         userId;
 
       if (creadorId !== finalizadorId) {
-        // Obtener datos de ambos firmantes
         const elaborador = await this.obtenerDatosFirmante(creadorId);
         const finalizador = await this.obtenerDatosFirmante(finalizadorId);
 
@@ -1059,11 +1092,8 @@ export class InformesService {
           esDocumentoFinalizado: true,
         };
       }
-      // Si creador === finalizador, footerData queda undefined (formato simple)
     }
-    // Si está en BORRADOR, footerData queda undefined (formato simple)
 
-    // Determinar qué userId usar para obtener firmante (solo para formato simple o cuando creador === finalizador)
     const firmanteUserId =
       aptitud.estado === DocumentoEstado.BORRADOR
         ? (aptitud.createdBy?._id || aptitud.createdBy)?.toString() || userId
@@ -1073,223 +1103,8 @@ export class InformesService {
             userId
           : userId;
 
-    const historiasClinicas = await this.expedientesService.findDocuments(
-      'historiaClinica',
-      trabajadorId,
-    );
-    const nearestHistoriaClinica = historiasClinicas?.length
-      ? findNearestDocument(
-          historiasClinicas,
-          aptitud.fechaAptitudPuesto,
-          'fechaHistoriaClinica',
-        )
-      : null;
-    const datosHistoriaClinica = nearestHistoriaClinica
-      ? {
-          fechaHistoriaClinica: nearestHistoriaClinica.fechaHistoriaClinica,
-          resumenHistoriaClinica: nearestHistoriaClinica.resumenHistoriaClinica,
-        }
-      : null;
-
-    const exploracionesFisicas = await this.expedientesService.findDocuments(
-      'exploracionFisica',
-      trabajadorId,
-    );
-    const nearestExploracionFisica = exploracionesFisicas?.length
-      ? findNearestDocument(
-          exploracionesFisicas,
-          aptitud.fechaAptitudPuesto,
-          'fechaExploracionFisica',
-        )
-      : null;
-    const datosExploracionFisica = nearestExploracionFisica
-      ? {
-          fechaExploracionFisica:
-            nearestExploracionFisica.fechaExploracionFisica,
-          tensionArterialSistolica:
-            nearestExploracionFisica.tensionArterialSistolica,
-          tensionArterialDiastolica:
-            nearestExploracionFisica.tensionArterialDiastolica,
-          categoriaTensionArterial:
-            nearestExploracionFisica.categoriaTensionArterial,
-          indiceMasaCorporal: nearestExploracionFisica.indiceMasaCorporal,
-          categoriaIMC: nearestExploracionFisica.categoriaIMC,
-          circunferenciaCintura: nearestExploracionFisica.circunferenciaCintura,
-          categoriaCircunferenciaCintura:
-            nearestExploracionFisica.categoriaCircunferenciaCintura,
-          resumenExploracionFisica:
-            nearestExploracionFisica.resumenExploracionFisica,
-        }
-      : null;
-
-    const examenesVista = await this.expedientesService.findDocuments(
-      'examenVista',
-      trabajadorId,
-    );
-    const nearestExamenVista = examenesVista?.length
-      ? findNearestDocument(
-          examenesVista,
-          aptitud.fechaAptitudPuesto,
-          'fechaExamenVista',
-        )
-      : null;
-    const datosExamenVista = nearestExamenVista
-      ? {
-          fechaExamenVista: nearestExamenVista.fechaExamenVista,
-          ojoIzquierdoCegueraTotal: nearestExamenVista.ojoIzquierdoCegueraTotal,
-          ojoDerechoCegueraTotal: nearestExamenVista.ojoDerechoCegueraTotal,
-          ojoIzquierdoLejanaCegueraTotal:
-            nearestExamenVista.ojoIzquierdoLejanaCegueraTotal,
-          ojoDerechoLejanaCegueraTotal:
-            nearestExamenVista.ojoDerechoLejanaCegueraTotal,
-          ojoIzquierdoLejanaSinCorreccion:
-            nearestExamenVista.ojoIzquierdoLejanaSinCorreccion,
-          ojoDerechoLejanaSinCorreccion:
-            nearestExamenVista.ojoDerechoLejanaSinCorreccion,
-          sinCorreccionLejanaInterpretacion:
-            nearestExamenVista.sinCorreccionLejanaInterpretacion,
-          ojoIzquierdoLejanaConCorreccion:
-            nearestExamenVista.ojoIzquierdoLejanaConCorreccion,
-          ojoDerechoLejanaConCorreccion:
-            nearestExamenVista.ojoDerechoLejanaConCorreccion,
-          conCorreccionLejanaInterpretacion:
-            nearestExamenVista.conCorreccionLejanaInterpretacion,
-          porcentajeIshihara: nearestExamenVista.porcentajeIshihara,
-          interpretacionIshihara: nearestExamenVista.interpretacionIshihara,
-        }
-      : null;
-
-    const audiometrias = await this.expedientesService.findDocuments(
-      'audiometria',
-      trabajadorId,
-    );
-    const nearestAudiometria = audiometrias?.length
-      ? findNearestDocument(
-          audiometrias,
-          aptitud.fechaAptitudPuesto,
-          'fechaAudiometria',
-        )
-      : null;
-    const datosAudiometria = nearestAudiometria
-      ? {
-          fechaAudiometria: nearestAudiometria.fechaAudiometria,
-          diagnosticoAudiometria: nearestAudiometria.diagnosticoAudiometria,
-          hipoacusiaBilateralCombinada:
-            nearestAudiometria.hipoacusiaBilateralCombinada,
-        }
-      : null;
-
-    const antidopings = await this.expedientesService.findDocuments(
-      'antidoping',
-      trabajadorId,
-    );
-    const nearestAntidoping = antidopings?.length
-      ? findNearestDocument(
-          antidopings,
-          aptitud.fechaAptitudPuesto,
-          'fechaAntidoping',
-        )
-      : null;
-    const datosAntidoping = nearestAntidoping
-      ? {
-          fechaAntidoping: nearestAntidoping.fechaAntidoping,
-          marihuana: nearestAntidoping.marihuana,
-          cocaina: nearestAntidoping.cocaina,
-          anfetaminas: nearestAntidoping.anfetaminas,
-          metanfetaminas: nearestAntidoping.metanfetaminas,
-          opiaceos: nearestAntidoping.opiaceos,
-          benzodiacepinas: nearestAntidoping.benzodiacepinas || null,
-          fenciclidina: nearestAntidoping.fenciclidina || null,
-          metadona: nearestAntidoping.metadona || null,
-          barbituricos: nearestAntidoping.barbituricos || null,
-          antidepresivosTriciclicos:
-            nearestAntidoping.antidepresivosTriciclicos || null,
-          metilendioximetanfetamina:
-            nearestAntidoping.metilendioximetanfetamina || null,
-          ketamina: nearestAntidoping.ketamina || null,
-        }
-      : null;
-
     const medicoFirmante =
       await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
-    const resultadosClinicos = includeResultadosClinicos
-      ? await this.resultadosClinicosService.findByTrabajador(trabajadorId)
-      : [];
-
-    const findMostRecentResultadoClinico = (
-      items: any[],
-      tipoEstudio: string,
-    ) =>
-      items.find(
-        (item) => item?.tipoEstudio === tipoEstudio && item?.fechaEstudio,
-      ) || null;
-
-    const nearestEKG = findMostRecentResultadoClinico(
-      resultadosClinicos,
-      'EKG',
-    );
-    const nearestEspirometria = findMostRecentResultadoClinico(
-      resultadosClinicos,
-      'ESPIROMETRIA',
-    );
-    const nearestTipoSangre = findMostRecentResultadoClinico(
-      resultadosClinicos,
-      'TIPO_SANGRE',
-    );
-    const nearestRayosX = findMostRecentResultadoClinico(
-      resultadosClinicos,
-      'RAYOS_X',
-    );
-    const nearestAnalisisLaboratorio = findMostRecentResultadoClinico(
-      resultadosClinicos,
-      'ANALISIS_LABORATORIO',
-    );
-
-    const datosResultadoClinicoEKG = nearestEKG
-      ? {
-          fechaEstudio: nearestEKG.fechaEstudio,
-          resultadoGlobal: nearestEKG.resultadoGlobal,
-          hallazgoEspecifico: nearestEKG.hallazgoEspecifico,
-          tipoAlteracionEKG: nearestEKG.tipoAlteracionEKG,
-        }
-      : null;
-
-    const datosResultadoClinicoEspirometria = nearestEspirometria
-      ? {
-          fechaEstudio: nearestEspirometria.fechaEstudio,
-          resultadoGlobal: nearestEspirometria.resultadoGlobal,
-          hallazgoEspecifico: nearestEspirometria.hallazgoEspecifico,
-          tipoAlteracionEspirometria:
-            nearestEspirometria.tipoAlteracionEspirometria,
-        }
-      : null;
-
-    const datosResultadoClinicoTipoSangre = nearestTipoSangre
-      ? {
-          fechaEstudio: nearestTipoSangre.fechaEstudio,
-          tipoSangre: nearestTipoSangre.tipoSangre,
-        }
-      : null;
-
-    const datosResultadoClinicoRayosX = nearestRayosX
-      ? {
-          fechaEstudio: nearestRayosX.fechaEstudio,
-          resultadoGlobal: nearestRayosX.resultadoGlobal,
-          hallazgoEspecifico: nearestRayosX.hallazgoEspecifico,
-          tipoAlteracionRayosX: nearestRayosX.tipoAlteracionRayosX,
-        }
-      : null;
-
-    const datosResultadoClinicoAnalisisLaboratorio = nearestAnalisisLaboratorio
-      ? {
-          fechaEstudio: nearestAnalisisLaboratorio.fechaEstudio,
-          resultadoGlobal: nearestAnalisisLaboratorio.resultadoGlobal,
-          hallazgoEspecifico: nearestAnalisisLaboratorio.hallazgoEspecifico,
-          tipoAlteracionAnalisisLaboratorio:
-            nearestAnalisisLaboratorio.tipoAlteracionAnalisisLaboratorio,
-        }
-      : null;
-
     const datosMedicoFirmante = this.mapMedicoFirmante(
       medicoFirmante
         ? {
@@ -1310,71 +1125,23 @@ export class InformesService {
         : null,
     );
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-          semaforizacionActivada:
-            proveedorSalud.semaforizacionActivada || false,
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-          semaforizacionActivada: false,
-        };
-
-    // Formatear la fecha para el nombre del archivo
-    const fecha = convertirFechaADDMMAAAA(aptitud.fechaAptitudPuesto)
-      .replace(/\//g, '-')
-      .replace(/\\/g, '-');
-    const nombreArchivo = `Aptitud ${fecha}.pdf`;
-
-    // Obtener la ruta específica del documento
-    const rutaDirectorio = path.resolve(aptitud.rutaPDF);
-    if (!fs.existsSync(rutaDirectorio)) {
-      fs.mkdirSync(rutaDirectorio, { recursive: true });
-    }
-
-    const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
-
     const [
+      historiasClinicasList,
+      exploracionesFisicasList,
+      examenesVistaList,
+      audiometriasList,
+      antidopingsList,
       entrevistasPsicologicasList,
       trastornosEstadoAnimoList,
       cuestionariosProdromalBreveList,
       trastornosLimitePersonalidadList,
+      resultadosClinicosList,
     ] = await Promise.all([
+      this.expedientesService.findDocuments('historiaClinica', trabajadorId),
+      this.expedientesService.findDocuments('exploracionFisica', trabajadorId),
+      this.expedientesService.findDocuments('examenVista', trabajadorId),
+      this.expedientesService.findDocuments('audiometria', trabajadorId),
+      this.expedientesService.findDocuments('antidoping', trabajadorId),
       this.expedientesService.findDocuments(
         'entrevistaPsicologica',
         trabajadorId,
@@ -1391,71 +1158,302 @@ export class InformesService {
         'trastornoLimitePersonalidad',
         trabajadorId,
       ),
+      includeResultadosClinicos
+        ? this.resultadosClinicosService.findByTrabajador(trabajadorId)
+        : Promise.resolve([]),
     ]);
 
     const fechaAptitudRef = aptitud.fechaAptitudPuesto;
-    const nearestEpPsi = findNearestDocumentSameYear(
+    const referenceYear = fechaAptitudRef
+      ? new Date(fechaAptitudRef).getFullYear()
+      : null;
+
+    const nearestHistoriaClinica = findNearestDocumentSameYear(
+      historiasClinicasList,
+      fechaAptitudRef,
+      'fechaHistoriaClinica',
+    );
+    const nearestExploracionFisica = findNearestDocumentSameYear(
+      exploracionesFisicasList,
+      fechaAptitudRef,
+      'fechaExploracionFisica',
+    );
+    const nearestExamenVista = findNearestDocumentSameYear(
+      examenesVistaList,
+      fechaAptitudRef,
+      'fechaExamenVista',
+    );
+    const nearestAudiometria = findNearestDocumentSameYear(
+      audiometriasList,
+      fechaAptitudRef,
+      'fechaAudiometria',
+    );
+    const nearestAntidoping = findNearestDocumentSameYear(
+      antidopingsList,
+      fechaAptitudRef,
+      'fechaAntidoping',
+    );
+
+    const nearestEntrevistaPsicologica = findNearestDocumentSameYear(
       entrevistasPsicologicasList,
       fechaAptitudRef,
       'fechaEntrevistaPsicologica',
     );
-    const nearestTeaPsi = findNearestDocumentSameYear(
+    const nearestTrastornosEstadoAnimo = findNearestDocumentSameYear(
       trastornosEstadoAnimoList,
       fechaAptitudRef,
       'fechaTrastornosEstadoAnimo',
     );
-    const nearestPqbPsi = findNearestDocumentSameYear(
+    const nearestCuestionarioProdromalBreve = findNearestDocumentSameYear(
       cuestionariosProdromalBreveList,
       fechaAptitudRef,
       'fechaCuestionarioProdromalBreve',
     );
-    const nearestTlpPsi = findNearestDocumentSameYear(
+    const nearestTrastornoLimitePersonalidad = findNearestDocumentSameYear(
       trastornosLimitePersonalidadList,
       fechaAptitudRef,
       'fechaTrastornoLimitePersonalidad',
     );
+
+    const datosHistoriaClinica = nearestHistoriaClinica
+      ? {
+          fechaHistoriaClinica: nearestHistoriaClinica.fechaHistoriaClinica,
+          resumenHistoriaClinica: nearestHistoriaClinica.resumenHistoriaClinica,
+        }
+      : null;
+
+    const datosExploracionFisica = nearestExploracionFisica
+      ? {
+          fechaExploracionFisica:
+            nearestExploracionFisica.fechaExploracionFisica,
+          tensionArterialSistolica:
+            nearestExploracionFisica.tensionArterialSistolica,
+          tensionArterialDiastolica:
+            nearestExploracionFisica.tensionArterialDiastolica,
+          categoriaTensionArterial:
+            nearestExploracionFisica.categoriaTensionArterial,
+          indiceMasaCorporal: nearestExploracionFisica.indiceMasaCorporal,
+          categoriaIMC: nearestExploracionFisica.categoriaIMC,
+          circunferenciaCintura: nearestExploracionFisica.circunferenciaCintura,
+          categoriaCircunferenciaCintura:
+            nearestExploracionFisica.categoriaCircunferenciaCintura,
+          resumenExploracionFisica:
+            nearestExploracionFisica.resumenExploracionFisica,
+        }
+      : null;
+
+    const datosExamenVista = nearestExamenVista
+      ? {
+          fechaExamenVista: nearestExamenVista.fechaExamenVista,
+          ojoIzquierdoCegueraTotal: nearestExamenVista.ojoIzquierdoCegueraTotal,
+          ojoDerechoCegueraTotal: nearestExamenVista.ojoDerechoCegueraTotal,
+          ojoIzquierdoLejanaCegueraTotal:
+            nearestExamenVista.ojoIzquierdoLejanaCegueraTotal,
+          ojoDerechoLejanaCegueraTotal:
+            nearestExamenVista.ojoDerechoLejanaCegueraTotal,
+          ojoIzquierdoCercanaCegueraTotal:
+            nearestExamenVista.ojoIzquierdoCercanaCegueraTotal,
+          ojoDerechoCercanaCegueraTotal:
+            nearestExamenVista.ojoDerechoCercanaCegueraTotal,
+          ojoIzquierdoLejanaSinCorreccion:
+            nearestExamenVista.ojoIzquierdoLejanaSinCorreccion,
+          ojoDerechoLejanaSinCorreccion:
+            nearestExamenVista.ojoDerechoLejanaSinCorreccion,
+          sinCorreccionLejanaInterpretacion:
+            nearestExamenVista.sinCorreccionLejanaInterpretacion,
+          ojoIzquierdoLejanaConCorreccion:
+            nearestExamenVista.ojoIzquierdoLejanaConCorreccion,
+          ojoDerechoLejanaConCorreccion:
+            nearestExamenVista.ojoDerechoLejanaConCorreccion,
+          conCorreccionLejanaInterpretacion:
+            nearestExamenVista.conCorreccionLejanaInterpretacion,
+          porcentajeIshihara: nearestExamenVista.porcentajeIshihara,
+          interpretacionIshihara: nearestExamenVista.interpretacionIshihara,
+        }
+      : null;
+
+    const datosAudiometria = nearestAudiometria
+      ? {
+          fechaAudiometria: nearestAudiometria.fechaAudiometria,
+          diagnosticoAudiometria: nearestAudiometria.diagnosticoAudiometria,
+          hipoacusiaBilateralCombinada:
+            nearestAudiometria.hipoacusiaBilateralCombinada,
+        }
+      : null;
+
+    const datosAntidopingAptitud = nearestAntidoping
+      ? {
+          fechaAntidoping: nearestAntidoping.fechaAntidoping,
+          marihuana: nearestAntidoping.marihuana,
+          cocaina: nearestAntidoping.cocaina,
+          anfetaminas: nearestAntidoping.anfetaminas,
+          metanfetaminas: nearestAntidoping.metanfetaminas,
+          opiaceos: nearestAntidoping.opiaceos,
+          benzodiacepinas: nearestAntidoping.benzodiacepinas || null,
+          fenciclidina: nearestAntidoping.fenciclidina || null,
+          metadona: nearestAntidoping.metadona || null,
+          barbituricos: nearestAntidoping.barbituricos || null,
+          antidepresivosTriciclicos:
+            nearestAntidoping.antidepresivosTriciclicos || null,
+        }
+      : null;
+
+    const nearestTipoSangre = includeResultadosClinicos
+      ? this.findMostRecentResultadoClinicoByTipo(
+          resultadosClinicosList as Array<Record<string, unknown>>,
+          'TIPO_SANGRE',
+        )
+      : null;
+    const nearestEKG = includeResultadosClinicos
+      ? this.findMostRecentResultadoClinicoByTipo(
+          resultadosClinicosList as Array<Record<string, unknown>>,
+          'EKG',
+          referenceYear,
+        )
+      : null;
+    const nearestEspirometria = includeResultadosClinicos
+      ? this.findMostRecentResultadoClinicoByTipo(
+          resultadosClinicosList as Array<Record<string, unknown>>,
+          'ESPIROMETRIA',
+          referenceYear,
+        )
+      : null;
+    const nearestRayosX = includeResultadosClinicos
+      ? this.findMostRecentResultadoClinicoByTipo(
+          resultadosClinicosList as Array<Record<string, unknown>>,
+          'RAYOS_X',
+          referenceYear,
+        )
+      : null;
+    const nearestAnalisisLaboratorio = includeResultadosClinicos
+      ? this.findMostRecentResultadoClinicoByTipo(
+          resultadosClinicosList as Array<Record<string, unknown>>,
+          'ANALISIS_LABORATORIO',
+          referenceYear,
+        )
+      : null;
+
+    const datosResultadoClinicoTipoSangre = nearestTipoSangre
+      ? {
+          fechaEstudio: nearestTipoSangre.fechaEstudio as Date,
+          tipoSangre: nearestTipoSangre.tipoSangre as string,
+        }
+      : null;
+    const datosResultadoClinicoEKG = nearestEKG
+      ? ({
+          fechaEstudio: nearestEKG.fechaEstudio,
+          resultadoGlobal: nearestEKG.resultadoGlobal,
+          hallazgoEspecifico: nearestEKG.hallazgoEspecifico,
+          tipoAlteracionEKG: nearestEKG.tipoAlteracionEKG,
+        } as {
+          fechaEstudio: Date;
+          resultadoGlobal?: string;
+          hallazgoEspecifico?: string;
+          tipoAlteracionEKG?: string;
+        })
+      : null;
+    const datosResultadoClinicoEspirometria = nearestEspirometria
+      ? ({
+          fechaEstudio: nearestEspirometria.fechaEstudio,
+          resultadoGlobal: nearestEspirometria.resultadoGlobal,
+          hallazgoEspecifico: nearestEspirometria.hallazgoEspecifico,
+          tipoAlteracionEspirometria: nearestEspirometria.tipoAlteracionEspirometria,
+        } as {
+          fechaEstudio: Date;
+          resultadoGlobal?: string;
+          hallazgoEspecifico?: string;
+          tipoAlteracionEspirometria?: string;
+        })
+      : null;
+    const datosResultadoClinicoRayosX = nearestRayosX
+      ? ({
+          fechaEstudio: nearestRayosX.fechaEstudio,
+          resultadoGlobal: nearestRayosX.resultadoGlobal,
+          hallazgoEspecifico: nearestRayosX.hallazgoEspecifico,
+          tipoAlteracionRayosX: nearestRayosX.tipoAlteracionRayosX,
+        } as {
+          fechaEstudio: Date;
+          resultadoGlobal?: string;
+          hallazgoEspecifico?: string;
+          tipoAlteracionRayosX?: string[];
+        })
+      : null;
+    const datosResultadoClinicoAnalisisLaboratorio = nearestAnalisisLaboratorio
+      ? ({
+          fechaEstudio: nearestAnalisisLaboratorio.fechaEstudio,
+          resultadoGlobal: nearestAnalisisLaboratorio.resultadoGlobal,
+          hallazgoEspecifico: nearestAnalisisLaboratorio.hallazgoEspecifico,
+          tipoAlteracionAnalisisLaboratorio:
+            nearestAnalisisLaboratorio.tipoAlteracionAnalisisLaboratorio,
+        } as {
+          fechaEstudio: Date;
+          resultadoGlobal?: string;
+          hallazgoEspecifico?: string;
+          tipoAlteracionAnalisisLaboratorio?: string[];
+        })
+      : null;
 
     const filasTamizajePsicologia: {
       titulo: string;
       fecha: Date;
       resumen: string;
     }[] = [];
-    if (nearestEpPsi) {
+    if (nearestEntrevistaPsicologica) {
       filasTamizajePsicologia.push({
         titulo: 'ENTREVISTA PSICOLÓGICA',
-        fecha: nearestEpPsi.fechaEntrevistaPsicologica,
+        fecha: nearestEntrevistaPsicologica.fechaEntrevistaPsicologica,
         resumen: resumenTablaEntrevistaPsicologica(
-          nearestEpPsi as Record<string, unknown>,
+          nearestEntrevistaPsicologica as Record<string, unknown>,
         ),
       });
     }
-    if (nearestTeaPsi) {
+    if (nearestTrastornosEstadoAnimo) {
       filasTamizajePsicologia.push({
         titulo: 'TRASTORNOS DEL ESTADO DE ÁNIMO',
-        fecha: nearestTeaPsi.fechaTrastornosEstadoAnimo,
+        fecha: nearestTrastornosEstadoAnimo.fechaTrastornosEstadoAnimo,
         resumen: resumenTablaTrastornosEstadoAnimo(
-          nearestTeaPsi as Record<string, unknown>,
+          nearestTrastornosEstadoAnimo as Record<string, unknown>,
         ),
       });
     }
-    if (nearestPqbPsi) {
+    if (nearestCuestionarioProdromalBreve) {
       filasTamizajePsicologia.push({
         titulo: 'CUESTIONARIO PRODROMAL BREVE',
-        fecha: nearestPqbPsi.fechaCuestionarioProdromalBreve,
+        fecha: nearestCuestionarioProdromalBreve.fechaCuestionarioProdromalBreve,
         resumen: resumenTablaCuestionarioProdromalBreve(
-          nearestPqbPsi as Record<string, unknown>,
+          nearestCuestionarioProdromalBreve as Record<string, unknown>,
         ),
       });
     }
-    if (nearestTlpPsi) {
+    if (nearestTrastornoLimitePersonalidad) {
       filasTamizajePsicologia.push({
         titulo: 'TRASTORNO LÍMITE PERSONALIDAD',
-        fecha: nearestTlpPsi.fechaTrastornoLimitePersonalidad,
+        fecha: nearestTrastornoLimitePersonalidad.fechaTrastornoLimitePersonalidad,
         resumen: resumenTablaTrastornoLimitePersonalidad(
-          nearestTlpPsi as Record<string, unknown>,
+          nearestTrastornoLimitePersonalidad as Record<string, unknown>,
         ),
       });
     }
+
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+        includeSemaforizacion: true,
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
+
+    const fecha = convertirFechaADDMMAAAA(aptitud.fechaAptitudPuesto)
+      .replace(/\//g, '-')
+      .replace(/\\/g, '-');
+    const nombreArchivo = `Aptitud ${fecha}.pdf`;
+
+    const rutaDirectorio = path.resolve(aptitud.rutaPDF);
+    if (!fs.existsSync(rutaDirectorio)) {
+      fs.mkdirSync(rutaDirectorio, { recursive: true });
+    }
+
+    const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
     const docDefinition = aptitudPuestoInforme(
       nombreEmpresa,
@@ -1465,23 +1463,32 @@ export class InformesService {
       datosExploracionFisica,
       datosExamenVista,
       datosAudiometria,
-      datosAntidoping,
+      datosAntidopingAptitud,
       datosResultadoClinicoTipoSangre,
       datosResultadoClinicoEKG,
       datosResultadoClinicoEspirometria,
       datosResultadoClinicoRayosX,
       datosResultadoClinicoAnalisisLaboratorio,
       datosMedicoFirmante,
-      datosProveedorSalud,
+      {
+        ...datosProveedorSalud,
+        semaforizacionActivada: datosProveedorSalud.semaforizacionActivada ?? false,
+      },
       footerData,
       filasTamizajePsicologia,
     );
 
-    // Generar y guardar el PDF
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'aptitud',
+      aptitudId,
+    );
 
-    return rutaCompleta; // Retorna la ruta del archivo generado
+    return rutaCompleta;
   }
+
 
   async getInformeConstanciaAptitud(
     empresaId: string,
@@ -1590,50 +1597,13 @@ export class InformesService {
         : null,
     );
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-          semaforizacionActivada:
-            proveedorSalud.semaforizacionActivada || false,
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-          semaforizacionActivada: false,
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+        includeSemaforizacion: true,
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     // Formatear la fecha para el nombre del archivo
     const fecha = convertirFechaADDMMAAAA(
@@ -1656,12 +1626,21 @@ export class InformesService {
       datosTrabajador,
       datosConstanciaAptitud,
       datosMedicoFirmante,
-      datosProveedorSalud,
+      {
+        ...datosProveedorSalud,
+        semaforizacionActivada: datosProveedorSalud.semaforizacionActivada ?? false,
+      },
       footerData,
     );
 
     // Generar y guardar el PDF
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'constanciaAptitud',
+      constanciaAptitudId,
+    );
 
     return rutaCompleta; // Retorna la ruta del archivo generado
   }
@@ -1802,7 +1781,7 @@ export class InformesService {
     );
 
     const enfermeraFirmante =
-      await this.enfermerasFirmantesService.findOneByUserId(userId);
+      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
@@ -1853,50 +1832,13 @@ export class InformesService {
         firma: null,
       };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-          semaforizacionActivada:
-            proveedorSalud.semaforizacionActivada || false,
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-          semaforizacionActivada: false,
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+        includeSemaforizacion: true,
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     // Formatear la fecha para el nombre del archivo
     const fecha = convertirFechaADDMMAAAA(audiometria.fechaAudiometria)
@@ -1925,6 +1867,12 @@ export class InformesService {
 
     // Generar y guardar el PDF
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'audiometria',
+      audiometriaId,
+    );
 
     return rutaCompleta; // Retorna la ruta del archivo generado
   }
@@ -2169,45 +2117,12 @@ export class InformesService {
         : null,
     );
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(certificado.fechaCertificado)
       .replace(/\//g, '-')
@@ -2232,6 +2147,12 @@ export class InformesService {
       footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'certificado',
+      certificadoId,
+    );
 
     return rutaCompleta;
   }
@@ -2266,69 +2187,59 @@ export class InformesService {
       curp: trabajador.curp,
     };
 
-    const certificado = await this.expedientesService.findDocument(
+    const certificadoExpedito = await this.expedientesService.findDocument(
       'certificadoExpedito',
       certificadoExpeditoId,
     );
     const datosCertificadoExpedito = {
-      fechaCertificadoExpedito: certificado.fechaCertificadoExpedito,
-      cuerpoCertificado: certificado.cuerpoCertificado,
-      impedimentosFisicos: certificado.impedimentosFisicos,
-      peso: certificado.peso,
-      altura: certificado.altura,
-      indiceMasaCorporal: certificado.indiceMasaCorporal,
-      tensionArterialSistolica: certificado.tensionArterialSistolica,
-      tensionArterialDiastolica: certificado.tensionArterialDiastolica,
-      frecuenciaCardiaca: certificado.frecuenciaCardiaca,
-      frecuenciaRespiratoria: certificado.frecuenciaRespiratoria,
-      temperaturaCorporal: certificado.temperaturaCorporal,
-      gradoSalud: certificado.gradoSalud,
-      aptitudPuesto: certificado.aptitudPuesto,
-      descripcionSobreAptitud: certificado.descripcionSobreAptitud,
-      observaciones: certificado.observaciones,
+      fechaCertificadoExpedito: certificadoExpedito.fechaCertificadoExpedito,
+      cuerpoCertificado: certificadoExpedito.cuerpoCertificado,
+      impedimentosFisicos: certificadoExpedito.impedimentosFisicos,
+      peso: certificadoExpedito.peso,
+      altura: certificadoExpedito.altura,
+      indiceMasaCorporal: certificadoExpedito.indiceMasaCorporal,
+      tensionArterialSistolica: certificadoExpedito.tensionArterialSistolica,
+      tensionArterialDiastolica: certificadoExpedito.tensionArterialDiastolica,
+      frecuenciaCardiaca: certificadoExpedito.frecuenciaCardiaca,
+      frecuenciaRespiratoria: certificadoExpedito.frecuenciaRespiratoria,
+      temperaturaCorporal: certificadoExpedito.temperaturaCorporal,
+      gradoSalud: certificadoExpedito.gradoSalud,
+      aptitudPuesto: certificadoExpedito.aptitudPuesto,
+      descripcionSobreAptitud: certificadoExpedito.descripcionSobreAptitud,
+      observaciones: certificadoExpedito.observaciones,
     };
 
-    // Determinar footerFirmantesData según estado del documento
     let footerData: FooterFirmantesData | undefined = footerFirmantesData;
-
     if (
       !footerData &&
-      (certificado.estado === DocumentoEstado.FINALIZADO ||
-        certificado.estado === DocumentoEstado.ANULADO)
+      (certificadoExpedito.estado === DocumentoEstado.FINALIZADO ||
+        certificadoExpedito.estado === DocumentoEstado.ANULADO)
     ) {
       const creadorId =
-        (certificado.createdBy?._id || certificado.createdBy)?.toString() ||
+        (certificadoExpedito.createdBy?._id || certificadoExpedito.createdBy)?.toString() ||
         userId;
       const finalizadorId =
-        (
-          certificado.finalizadoPor?._id || certificado.finalizadoPor
-        )?.toString() || userId;
-
+        (certificadoExpedito.finalizadoPor?._id || certificadoExpedito.finalizadoPor)?.toString() ||
+        userId;
       if (creadorId !== finalizadorId) {
-        // Obtener datos de ambos firmantes
         const elaborador = await this.obtenerDatosFirmante(creadorId);
         const finalizador = await this.obtenerDatosFirmante(finalizadorId);
-
         footerData = {
           elaborador,
           finalizador,
           esDocumentoFinalizado: true,
         };
       }
-      // Si creador === finalizador, footerData queda undefined (formato simple)
     }
-    // Si está en BORRADOR, footerData queda undefined (formato simple)
 
-    // Determinar qué userId usar para obtener firmante (solo para formato simple o cuando creador === finalizador)
     const firmanteUserId =
-      certificado.estado === DocumentoEstado.BORRADOR
-        ? (certificado.createdBy?._id || certificado.createdBy)?.toString() ||
+      certificadoExpedito.estado === DocumentoEstado.BORRADOR
+        ? (certificadoExpedito.createdBy?._id || certificadoExpedito.createdBy)?.toString() ||
           userId
-        : certificado.estado === DocumentoEstado.FINALIZADO ||
-            certificado.estado === DocumentoEstado.ANULADO
-          ? (
-              certificado.finalizadoPor?._id || certificado.finalizadoPor
-            )?.toString() || userId
+        : certificadoExpedito.estado === DocumentoEstado.FINALIZADO ||
+            certificadoExpedito.estado === DocumentoEstado.ANULADO
+          ? (certificadoExpedito.finalizadoPor?._id || certificadoExpedito.finalizadoPor)?.toString() ||
+            userId
           : userId;
 
     const medicoFirmante =
@@ -2353,52 +2264,21 @@ export class InformesService {
         : null,
     );
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-        };
-
-    const fecha = convertirFechaADDMMAAAA(certificado.fechaCertificadoExpedito)
+    const fecha = convertirFechaADDMMAAAA(
+      certificadoExpedito.fechaCertificadoExpedito,
+    )
       .replace(/\//g, '-')
       .replace(/\\/g, '-');
     const nombreArchivo = `Certificado Expedito ${fecha}.pdf`;
 
-    const rutaDirectorio = path.resolve(certificado.rutaPDF);
+    const rutaDirectorio = path.resolve(certificadoExpedito.rutaPDF);
     if (!fs.existsSync(rutaDirectorio)) {
       fs.mkdirSync(rutaDirectorio, { recursive: true });
     }
@@ -2414,6 +2294,12 @@ export class InformesService {
       footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'certificadoExpedito',
+      certificadoExpeditoId,
+    );
 
     return rutaCompleta;
   }
@@ -2426,11 +2312,9 @@ export class InformesService {
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
     const empresa = await this.empresasService.findOne(empresaId);
-
     const nombreEmpresa = empresa.nombreComercial;
 
     const trabajador = await this.trabajadoresService.findOne(trabajadorId);
-
     const datosTrabajador = {
       primerApellido: trabajador.primerApellido,
       segundoApellido: trabajador.segundoApellido,
@@ -2454,62 +2338,34 @@ export class InformesService {
       'examenVista',
       examenVistaId,
     );
-
-    const datosExamenVista = {
+    const datosExamenVistaDoc = {
       fechaExamenVista: examenVista.fechaExamenVista,
       ojoIzquierdoCegueraTotal: examenVista.ojoIzquierdoCegueraTotal,
       ojoDerechoCegueraTotal: examenVista.ojoDerechoCegueraTotal,
-      ojoIzquierdoLejanaCegueraTotal:
-        examenVista.ojoIzquierdoLejanaCegueraTotal,
+      ojoIzquierdoLejanaCegueraTotal: examenVista.ojoIzquierdoLejanaCegueraTotal,
       ojoDerechoLejanaCegueraTotal: examenVista.ojoDerechoLejanaCegueraTotal,
-      ojoIzquierdoCercanaCegueraTotal:
-        examenVista.ojoIzquierdoCercanaCegueraTotal,
+      ojoIzquierdoCercanaCegueraTotal: examenVista.ojoIzquierdoCercanaCegueraTotal,
       ojoDerechoCercanaCegueraTotal: examenVista.ojoDerechoCercanaCegueraTotal,
-      ojoIzquierdoLejanaSinCorreccion:
-        examenVista.ojoIzquierdoLejanaSinCorreccion,
+      ojoIzquierdoLejanaSinCorreccion: examenVista.ojoIzquierdoLejanaSinCorreccion,
       ojoDerechoLejanaSinCorreccion: examenVista.ojoDerechoLejanaSinCorreccion,
-      sinCorreccionLejanaInterpretacion:
-        examenVista.sinCorreccionLejanaInterpretacion,
+      sinCorreccionLejanaInterpretacion: examenVista.sinCorreccionLejanaInterpretacion,
       requiereLentesUsoGeneral: examenVista.requiereLentesUsoGeneral,
-      ojoIzquierdoCercanaSinCorreccion:
-        examenVista.ojoIzquierdoCercanaSinCorreccion,
-      ojoDerechoCercanaSinCorreccion:
-        examenVista.ojoDerechoCercanaSinCorreccion,
-      sinCorreccionCercanaInterpretacion:
-        examenVista.sinCorreccionCercanaInterpretacion,
+      ojoIzquierdoCercanaSinCorreccion: examenVista.ojoIzquierdoCercanaSinCorreccion,
+      ojoDerechoCercanaSinCorreccion: examenVista.ojoDerechoCercanaSinCorreccion,
+      sinCorreccionCercanaInterpretacion: examenVista.sinCorreccionCercanaInterpretacion,
       requiereLentesParaLectura: examenVista.requiereLentesParaLectura,
-      ojoIzquierdoLejanaConCorreccion:
-        examenVista.ojoIzquierdoLejanaConCorreccion,
+      ojoIzquierdoLejanaConCorreccion: examenVista.ojoIzquierdoLejanaConCorreccion,
       ojoDerechoLejanaConCorreccion: examenVista.ojoDerechoLejanaConCorreccion,
-      conCorreccionLejanaInterpretacion:
-        examenVista.conCorreccionLejanaInterpretacion,
-      ojoIzquierdoCercanaConCorreccion:
-        examenVista.ojoIzquierdoCercanaConCorreccion,
-      ojoDerechoCercanaConCorreccion:
-        examenVista.ojoDerechoCercanaConCorreccion,
-      conCorreccionCercanaInterpretacion:
-        examenVista.conCorreccionCercanaInterpretacion,
+      conCorreccionLejanaInterpretacion: examenVista.conCorreccionLejanaInterpretacion,
+      ojoIzquierdoCercanaConCorreccion: examenVista.ojoIzquierdoCercanaConCorreccion,
+      ojoDerechoCercanaConCorreccion: examenVista.ojoDerechoCercanaConCorreccion,
+      conCorreccionCercanaInterpretacion: examenVista.conCorreccionCercanaInterpretacion,
       placasCorrectas: examenVista.placasCorrectas,
       porcentajeIshihara: examenVista.porcentajeIshihara,
       interpretacionIshihara: examenVista.interpretacionIshihara,
-      testEstereopsis: examenVista.testEstereopsis,
-      testCampoVisual: examenVista.testCampoVisual,
-      coverTest: examenVista.coverTest,
-      esferaOjoIzquierdo: examenVista.esferaOjoIzquierdo,
-      cilindroOjoIzquierdo: examenVista.cilindroOjoIzquierdo,
-      adicionOjoIzquierdo: examenVista.adicionOjoIzquierdo,
-      esferaOjoDerecho: examenVista.esferaOjoDerecho,
-      cilindroOjoDerecho: examenVista.cilindroOjoDerecho,
-      adicionOjoDerecho: examenVista.adicionOjoDerecho,
-      diagnosticoRecomendaciones: examenVista.diagnosticoRecomendaciones,
-      antecedentes: examenVista.antecedentes,
-      anamnesis: examenVista.anamnesis,
-      utilizaAnteojos: examenVista.utilizaAnteojos,
     };
 
-    // Determinar footerFirmantesData según estado del documento
     let footerData: FooterFirmantesData | undefined = footerFirmantesData;
-
     if (
       !footerData &&
       (examenVista.estado === DocumentoEstado.FINALIZADO ||
@@ -2519,35 +2375,27 @@ export class InformesService {
         (examenVista.createdBy?._id || examenVista.createdBy)?.toString() ||
         userId;
       const finalizadorId =
-        (
-          examenVista.finalizadoPor?._id || examenVista.finalizadoPor
-        )?.toString() || userId;
-
+        (examenVista.finalizadoPor?._id || examenVista.finalizadoPor)?.toString() ||
+        userId;
       if (creadorId !== finalizadorId) {
-        // Obtener datos de ambos firmantes
         const elaborador = await this.obtenerDatosFirmante(creadorId);
         const finalizador = await this.obtenerDatosFirmante(finalizadorId);
-
         footerData = {
           elaborador,
           finalizador,
           esDocumentoFinalizado: true,
         };
       }
-      // Si creador === finalizador, footerData queda undefined (formato simple)
     }
-    // Si está en BORRADOR, footerData queda undefined (formato simple)
 
-    // Determinar qué userId usar para obtener firmante (solo para formato simple o cuando creador === finalizador)
     const firmanteUserId =
       examenVista.estado === DocumentoEstado.BORRADOR
         ? (examenVista.createdBy?._id || examenVista.createdBy)?.toString() ||
           userId
         : examenVista.estado === DocumentoEstado.FINALIZADO ||
             examenVista.estado === DocumentoEstado.ANULADO
-          ? (
-              examenVista.finalizadoPor?._id || examenVista.finalizadoPor
-            )?.toString() || userId
+          ? (examenVista.finalizadoPor?._id || examenVista.finalizadoPor)?.toString() ||
+            userId
           : userId;
 
     const medicoFirmante =
@@ -2571,100 +2419,69 @@ export class InformesService {
           }
         : null,
     );
-    
-    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(userId);
+
+    const enfermeraFirmante =
+      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
-    ? {
-        nombre: enfermeraFirmante.nombre || "",
-        primerApellido: enfermeraFirmante.primerApellido || "",
-        segundoApellido: enfermeraFirmante.segundoApellido || "",
-        sexo: enfermeraFirmante.sexo || "",
-        tituloProfesional: enfermeraFirmante.tituloProfesional || "",
-        numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
-        nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
-        numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || "",
-        firma: enfermeraFirmante.firma as { data: string; contentType: string } || null,
-      }
-    : {
-        nombre: "",
-        primerApellido: "",
-        segundoApellido: "",
-        sexo: "",
-        tituloProfesional: "",
-        numeroCedulaProfesional: "",
-        nombreCredencialAdicional: "",
-        numeroCredencialAdicional: "",
-        firma: null,
-      };
-
-
+      ? {
+          nombre: enfermeraFirmante.nombre || '',
+          primerApellido: enfermeraFirmante.primerApellido || '',
+          segundoApellido: enfermeraFirmante.segundoApellido || '',
+          sexo: enfermeraFirmante.sexo || '',
+          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
+          numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || '',
+          nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || '',
+          firma:
+            (enfermeraFirmante.firma as { data: string; contentType: string }) ||
+            null,
+        }
+      : {
+          nombre: '',
+          primerApellido: '',
+          segundoApellido: '',
+          sexo: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
 
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
-    ? {
-        nombre: tecnicoFirmante.nombre || "",
-        primerApellido: tecnicoFirmante.primerApellido || "",
-        segundoApellido: tecnicoFirmante.segundoApellido || "",
-        sexo: tecnicoFirmante.sexo || "",
-        tituloProfesional: tecnicoFirmante.tituloProfesional || "",
-        numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
-        nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
-        numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || "",
-        firma: tecnicoFirmante.firma as { data: string; contentType: string } || null,
-      }
-    : {
-        nombre: "",
-        primerApellido: "",
-        segundoApellido: "",
-        sexo: "",
-        tituloProfesional: "",
-        numeroCedulaProfesional: "",
-        nombreCredencialAdicional: "",
-        numeroCredencialAdicional: "",
-        firma: null,
-      };
-
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
       ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
+          nombre: tecnicoFirmante.nombre || '',
+          primerApellido: tecnicoFirmante.primerApellido || '',
+          segundoApellido: tecnicoFirmante.segundoApellido || '',
+          sexo: tecnicoFirmante.sexo || '',
+          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
+          numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || '',
+          nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || '',
+          firma:
+            (tecnicoFirmante.firma as { data: string; contentType: string }) ||
+            null,
         }
       : {
           nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
+          primerApellido: '',
+          segundoApellido: '',
+          sexo: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
         };
+
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(examenVista.fechaExamenVista)
       .replace(/\//g, '-')
@@ -2681,7 +2498,7 @@ export class InformesService {
     const docDefinition = examenVistaInforme(
       nombreEmpresa,
       datosTrabajador,
-      datosExamenVista,
+      datosExamenVistaDoc,
       datosMedicoFirmante,
       datosEnfermeraFirmante,
       datosTecnicoFirmante,
@@ -2689,10 +2506,15 @@ export class InformesService {
       footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'examenVista',
+      examenVistaId,
+    );
 
     return rutaCompleta;
   }
-
   async getInformeExploracionFisica(
     empresaId: string,
     trabajadorId: string,
@@ -2858,7 +2680,7 @@ export class InformesService {
       };
 
     const enfermeraFirmante =
-      await this.enfermerasFirmantesService.findOneByUserId(userId);
+      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
@@ -2909,47 +2731,12 @@ export class InformesService {
         firma: null,
       };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(
       exploracionFisica.fechaExploracionFisica,
@@ -2977,6 +2764,12 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'exploracionFisica',
+      exploracionFisicaId,
+    );
 
     return rutaCompleta;
   }
@@ -3192,7 +2985,7 @@ export class InformesService {
       };
 
     const enfermeraFirmante =
-      await this.enfermerasFirmantesService.findOneByUserId(userId);
+      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
@@ -3243,46 +3036,12 @@ export class InformesService {
         firma: null,
       };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(historiaClinica.fechaHistoriaClinica)
       .replace(/\//g, '-')
@@ -3308,6 +3067,12 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'historiaClinica',
+      historiaClinicaId,
+    );
 
     return rutaCompleta;
   }
@@ -3518,46 +3283,12 @@ export class InformesService {
           firma: null,
         };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(notaMedica.fechaNotaMedica)
       .replace(/\//g, '-')
@@ -3580,6 +3311,12 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'notaMedica',
+      notaMedicaId,
+    );
     return rutaCompleta;
   }
 
@@ -3793,46 +3530,12 @@ export class InformesService {
           firma: null,
         };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(notaAclaratoria.fechaNotaAclaratoria)
       .replace(/\//g, '-')
@@ -3880,6 +3583,12 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'notaAclaratoria',
+      notaAclaratoriaId,
+    );
     return rutaCompleta;
   }
 
@@ -4095,7 +3804,7 @@ export class InformesService {
       };
 
     const enfermeraFirmante =
-      await this.enfermerasFirmantesService.findOneByUserId(userId);
+      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
@@ -4146,46 +3855,12 @@ export class InformesService {
         firma: null,
       };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(
       controlPrenatal.fechaInicioControlPrenatal,
@@ -4211,6 +3886,12 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'controlPrenatal',
+      controlPrenatalId,
+    );
     return rutaCompleta;
   }
 
@@ -4357,7 +4038,7 @@ export class InformesService {
       };
 
     const enfermeraFirmante =
-      await this.enfermerasFirmantesService.findOneByUserId(userId);
+      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
@@ -4408,46 +4089,12 @@ export class InformesService {
         firma: null,
       };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(
       historiaOtologica.fechaHistoriaOtologica,
@@ -4473,6 +4120,12 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'historiaOtologica',
+      historiaOtologicaId,
+    );
     return rutaCompleta;
   }
 
@@ -4625,7 +4278,7 @@ export class InformesService {
       };
 
     const enfermeraFirmante =
-      await this.enfermerasFirmantesService.findOneByUserId(userId);
+      await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
@@ -4676,46 +4329,12 @@ export class InformesService {
         firma: null,
       };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(
       previoEspirometria.fechaPrevioEspirometria,
@@ -4741,6 +4360,12 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'previoEspirometria',
+      previoEspirometriaId,
+    );
     return rutaCompleta;
   }
 
@@ -4841,46 +4466,12 @@ export class InformesService {
         firma: null,
       };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(receta.fechaReceta)
       .replace(/\//g, '-')
@@ -5110,46 +4701,12 @@ export class InformesService {
         firma: null,
       };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(
       entrevistaPsicologica.fechaEntrevistaPsicologica,
@@ -5177,6 +4734,12 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'entrevistaPsicologica',
+      entrevistaPsicologicaId,
+    );
 
     return rutaCompleta;
   }
@@ -5373,46 +4936,12 @@ export class InformesService {
         firma: null,
       };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(
       trastornosEstadoAnimo.fechaTrastornosEstadoAnimo,
@@ -5440,6 +4969,12 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'trastornosEstadoAnimo',
+      trastornosEstadoAnimoId,
+    );
 
     return rutaCompleta;
   }
@@ -5674,46 +5209,12 @@ export class InformesService {
         firma: null,
       };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(
       cuestionarioProdromalBreve.fechaCuestionarioProdromalBreve,
@@ -5741,6 +5242,12 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'cuestionarioProdromalBreve',
+      cuestionarioProdromalBreveId,
+    );
 
     return rutaCompleta;
   }
@@ -5930,46 +5437,12 @@ export class InformesService {
         firma: null,
       };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(
       trastornoLimitePersonalidad.fechaTrastornoLimitePersonalidad,
@@ -5997,6 +5470,12 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'trastornoLimitePersonalidad',
+      trastornoLimitePersonalidadId,
+    );
 
     return rutaCompleta;
   }
@@ -6055,46 +5534,12 @@ export class InformesService {
         numeroCredencialAdicional: "",
         firma: null,
       };
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const docDefinition = dashboardInforme(
       nombreEmpresa,
@@ -6231,7 +5676,7 @@ export class InformesService {
         : null,
     );
     
-    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(userId);
+    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
@@ -6284,46 +5729,12 @@ export class InformesService {
         firma: null,
       };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(
       eventoSeguimientoCardiometabolico.fechaEventoSeguimientoCardiometabolico,
@@ -6352,6 +5763,12 @@ export class InformesService {
       footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'eventoSeguimientoCardiometabolico',
+      eventoSeguimientoCardiometabolicoId,
+    );
 
     return rutaCompleta;
   }
@@ -6517,7 +5934,7 @@ export class InformesService {
         : null,
     );
     
-    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(userId);
+    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
     const datosEnfermeraFirmante = enfermeraFirmante
     ? {
         nombre: enfermeraFirmante.nombre || "",
@@ -6570,46 +5987,12 @@ export class InformesService {
         firma: null,
       };
 
-    const usuario = await this.usersService.findById(userId);
-    const datosUsuario = {
-      idProveedorSalud: usuario.idProveedorSalud,
-    };
-    const proveedorSalud = await this.proveedoresSaludService.findOne(
-      datosUsuario.idProveedorSalud,
-    );
-    const datosProveedorSalud = proveedorSalud
-      ? {
-          nombre: proveedorSalud.nombre || '',
-          pais: proveedorSalud.pais || '',
-          perfilProveedorSalud: proveedorSalud.perfilProveedorSalud || '',
-          logotipoEmpresa:
-            (proveedorSalud.logotipoEmpresa as {
-              data: string;
-              contentType: string;
-            }) || null,
-          estado: proveedorSalud.estado || '',
-          municipio: proveedorSalud.municipio || '',
-          codigoPostal: proveedorSalud.codigoPostal || '',
-          direccion: proveedorSalud.direccion || '',
-          telefono: proveedorSalud.telefono || '',
-          correoElectronico: proveedorSalud.correoElectronico || '',
-          sitioWeb: proveedorSalud.sitioWeb || '',
-          colorInforme: proveedorSalud.colorInforme || '#343A40',
-        }
-      : {
-          nombre: '',
-          pais: '',
-          perfilProveedorSalud: '',
-          logotipoEmpresa: null,
-          estado: '',
-          municipio: '',
-          codigoPostal: '',
-          direccion: '',
-          telefono: '',
-          correoElectronico: '',
-          sitioWeb: '',
-          colorInforme: '#343A40',
-        };
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+    const datosProveedorSalud = proveedorInforme.datos;
 
     const fecha = convertirFechaADDMMAAAA(
       informeLongitudinalCardiometabolico.fechaInformeLongitudinalCardiometabolico,
@@ -6638,6 +6021,12 @@ export class InformesService {
       footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
+    await this.recordDelegatedPdfRegenerationIfNeeded(
+      proveedorInforme,
+      userId,
+      'longitudinalCardiometabolico',
+      informeLongitudinalCardiometabolicoId,
+    );
 
     return rutaCompleta;
   }

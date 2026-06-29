@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { OrganizationalAccessService } from './organizational-access.service';
 import { User } from 'src/modules/users/entities/user.entity';
@@ -9,6 +9,7 @@ import { Empresa } from 'src/modules/empresas/schemas/empresa.schema';
 import { EmpresaSchema } from 'src/modules/empresas/schemas/empresa.schema';
 import { Trabajador } from 'src/modules/trabajadores/schemas/trabajador.schema';
 import { TrabajadorSchema } from 'src/modules/trabajadores/schemas/trabajador.schema';
+import { ExpedienteColaboracionModule } from 'src/modules/expediente-colaboracion/expediente-colaboracion.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { TrabajadorSchema } from 'src/modules/trabajadores/schemas/trabajador.sc
       { name: Empresa.name, schema: EmpresaSchema },
       { name: Trabajador.name, schema: TrabajadorSchema },
     ]),
+    forwardRef(() => ExpedienteColaboracionModule),
   ],
   providers: [OrganizationalAccessService],
   exports: [OrganizationalAccessService],
