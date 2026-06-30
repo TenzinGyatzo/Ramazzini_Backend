@@ -1,7 +1,13 @@
 // Servicios para gestionar la data que se almacena en la base de datos
-import { Injectable, BadRequestException, UnauthorizedException, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  UnauthorizedException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 import { Antidoping } from './schemas/antidoping.schema';
 import { AptitudPuesto } from './schemas/aptitud-puesto.schema';
 import { Audiometria } from './schemas/audiometria.schema';
@@ -71,7 +77,6 @@ import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
 import { UsersService } from '../users/users.service';
 import { WorkerFusionService } from '../trabajadores/worker-fusion.service';
-
 
 @Injectable()
 export class ExpedientesService {
@@ -159,8 +164,10 @@ export class ExpedientesService {
       trastornosEstadoAnimo: this.trastornosEstadoAnimoModel,
       cuestionarioProdromalBreve: this.cuestionarioProdromalBreveModel,
       trastornoLimitePersonalidad: this.trastornoLimitePersonalidadModel,
-      eventoSeguimientoCardiometabolico: this.eventoSeguimientoCardiometabolicoModel,
-      informeLongitudinalCardiometabolico: this.informeLongitudinalCardiometabolicoModel,
+      eventoSeguimientoCardiometabolico:
+        this.eventoSeguimientoCardiometabolicoModel,
+      informeLongitudinalCardiometabolico:
+        this.informeLongitudinalCardiometabolicoModel,
     };
 
     this.dateFields = {
@@ -184,8 +191,10 @@ export class ExpedientesService {
       trastornosEstadoAnimo: 'fechaTrastornosEstadoAnimo',
       cuestionarioProdromalBreve: 'fechaCuestionarioProdromalBreve',
       trastornoLimitePersonalidad: 'fechaTrastornoLimitePersonalidad',
-      eventoSeguimientoCardiometabolico: 'fechaEventoSeguimientoCardiometabolico',
-      informeLongitudinalCardiometabolico: 'fechaInformeLongitudinalCardiometabolico',
+      eventoSeguimientoCardiometabolico:
+        'fechaEventoSeguimientoCardiometabolico',
+      informeLongitudinalCardiometabolico:
+        'fechaInformeLongitudinalCardiometabolico',
     };
 
     this.documentTypeToStoreKey = {
@@ -210,7 +219,8 @@ export class ExpedientesService {
       cuestionarioProdromalBreve: 'cuestionarioProdromalBreve',
       trastornoLimitePersonalidad: 'trastornoLimitePersonalidad',
       eventoSeguimientoCardiometabolico: 'eventoSeguimientoCardiometabolico',
-      informeLongitudinalCardiometabolico: 'informeLongitudinalCardiometabolico',
+      informeLongitudinalCardiometabolico:
+        'informeLongitudinalCardiometabolico',
     };
   }
 
@@ -303,7 +313,10 @@ export class ExpedientesService {
       // Extraer solo el código del formato "CODE - DESCRIPTION"
       const codigoNormalizado = extractCodeFromFullText(codigo).toUpperCase();
 
-      if (documentType === 'notaMedica' && !isCIE10Exact4Chars(codigoNormalizado)) {
+      if (
+        documentType === 'notaMedica' &&
+        !isCIE10Exact4Chars(codigoNormalizado)
+      ) {
         errors.push(
           `Código CIE-10 ${tipo} inválido: debe tener exactamente 4 caracteres (CATALOG_KEY DIAGNOSTICO_SIS).`,
         );
@@ -385,7 +398,8 @@ export class ExpedientesService {
           errors.push(issue.message);
         }
 
-        const codigoNorm = extractCodeFromFullText(codigoPrincipalFull).toUpperCase();
+        const codigoNorm =
+          extractCodeFromFullText(codigoPrincipalFull).toUpperCase();
         const primeraLetra = codigoNorm.charAt(0);
         if (
           primeraLetra === 'S' ||
@@ -606,7 +620,11 @@ export class ExpedientesService {
 
     // Validación E1: fecha del documento según régimen (SIRES: no futura; SIN_REGIMEN notaMedica: solo coherencia nacimiento)
     const createDateField = this.dateFields[documentType];
-    if (createDateField && createDto[createDateField] && createDto.idTrabajador) {
+    if (
+      createDateField &&
+      createDto[createDateField] &&
+      createDto.idTrabajador
+    ) {
       await this.validateDocumentDateE1(
         createDto.idTrabajador,
         createDto[createDateField],
@@ -704,10 +722,7 @@ export class ExpedientesService {
           }
         }
       } catch (error) {
-        console.warn(
-          'Error al obtener consentimiento para documento:',
-          error,
-        );
+        console.warn('Error al obtener consentimiento para documento:', error);
       }
     }
 
@@ -1240,9 +1255,40 @@ export class ExpedientesService {
     }
 
     let result;
-    if (newFecha.toISOString() !== oldFecha.toISOString()) {
-      const newDocumentData = { ...updateDto };
+    const dateChanged = newFecha.toISOString() !== oldFecha.toISOString();
+    if (dateChanged) {
+      const existingPlain =
+        typeof existingDocument.toObject === 'function'
+          ? existingDocument.toObject()
+          : { ...existingDocument };
+      const updateFields = { ...updateDto };
+      delete updateFields._id;
+      if (updateFields.createdBy == null) {
+        delete updateFields.createdBy;
+      }
+
+      const newDocumentData = {
+        ...existingPlain,
+        ...updateFields,
+        estado: DocumentoEstado.BORRADOR,
+        updatedBy: updateDto.updatedBy ?? existingDocument.updatedBy,
+      };
       delete newDocumentData._id;
+      delete newDocumentData.__v;
+      delete newDocumentData.createdAt;
+      delete newDocumentData.updatedAt;
+      delete newDocumentData.fechaFinalizacion;
+      delete newDocumentData.finalizadoPor;
+      delete newDocumentData.fechaAnulacion;
+      delete newDocumentData.anuladoPor;
+      delete newDocumentData.razonAnulacion;
+
+      if (!newDocumentData.createdBy) {
+        newDocumentData.createdBy = existingDocument.createdBy;
+      }
+      if (!newDocumentData.createdBy && updateDto.updatedBy) {
+        newDocumentData.createdBy = updateDto.updatedBy;
+      }
 
       const newDocument = new model(newDocumentData);
       result = await newDocument.save();
@@ -1293,10 +1339,12 @@ export class ExpedientesService {
         'temperatura',
         'saturacionOxigeno',
       ];
-      let updatePayload: any = updateDto;
+      let updatePayload: any = { ...updateDto };
+      if (updatePayload.createdBy == null) {
+        delete updatePayload.createdBy;
+      }
       if (documentType === 'notaMedica') {
         const unsetVitals: Record<string, 1> = {};
-        updatePayload = { ...updateDto };
         for (const field of VITAL_SIGNS_FIELDS) {
           if (updateDto[field] === null) {
             delete updatePayload[field];
@@ -1401,13 +1449,12 @@ export class ExpedientesService {
     // NUEVO: Regenerar PDF con datos de elaborador y finalizador
     try {
       const creadorId = document.createdBy?.toString() || userId;
-      const rutaPdfGenerado =
-        await this.informesService.regenerarInformeAlFinalizar(
-          documentType,
-          id,
-          creadorId,
-          userId, // finalizador
-        );
+      await this.informesService.regenerarInformeAlFinalizar(
+        documentType,
+        id,
+        creadorId,
+        userId, // finalizador
+      );
     } catch (error) {
       console.error('Error al regenerar PDF al finalizar documento:', error);
       // No lanzamos excepción para no bloquear la finalización del documento
@@ -1512,9 +1559,7 @@ export class ExpedientesService {
     return docs;
   }
 
-  async findAllDocuments(
-    trabajadorId: string,
-  ): Promise<Record<string, any[]>> {
+  async findAllDocuments(trabajadorId: string): Promise<Record<string, any[]>> {
     const documentTypes = Object.keys(this.models);
     const entries = await Promise.all(
       documentTypes.map(async (documentType) => {
