@@ -963,16 +963,8 @@ export class ProveedoresSaludService {
     { _id: string; totalCount: number; mesCount: number }[]
   > {
     const collection = this.connection.collection(collectionName);
-    const matchProveedor =
-      proveedorIdFilter && proveedorIdFilter.size > 0
-        ? {
-            $match: {
-              'e.idProveedorSalud': {
-                $in: [...proveedorIdFilter].map((id) => new Types.ObjectId(id)),
-              },
-            },
-          }
-        : null;
+    const filterByProveedor =
+      proveedorIdFilter != null && proveedorIdFilter.size > 0;
 
     const pipeline: Record<string, unknown>[] = [
       {
@@ -1004,9 +996,13 @@ export class ProveedoresSaludService {
       { $unwind: '$empresa' },
     ];
 
-    if (matchProveedor) {
+    if (filterByProveedor) {
       pipeline.push({
-        $match: (matchProveedor as { $match: Record<string, unknown> }).$match,
+        $match: {
+          'empresa.idProveedorSalud': {
+            $in: [...proveedorIdFilter!].map((id) => new Types.ObjectId(id)),
+          },
+        },
       });
     }
 

@@ -60,6 +60,7 @@ async function bootstrap() {
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     optionsSuccessStatus: 204,
+    allowedHeaders: ['X-Clinical-File-Probe', 'Content-Type', 'Authorization'],
     exposedHeaders: ['Content-Disposition'],
   });
 

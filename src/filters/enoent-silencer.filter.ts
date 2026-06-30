@@ -5,6 +5,7 @@ import {
   Logger,
   BadRequestException,
   HttpException,
+  NotFoundException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
@@ -47,9 +48,16 @@ export class EnoentSilencerFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const payload = exception.getResponse();
-      this.logger.error(
-        `[HttpException] ${request.method} ${request.url} -> ${JSON.stringify(payload)}`,
-      );
+      const isQuietClinicalProbe =
+        exception instanceof NotFoundException &&
+        request.method === 'HEAD' &&
+        request.url?.startsWith('/expedientes-medicos') &&
+        request.headers['x-clinical-file-probe'] === 'regenerable';
+      if (!isQuietClinicalProbe) {
+        this.logger.error(
+          `[HttpException] ${request.method} ${request.url} -> ${JSON.stringify(payload)}`,
+        );
+      }
       return response
         .status(status)
         .json(
