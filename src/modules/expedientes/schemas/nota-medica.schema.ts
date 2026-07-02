@@ -136,15 +136,6 @@ export class NotaMedica extends Document {
   @Prop({ required: false })
   diagnosticoTexto?: string; // Texto libre complementario al diagnóstico 2
 
-  @Prop({
-    required: false,
-    // Formato: "V01 - ACCIDENTE DE TRÁNSITO" o solo "V01"
-  })
-  codigoCIECausaExterna?: string; // Para Cap. XIX/XX
-
-  @Prop({ required: false })
-  causaExterna?: string; // Texto libre para causa externa
-
   @Prop({ type: [String] })
   tratamiento: string[];
 

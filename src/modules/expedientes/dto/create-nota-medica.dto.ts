@@ -259,14 +259,6 @@ export class CreateNotaMedicaDto {
   confirmacionDiagnostica?: boolean; // Flag para crónicos/cáncer <18
 
   @IsOptional()
-  @IsString({ message: 'El código CIE-10 causa externa debe ser un string' })
-  codigoCIECausaExterna?: string; // Formato: "V01 - ACCIDENTE DE TRÁNSITO" o "V01"
-
-  @IsOptional()
-  @IsString({ message: 'La causa externa debe ser un string' })
-  causaExterna?: string; // Texto libre para causa externa
-
-  @IsOptional()
   @IsString({ each: true, message: 'Cada tratamiento debe ser un string' })
   tratamiento: string[];
 

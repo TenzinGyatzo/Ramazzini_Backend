@@ -344,22 +344,6 @@ export class ExpedientesService {
       }
 
       // Validar diagnósticos exclusivos
-      // Si código inicia con S/T (Cap. XIX) o V-Y (Cap. XX) → requerir causaExterna
-      const primeraLetra = codigoNormalizado.charAt(0);
-      if (
-        (primeraLetra === 'S' ||
-          primeraLetra === 'T' ||
-          (primeraLetra >= 'V' && primeraLetra <= 'Y')) &&
-        tipo === 'principal'
-      ) {
-        const codigoCausaFull = dto.codigoCIECausaExterna?.trim() || '';
-        if (!codigoCausaFull) {
-          errors.push(
-            `El código CIE-10 ${codigoNormalizado} (Capítulo ${primeraLetra === 'S' || primeraLetra === 'T' ? 'XIX' : 'XX'}) requiere especificar una causa externa (codigoCIECausaExterna)`,
-          );
-        }
-      }
-
       // Si código es R69X → emitir warning (no bloqueante)
       if (codigoNormalizado.startsWith('R69')) {
         warnings.push(
@@ -400,19 +384,6 @@ export class ExpedientesService {
 
         const codigoNorm =
           extractCodeFromFullText(codigoPrincipalFull).toUpperCase();
-        const primeraLetra = codigoNorm.charAt(0);
-        if (
-          primeraLetra === 'S' ||
-          primeraLetra === 'T' ||
-          (primeraLetra >= 'V' && primeraLetra <= 'Y')
-        ) {
-          const codigoCausaFull = dto.codigoCIECausaExterna?.trim() || '';
-          if (!codigoCausaFull) {
-            errors.push(
-              `El código CIE-10 ${codigoNorm} (Capítulo ${primeraLetra === 'S' || primeraLetra === 'T' ? 'XIX' : 'XX'}) requiere especificar una causa externa (codigoCIECausaExterna)`,
-            );
-          }
-        }
         if (codigoNorm.startsWith('R69')) {
           warnings.push(
             `Advertencia: El código ${codigoNorm} (Morbilidad desconocida) se tolera máximo un 5% por carga. Se recomienda especificar más el diagnóstico si es posible.`,
@@ -554,26 +525,6 @@ export class ExpedientesService {
               `Diagnóstico complementario ${issue.cie10}: ${issue.reason} (sexo/edad).`,
             );
           }
-        }
-      }
-    }
-
-    // Validar causa externa si se proporciona
-    if (dto.codigoCIECausaExterna && dto.codigoCIECausaExterna.trim() !== '') {
-      const codigoCausaFull = dto.codigoCIECausaExterna.trim();
-      const codigoCausa =
-        extractCodeFromFullText(codigoCausaFull).toUpperCase();
-      // Validar que esté en rango V01-Y98 (2 o 3 dígitos: W01, W013, etc.)
-      if (!/^[V-Y][0-9]{2,3}(\.[0-9]{1,2})?$/.test(codigoCausa)) {
-        errors.push(
-          `El código CIE-10 causa externa ${codigoCausa} debe estar en el rango V01-Y98`,
-        );
-      } else {
-        const isValid = await this.catalogsService.validateCIE10(codigoCausa);
-        if (!isValid) {
-          errors.push(
-            `Código CIE-10 causa externa inválido: ${codigoCausa}. No se encuentra en el catálogo CIE-10`,
-          );
         }
       }
     }

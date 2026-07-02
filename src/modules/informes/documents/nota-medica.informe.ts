@@ -278,8 +278,6 @@ interface NotaMedica {
   muestraConfirmacionDiagnostica1?: boolean;
   muestraConfirmacionDiagnostica2?: boolean;
   muestraConfirmacionDiagnostica3?: boolean;
-  codigoCIECausaExterna?: string;
-  causaExterna?: string;
   tratamiento: string[];
   recomendaciones: string[];
   observaciones: string;
@@ -720,9 +718,7 @@ export const notaMedicaInforme = (
         notaMedica.codigosCIE10Complementarios.length > 0) ||
       notaMedica.relacionTemporal !== undefined ||
       (muestraConfirmacionDiagnosticaEnInforme(notaMedica, 1) &&
-        notaMedica.confirmacionDiagnostica !== undefined) ||
-      notaMedica.codigoCIECausaExterna ||
-      notaMedica.causaExterna
+        notaMedica.confirmacionDiagnostica !== undefined)
         ? [
             {
               stack: [
@@ -795,36 +791,6 @@ export const notaMedicaInforme = (
                             notaMedica.confirmacionDiagnostica ? 'Sí' : 'No'
                           } `,
                         },
-                      ],
-                      margin: [0, 0, 0, 6] as [number, number, number, number],
-                      style: 'paragraph',
-                    }
-                  : null,
-                notaMedica.codigoCIECausaExterna
-                  ? {
-                      text: [
-                        { text: `Causa Externa: `, bold: true },
-                        {
-                          text: `${
-                            extractCIE10Description(
-                              notaMedica.codigoCIECausaExterna,
-                            ) ||
-                            extractCIE10Code(notaMedica.codigoCIECausaExterna)
-                          } `,
-                        },
-                      ],
-                      margin: [0, 0, 0, 6] as [number, number, number, number],
-                      style: 'paragraph',
-                    }
-                  : null,
-                notaMedica.causaExterna
-                  ? {
-                      text: [
-                        {
-                          text: `Descripción Causa Externa: `,
-                          bold: true,
-                        },
-                        { text: `${notaMedica.causaExterna} ` },
                       ],
                       margin: [0, 0, 0, 6] as [number, number, number, number],
                       style: 'paragraph',

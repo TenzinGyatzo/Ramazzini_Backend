@@ -3167,8 +3167,6 @@ export class InformesService {
       muestraConfirmacionDiagnostica1: false,
       muestraConfirmacionDiagnostica2: false,
       muestraConfirmacionDiagnostica3: false,
-      codigoCIECausaExterna: notaMedica.codigoCIECausaExterna,
-      causaExterna: notaMedica.causaExterna,
       tratamiento: notaMedica.tratamiento,
       recomendaciones: notaMedica.recomendaciones,
       observaciones: notaMedica.observaciones,

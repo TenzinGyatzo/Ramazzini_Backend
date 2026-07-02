@@ -13,7 +13,7 @@ export interface RecordGenerationAuditPayload {
   usuarioGeneradorId?: string;
   periodo: string;
   establecimientoClues: string;
-  tipoGuia: 'CEX' | 'LES';
+  tipoGuia: 'CEX';
   nombreArchivoOficial: string;
   hashSha256Archivo?: string;
   resumenValidacion: string;
