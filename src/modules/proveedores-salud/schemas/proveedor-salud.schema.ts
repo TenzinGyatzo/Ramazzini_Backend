@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
+import { CLUES_VALIDATION_REGEX } from 'src/utils/clues-validator.util';
 
 const perfiles = [
   'Médico único de empresa',
@@ -23,10 +24,10 @@ export class ProveedorSalud extends Document {
   @Prop({ required: true, enum: perfiles })
   perfilProveedorSalud: string;
   // NOM-024: CLUES (Clave Única de Establecimiento de Salud)
-  // 11 alphanumeric characters, required for MX providers
+  // 11 alphanumeric characters, or sentinel 9998 (servicios médicos privados)
   @Prop({
     required: false,
-    match: /^$|^[A-Z0-9]{11}$/,
+    match: CLUES_VALIDATION_REGEX,
   })
   clues?: string;
   @Prop({

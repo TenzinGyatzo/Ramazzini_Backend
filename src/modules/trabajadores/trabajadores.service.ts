@@ -63,7 +63,13 @@ import { CuestionarioProdromalBreve } from '../expedientes/schemas/cuestionario-
 import { TrastornoLimitePersonalidad } from '../expedientes/schemas/trastorno-limite-personalidad.schema';
 import { generateFolioFromWorkerData } from 'src/utils/folio-generator.util';
 import { WorkerFusionService } from './worker-fusion.service';
-import { CreateTrabajadorResult } from './interfaces/duplicate-match.interface';
+import {
+  CreateTrabajadorResult,
+  TransferirTrabajadorResult,
+} from './interfaces/duplicate-match.interface';
+import { AuditService } from '../audit/audit.service';
+import { AuditActionType } from '../audit/constants/audit-action-type';
+import { AuditEventClass } from '../audit/constants/audit-event-class';
 import { EventoSeguimientoCardiometabolico } from '../expedientes/schemas/evento-seguimiento-cardiometabolico.schema';
 import { InformeLongitudinalCardiometabolico } from '../expedientes/schemas/informe-longitudinal-cardiometabolico.schema';
 import {
@@ -124,6 +130,8 @@ export class TrabajadoresService {
     @Inject(forwardRef(() => RegulatoryPolicyService))
     private regulatoryPolicyService: RegulatoryPolicyService,
     private workerFusionService: WorkerFusionService,
+    @Inject(forwardRef(() => AuditService))
+    private auditService: AuditService,
   ) {}
 
   /**
@@ -1888,7 +1896,7 @@ export class TrabajadoresService {
     trabajadorId: string,
     nuevoCentroId: string,
     userId: string,
-  ): Promise<Trabajador> {
+  ): Promise<TransferirTrabajadorResult> {
     // Validar que el trabajador existe
     const trabajador = await this.trabajadorModel
       .findById(trabajadorId)
@@ -1976,6 +1984,10 @@ export class TrabajadoresService {
       );
     }
 
+    const empresaActualId = (empresaActual as any)._id.toString();
+    const empresaDestinoId = (empresaDestino as any)._id.toString();
+    const crossEmpresa = empresaActualId !== empresaDestinoId;
+
     // Actualizar el centro de trabajo del trabajador y establecer fecha de transferencia
     const trabajadorActualizado = await this.trabajadorModel
       .findByIdAndUpdate(
@@ -1989,20 +2001,46 @@ export class TrabajadoresService {
       )
       .exec();
 
-    // Log de resumen de transferencia (para auditoría/seguimiento en consola)
-    try {
-      const nombreCompleto = [
-        trabajador.nombre,
-        trabajador.primerApellido,
-        trabajador.segundoApellido,
-      ]
-        .filter(Boolean)
-        .join(' ');
-      const resumen = {
-        trabajadorId: trabajador._id?.toString?.() || trabajadorId,
+    let alertasInvalidadas: Array<{
+      _id: string;
+      trabajadorId: string;
+      candidatoId: string;
+    }> = [];
+    let posibleDuplicado = null;
+
+    if (crossEmpresa) {
+      alertasInvalidadas =
+        await this.workerFusionService.descartarAlertasPendientesPorTransferencia(
+          trabajadorId,
+          userId,
+        );
+      posibleDuplicado =
+        await this.workerFusionService.evaluarDuplicadoTrasTransferencia(
+          trabajadorId,
+          nuevoCentroId,
+          userId,
+        );
+    }
+
+    const nombreCompleto = [
+      trabajador.nombre,
+      trabajador.primerApellido,
+      trabajador.segundoApellido,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    await this.auditService.record({
+      proveedorSaludId: empresaActual.idProveedorSalud.toString(),
+      actorId: userId,
+      actionType: AuditActionType.WORKER_TRANSFER,
+      eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
+      resourceType: 'Trabajador',
+      resourceId: trabajadorId,
+      payload: {
         trabajador: nombreCompleto,
         de: {
-          empresaId: (empresaActual as any)._id?.toString?.(),
+          empresaId: empresaActualId,
           empresa:
             (empresaActual as any).nombreComercial ||
             (empresaActual as any).razonSocial,
@@ -2010,23 +2048,20 @@ export class TrabajadoresService {
           centro: (centroActual as any).nombreCentro,
         },
         a: {
-          empresaId: (empresaDestino as any)._id?.toString?.(),
+          empresaId: empresaDestinoId,
           empresa:
             (empresaDestino as any).nombreComercial ||
             (empresaDestino as any).razonSocial,
           centroId: (nuevoCentro as any)._id?.toString?.(),
           centro: (nuevoCentro as any).nombreCentro,
         },
-        ejecutadoPor: userId,
-        fecha: new Date().toISOString(),
-      };
-      // eslint-disable-next-line no-console
-      console.log('[TRANSFERENCIA-TRABAJADOR] Resumen:', resumen);
-    } catch {
-      // Silenciar cualquier error de logging para no afectar el flujo principal
-    }
+        crossEmpresa,
+        alertasInvalidadas: alertasInvalidadas.map((a) => a._id),
+        posibleDuplicadoDetectado: posibleDuplicado ?? null,
+      },
+    });
 
-    return trabajadorActualizado;
+    return { trabajador: trabajadorActualizado, posibleDuplicado };
   }
 
   async getCentrosDisponiblesParaTransferencia(

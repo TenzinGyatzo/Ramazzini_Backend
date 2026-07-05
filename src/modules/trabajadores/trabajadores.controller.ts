@@ -569,7 +569,7 @@ export class TrabajadoresController {
 
     const userId = req.userId;
 
-    const trabajadorTransferido =
+    const { trabajador, posibleDuplicado } =
       await this.trabajadoresService.transferirTrabajador(
         id,
         transferData.nuevoCentroId,
@@ -578,7 +578,8 @@ export class TrabajadoresController {
 
     return {
       message: 'Trabajador transferido exitosamente',
-      data: trabajadorTransferido,
+      data: trabajador,
+      posibleDuplicado,
     };
   }
 

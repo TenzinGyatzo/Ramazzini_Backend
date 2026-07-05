@@ -10,6 +10,10 @@ import {
   Matches,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+import {
+  CLUES_VALIDATION_MESSAGE,
+  CLUES_VALIDATION_REGEX,
+} from 'src/utils/clues-validator.util';
 
 const perfiles = [
   'Médico único de empresa',
@@ -56,9 +60,8 @@ export class CreateProveedoresSaludDto {
 
   @IsOptional()
   @IsString({ message: 'El CLUES debe ser un string' })
-  @Matches(/^$|^[A-Z0-9]{11}$/, {
-    message:
-      'CLUES debe tener exactamente 11 caracteres alfanuméricos (solo letras mayúsculas y números)',
+  @Matches(CLUES_VALIDATION_REGEX, {
+    message: CLUES_VALIDATION_MESSAGE,
   })
   @Transform(({ value }) => value?.toString().toUpperCase().trim() || '')
   clues?: string;

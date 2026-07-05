@@ -22,6 +22,10 @@ import { canChangeRegimenRegulatorio } from 'src/utils/user-role-helpers';
 import { AuditService } from '../audit/audit.service';
 import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
+import {
+  isValidCluesFormat,
+  requiresCluesCatalogValidation,
+} from 'src/utils/clues-validator.util';
 
 export interface PanelAdminPrincipalUser {
   username: string;
@@ -130,15 +134,18 @@ export class ProveedoresSaludService {
 
     const normalizedClues = clues.trim().toUpperCase();
 
-    // Validate format (11 alphanumeric characters) - always validate format if provided
-    if (!/^[A-Z0-9]{11}$/.test(normalizedClues)) {
+    // Validate format (11 alphanumeric characters or sentinel 9998)
+    if (!isValidCluesFormat(normalizedClues)) {
       throw new BadRequestException(
-        'CLUES debe tener exactamente 11 caracteres alfanuméricos',
+        'CLUES debe tener exactamente 11 caracteres alfanuméricos o el código 9998 (servicios médicos privados)',
       );
     }
 
     // Only validate against catalog if policy allows CLUES field (SIRES_NOM024)
-    if (policy.features.cluesFieldVisible) {
+    if (
+      policy.features.cluesFieldVisible &&
+      requiresCluesCatalogValidation(normalizedClues)
+    ) {
       // SIRES provider: Validate against catalog if provided
       const isValid = await this.catalogsService.validateCLUES(normalizedClues);
       if (!isValid) {
@@ -193,15 +200,15 @@ export class ProveedoresSaludService {
     if (normalizedDto.clues && normalizedDto.clues.trim() !== '') {
       const normalizedClues = normalizedDto.clues.trim().toUpperCase();
 
-      // Validate format (11 alphanumeric characters) - always validate format if provided
-      if (!/^[A-Z0-9]{11}$/.test(normalizedClues)) {
+      // Validate format (11 alphanumeric characters or sentinel 9998)
+      if (!isValidCluesFormat(normalizedClues)) {
         throw new BadRequestException(
-          'CLUES debe tener exactamente 11 caracteres alfanuméricos',
+          'CLUES debe tener exactamente 11 caracteres alfanuméricos o el código 9998 (servicios médicos privados)',
         );
       }
 
       // Only validate against catalog if policy allows CLUES field (SIRES_NOM024)
-      if (cluesFieldVisible) {
+      if (cluesFieldVisible && requiresCluesCatalogValidation(normalizedClues)) {
         // SIRES provider: Validate against catalog
         const isValid =
           await this.catalogsService.validateCLUES(normalizedClues);

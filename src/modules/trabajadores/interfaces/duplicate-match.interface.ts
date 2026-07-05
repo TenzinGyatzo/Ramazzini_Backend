@@ -43,3 +43,8 @@ export interface CreateTrabajadorResult {
   trabajador: any;
   posibleDuplicado: DuplicateMatch | null;
 }
+
+export interface TransferirTrabajadorResult {
+  trabajador: any;
+  posibleDuplicado: DuplicateMatch | null;
+}

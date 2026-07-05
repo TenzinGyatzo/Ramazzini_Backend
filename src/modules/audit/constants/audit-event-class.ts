@@ -52,6 +52,7 @@ export const ACTION_TYPE_TO_CLASS: Record<
   [AuditActionType.SIGNER_PROFILE_CREATED]: AuditEventClass.CLASS_1_HARD_FAIL,
   [AuditActionType.SIGNER_PROFILE_UPDATED]: AuditEventClass.CLASS_1_HARD_FAIL,
   [AuditActionType.WORKER_FUSION_MANUAL]: AuditEventClass.CLASS_1_HARD_FAIL,
+  [AuditActionType.WORKER_TRANSFER]: AuditEventClass.CLASS_1_HARD_FAIL,
   [AuditActionType.ACUERDO_CONFIDENCIALIDAD_ACEPTADO]:
     AuditEventClass.CLASS_1_HARD_FAIL,
   [AuditActionType.WORKERS_EXPORT_EXCEL]: AuditEventClass.CLASS_2_SOFT_FAIL,

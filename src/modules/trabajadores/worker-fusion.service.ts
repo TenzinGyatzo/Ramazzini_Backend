@@ -394,22 +394,121 @@ export class WorkerFusionService {
           { candidatoId: { $in: objectIds } },
         ],
       })
-      .select('trabajadorId candidatoId')
+      .select('trabajadorId candidatoId idEmpresa')
       .lean()
       .exec();
+
+    if (alerts.length === 0) return new Map();
+
+    const allWorkerIds = new Set<string>();
+    for (const alert of alerts) {
+      const tId = (alert as any).trabajadorId?.toString();
+      const cId = (alert as any).candidatoId?.toString();
+      if (tId) allWorkerIds.add(tId);
+      if (cId) allWorkerIds.add(cId);
+    }
+
+    const workerEmpresaMap = await this.getWorkerEmpresaMap([...allWorkerIds]);
 
     const counts = new Map<string, number>();
     for (const alert of alerts) {
       const tId = (alert as any).trabajadorId?.toString();
       const cId = (alert as any).candidatoId?.toString();
-      if (tId && workerIds.includes(tId)) {
+      const alertEmpresaId = (alert as any).idEmpresa?.toString();
+      if (!alertEmpresaId || !tId || !cId) continue;
+
+      const tEmpresa = workerEmpresaMap.get(tId);
+      const cEmpresa = workerEmpresaMap.get(cId);
+      if (tEmpresa !== alertEmpresaId || cEmpresa !== alertEmpresaId) continue;
+
+      if (workerIds.includes(tId)) {
         counts.set(tId, (counts.get(tId) ?? 0) + 1);
       }
-      if (cId && workerIds.includes(cId)) {
+      if (workerIds.includes(cId)) {
         counts.set(cId, (counts.get(cId) ?? 0) + 1);
       }
     }
     return counts;
+  }
+
+  /**
+   * Descarta alertas PENDIENTE que involucran al trabajador transferido a otra empresa.
+   * Ambos extremos del par pierden la señalización de duplicado.
+   */
+  async descartarAlertasPendientesPorTransferencia(
+    workerId: string,
+    userId: string,
+  ): Promise<Array<{ _id: string; trabajadorId: string; candidatoId: string }>> {
+    if (!workerId || !Types.ObjectId.isValid(workerId)) return [];
+
+    const workerObjectId = new Types.ObjectId(workerId);
+    const pendingAlerts = await this.duplicateAlertModel
+      .find({
+        estado: 'PENDIENTE',
+        $or: [{ trabajadorId: workerObjectId }, { candidatoId: workerObjectId }],
+      })
+      .select('_id trabajadorId candidatoId')
+      .lean()
+      .exec();
+
+    if (pendingAlerts.length === 0) return [];
+
+    await this.duplicateAlertModel
+      .updateMany(
+        { _id: { $in: pendingAlerts.map((a) => (a as any)._id) } },
+        {
+          $set: {
+            estado: 'DESCARTADO',
+            descartadoBy: new Types.ObjectId(userId),
+          },
+        },
+      )
+      .exec();
+
+    return pendingAlerts.map((a) => ({
+      _id: (a as any)._id.toString(),
+      trabajadorId: (a as any).trabajadorId?.toString(),
+      candidatoId: (a as any).candidatoId?.toString(),
+    }));
+  }
+
+  /**
+   * Tras transferir a otra empresa, evalúa si el trabajador coincide con algún
+   * registro existente en la empresa destino (misma lógica que en alta).
+   */
+  async evaluarDuplicadoTrasTransferencia(
+    trabajadorId: string,
+    nuevoCentroId: string,
+    userId: string,
+  ): Promise<DuplicateMatch | null> {
+    const worker = await this.trabajadorModel.findById(trabajadorId).lean().exec();
+    if (!worker) return null;
+
+    const posibleDuplicado = await this.findDuplicateInEmpresa(
+      worker as any,
+      nuevoCentroId,
+      trabajadorId,
+    );
+    if (!posibleDuplicado) return null;
+
+    const idEmpresa = await this.getIdEmpresaFromCentro(nuevoCentroId);
+    if (!idEmpresa) return posibleDuplicado;
+
+    const alert = await this.createDuplicateAlert(
+      trabajadorId,
+      posibleDuplicado.trabajadorId,
+      posibleDuplicado.criterio,
+      idEmpresa,
+      userId,
+    );
+
+    if (alert?._id) {
+      return {
+        ...posibleDuplicado,
+        alertId: alert._id.toString(),
+      };
+    }
+    return posibleDuplicado;
   }
 
   async descartarAlerta(alertId: string, userId: string): Promise<WorkerDuplicateAlert> {
@@ -1179,5 +1278,52 @@ export class WorkerFusionService {
       .exec();
 
     return centros.map((c) => (c as any)._id);
+  }
+
+  private async getWorkerEmpresaMap(
+    workerIds: string[],
+  ): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    if (workerIds.length === 0) return map;
+
+    const workers = await this.trabajadorModel
+      .find({ _id: { $in: workerIds.map((id) => new Types.ObjectId(id)) } })
+      .select('idCentroTrabajo')
+      .lean()
+      .exec();
+
+    const centroIds = [
+      ...new Set(
+        workers
+          .map((w) => (w as any).idCentroTrabajo?.toString())
+          .filter(Boolean),
+      ),
+    ];
+    if (centroIds.length === 0) return map;
+
+    const centros = await this.centroTrabajoModel
+      .find({ _id: { $in: centroIds.map((id) => new Types.ObjectId(id)) } })
+      .select('idEmpresa')
+      .lean()
+      .exec();
+
+    const centroEmpresaMap = new Map<string, string>();
+    for (const centro of centros) {
+      const id = (centro as any)._id.toString();
+      const idEmpresa =
+        (centro as any).idEmpresa?.toString?.() ??
+        String((centro as any).idEmpresa ?? '');
+      if (idEmpresa) centroEmpresaMap.set(id, idEmpresa);
+    }
+
+    for (const worker of workers) {
+      const wid = (worker as any)._id.toString();
+      const centroId = (worker as any).idCentroTrabajo?.toString();
+      if (centroId) {
+        const empresaId = centroEmpresaMap.get(centroId);
+        if (empresaId) map.set(wid, empresaId);
+      }
+    }
+    return map;
   }
 }
