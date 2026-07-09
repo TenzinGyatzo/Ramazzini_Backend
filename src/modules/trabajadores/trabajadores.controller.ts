@@ -588,7 +588,6 @@ export class TrabajadoresController {
   async importarTrabajadores(
     @UploadedFile() file: Express.Multer.File,
     @Param('centroId') centroId: string,
-    @Body('createdBy') createdBy: string,
     @Req() req: AuthenticatedRequest,
   ) {
     await this.assertCanManageTrabajadores(req.userId);
@@ -606,7 +605,7 @@ export class TrabajadoresController {
     const result = await this.trabajadoresService.importarTrabajadores(
       data,
       centroId,
-      createdBy,
+      req.userId,
     );
 
     // Retornar el resultado completo del servicio (exitosos + fallidos)

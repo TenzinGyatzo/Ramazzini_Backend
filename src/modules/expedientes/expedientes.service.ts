@@ -557,6 +557,13 @@ export class ExpedientesService {
         );
     }
 
+    if (createDto.idTrabajador) {
+      await this.assertDocumentTypeEnabledForRegime(
+        documentType,
+        createDto.idTrabajador,
+      );
+    }
+
     // Validate CIE-10 codes for MX providers
     if (createDto.idTrabajador) {
       await this.validateCIE10ForDocument(
@@ -763,6 +770,35 @@ export class ExpedientesService {
       return empresa.idProveedorSalud.toString();
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Valida que el tipo de documento esté habilitado según el régimen regulatorio
+   */
+  private async assertDocumentTypeEnabledForRegime(
+    documentType: string,
+    trabajadorId: string,
+  ): Promise<void> {
+    if (documentType !== 'controlPrenatal') {
+      return;
+    }
+
+    const proveedorSaludId =
+      await this.getProveedorSaludIdFromTrabajador(trabajadorId);
+    if (!proveedorSaludId) {
+      return;
+    }
+
+    const policy =
+      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
+
+    if (!policy.features.controlPrenatalEnabled) {
+      throw createRegulatoryError({
+        errorCode: RegulatoryErrorCode.REGIMEN_FEATURE_DISABLED,
+        details: { feature: 'controlPrenatal', documentType: 'controlPrenatal' },
+        regime: policy.regime,
+      });
     }
   }
 
@@ -1101,6 +1137,8 @@ export class ExpedientesService {
       await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
     updateDto.idTrabajador = trabajadorId;
 
+    await this.assertDocumentTypeEnabledForRegime(documentType, trabajadorId);
+
     const existingDocument = await model.findById(id).exec();
 
     if (!existingDocument) {
@@ -1367,8 +1405,12 @@ export class ExpedientesService {
       );
     }
 
-    const estadoAnterior = document.estado;
     const idTrabajador = (document as any).idTrabajador?.toString?.() ?? null;
+    if (idTrabajador) {
+      await this.assertDocumentTypeEnabledForRegime(documentType, idTrabajador);
+    }
+
+    const estadoAnterior = document.estado;
 
     const payload: Record<string, unknown> = {
       estadoAnterior,
@@ -1521,7 +1563,21 @@ export class ExpedientesService {
       }),
     );
 
-    return Object.fromEntries(entries);
+    const result = Object.fromEntries(entries);
+
+    const proveedorSaludId =
+      await this.getProveedorSaludIdFromTrabajador(trabajadorId);
+    if (proveedorSaludId) {
+      const policy =
+        await this.regulatoryPolicyService.getRegulatoryPolicy(
+          proveedorSaludId,
+        );
+      if (!policy.features.controlPrenatalEnabled) {
+        result.controlPrenatal = [];
+      }
+    }
+
+    return result;
   }
 
   async findDocument(documentType: string, id: string): Promise<any> {
@@ -1733,6 +1789,11 @@ export class ExpedientesService {
     const document = await model.findById(id).exec();
     if (!document) {
       throw new BadRequestException(`Documento con ID ${id} no encontrado`);
+    }
+
+    const trabajadorId = document.idTrabajador?.toString?.() ?? null;
+    if (trabajadorId) {
+      await this.assertDocumentTypeEnabledForRegime(documentType, trabajadorId);
     }
 
     // Si se proporciona razonAnulacion, significa que se está intentando anular (soft delete)

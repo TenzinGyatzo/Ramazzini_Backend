@@ -2,6 +2,7 @@ import { Module, Global, forwardRef } from '@nestjs/common';
 import { CatalogsService } from './catalogs.service';
 import { CatalogsController } from './catalogs.controller';
 import { CatalogsAdminController } from './catalogs-admin.controller';
+import { CatalogsImportReferenceController } from './catalogs-import-reference.controller';
 import { CatalogCsvStoreService } from './catalog-csv.store.service';
 import { GeographyValidator } from './validators/geography.validator';
 import { CexCatalogResolver } from './cex-catalog.resolver';
@@ -22,7 +23,7 @@ import { ProveedoresSaludModule } from '../proveedores-salud/proveedores-salud.m
     forwardRef(() => AuditModule),
     forwardRef(() => ProveedoresSaludModule),
   ],
-  controllers: [CatalogsController, CatalogsAdminController],
+  controllers: [CatalogsController, CatalogsAdminController, CatalogsImportReferenceController],
   providers: [
     CatalogsService,
     CatalogCsvStoreService,

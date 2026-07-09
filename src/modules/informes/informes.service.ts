@@ -1680,6 +1680,13 @@ export class InformesService {
       'audiometria',
       audiometriaId,
     );
+    // #region agent log
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      fs.appendFileSync(path.join(process.cwd(), 'debug-8375a6.log'), JSON.stringify({ sessionId: '8375a6', location: 'informes.service.ts:generarInformeAudiometria', message: 'Valores DB para PDF audiometría', data: { audiometriaId, metodoAudiometria: audiometria.metodoAudiometria, perdidaMonauralOD_AMA: audiometria.perdidaMonauralOD_AMA, perdidaMonauralOI_AMA: audiometria.perdidaMonauralOI_AMA, perdidaAuditivaBilateralAMA: audiometria.perdidaAuditivaBilateralAMA, porcentajePerdidaOD: audiometria.porcentajePerdidaOD, porcentajePerdidaOI: audiometria.porcentajePerdidaOI, hipoacusiaBilateralCombinada: audiometria.hipoacusiaBilateralCombinada, runId: 'post-fix' }, timestamp: Date.now(), hypothesisId: 'H1-H3' }) + '\n');
+    } catch { /* ignore */ }
+    // #endregion
     const datosAudiometria = {
       fechaAudiometria: audiometria.fechaAudiometria,
       metodoAudiometria: audiometria.metodoAudiometria || 'AMA', // Agregar método de audiometría

@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { createReadStream, existsSync } from 'fs';
 import { join } from 'path';
 import { parse } from 'csv-parse';
+import { stringify } from 'csv-stringify/sync';
 import {
   CatalogEntry,
   CatalogType,
@@ -1103,6 +1104,97 @@ export class CatalogsService implements OnModuleInit {
     }
 
     return sortMunicipiosByCode(results);
+  }
+
+  // ===========================================================================
+  // IMPORT REFERENCE CSV (carga masiva SIRES)
+  // ===========================================================================
+
+  private getMunicipioExportCode(entry: CatalogEntry): string {
+    const inegi = entry as INEGIEntry;
+    if (inegi.municipioCode) {
+      return String(inegi.municipioCode).padStart(3, '0');
+    }
+    const code = String(entry.code ?? '');
+    return code.includes('-') ? code.split('-')[1] : code;
+  }
+
+  private getLocalidadExportCode(entry: CatalogEntry): string {
+    const inegi = entry as INEGIEntry;
+    if (inegi.localidadCode) {
+      return String(inegi.localidadCode).padStart(4, '0');
+    }
+    const code = String(entry.code ?? '');
+    return code.includes('-') ? code.split('-').pop() ?? code : code;
+  }
+
+  buildImportReferencePaisesCsv(): Buffer {
+    const cache = this.catalogCaches.get(CatalogType.PAIS);
+    const rows: string[][] = [['CATALOG_KEY', 'descripcion']];
+    if (cache) {
+      const entries = Array.from(cache.values()).sort((a, b) => {
+        const numA = Number(a.code);
+        const numB = Number(b.code);
+        if (!Number.isNaN(numA) && !Number.isNaN(numB)) {
+          return numA - numB;
+        }
+        return (a.description || '').localeCompare(b.description || '');
+      });
+      for (const entry of entries) {
+        rows.push([String(entry.code), entry.description || '']);
+      }
+    }
+    return Buffer.from(stringify(rows), 'utf-8');
+  }
+
+  buildImportReferenceEntidadesCsv(): Buffer {
+    const rows: string[][] = [['codigo', 'descripcion']];
+    for (const entry of this.getEstados()) {
+      rows.push([entry.code, entry.description || '']);
+    }
+    return Buffer.from(stringify(rows), 'utf-8');
+  }
+
+  buildImportReferenceMunicipiosCsv(): Buffer {
+    const rows: string[][] = [
+      ['entidadCode', 'municipioCode', 'descripcion'],
+    ];
+    const estados = sortEstadosByCode(Array.from(this.estadoCache.values()));
+    for (const estado of estados) {
+      const estadoCode = estado.code;
+      for (const municipio of this.getMunicipiosByEstado(estadoCode)) {
+        rows.push([
+          estadoCode,
+          this.getMunicipioExportCode(municipio),
+          municipio.description || '',
+        ]);
+      }
+    }
+    return Buffer.from(stringify(rows), 'utf-8');
+  }
+
+  buildImportReferenceLocalidadesCsv(
+    estadoCode: string,
+    municipioCode: string,
+  ): Buffer {
+    const normalizedEstado = estadoCode.toString().padStart(2, '0').toUpperCase();
+    const normalizedMunicipio = municipioCode.toString().padStart(3, '0');
+    const rows: string[][] = [
+      ['entidadCode', 'municipioCode', 'localidadCode', 'descripcion'],
+    ];
+    const localidades = this.getLocalidadesByMunicipio(
+      normalizedEstado,
+      normalizedMunicipio,
+    );
+    for (const localidad of localidades) {
+      rows.push([
+        normalizedEstado,
+        normalizedMunicipio,
+        this.getLocalidadExportCode(localidad),
+        localidad.description || '',
+      ]);
+    }
+    return Buffer.from(stringify(rows), 'utf-8');
   }
 
   // ===========================================================================

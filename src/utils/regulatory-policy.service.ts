@@ -20,6 +20,7 @@ export interface RegulatoryPolicy {
     confidentialityAgreementEnabled: boolean; // Acuerdo de confidencialidad y uso de información
     workerIdentificationImmutable: boolean; // Identificación trabajador inmutable post-alta
     auditTrailEnabled: boolean; // Trail de auditoría NOM-024 (consulta/exportación)
+    controlPrenatalEnabled: boolean; // Documento Control Prenatal (solo SIN_REGIMEN)
   };
   validation: {
     curpFirmantes: 'required' | 'optional';
@@ -114,6 +115,7 @@ export class RegulatoryPolicyService {
         confidentialityAgreementEnabled: true,
         workerIdentificationImmutable: true,
         auditTrailEnabled: true,
+        controlPrenatalEnabled: false,
       },
       validation: {
         curpFirmantes: 'required',
@@ -143,6 +145,7 @@ export class RegulatoryPolicyService {
         confidentialityAgreementEnabled: false,
         workerIdentificationImmutable: false,
         auditTrailEnabled: false,
+        controlPrenatalEnabled: true,
       },
       validation: {
         curpFirmantes: 'optional',

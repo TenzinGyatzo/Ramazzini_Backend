@@ -26,6 +26,7 @@ import {
 import { NOM024ComplianceUtil } from 'src/utils/nom024-compliance.util';
 import { validateTrabajadorNames } from 'src/utils/name-validator.util';
 import { RegulatoryPolicyService } from 'src/utils/regulatory-policy.service';
+import type { RegulatoryPolicy } from 'src/utils/regulatory-policy.service';
 import { validateWorkerIdentificationImmutable } from 'src/utils/worker-identification-immutability.util';
 import { createRegulatoryError } from 'src/utils/regulatory-error-helper';
 import { RegulatoryErrorCode } from 'src/utils/regulatory-error-codes';
@@ -2322,6 +2323,26 @@ export class TrabajadoresService {
         : '',
       nss: worker.nss ? String(worker.nss).trim() : '',
       curp: worker.curp ? String(worker.curp).trim() : '',
+      entidadNacimiento: worker.entidadNacimiento
+        ? String(worker.entidadNacimiento).trim()
+        : '',
+      paisNacimiento:
+        worker.paisNacimiento != null && worker.paisNacimiento !== ''
+          ? Number(worker.paisNacimiento)
+          : undefined,
+      entidadResidencia: worker.entidadResidencia
+        ? String(worker.entidadResidencia).trim()
+        : '',
+      municipioResidencia: worker.municipioResidencia
+        ? String(worker.municipioResidencia).trim()
+        : '',
+      localidadResidencia: worker.localidadResidencia
+        ? String(worker.localidadResidencia).trim()
+        : '',
+      paisResidencia:
+        worker.paisResidencia != null && worker.paisResidencia !== ''
+          ? Number(worker.paisResidencia)
+          : undefined,
       agentesRiesgoActuales: worker.agentesRiesgoActuales || [],
       estadoLaboral: 'Activo', // ✅ VALOR FIJO: Todos los trabajadores importados tienen estado "Activo"
       idCentroTrabajo: worker.idCentroTrabajo,
@@ -2790,25 +2811,57 @@ export class TrabajadoresService {
    * Normaliza columnas del Excel a nombres de campo del modelo.
    */
   private mapExcelGeoFields(worker: Record<string, unknown>): void {
-    const paisColumnAliases = [
-      'País de nacimiento',
-      'Pais de nacimiento',
-      'paisNacimiento',
-    ];
-    for (const alias of paisColumnAliases) {
-      if (worker[alias] != null && String(worker[alias]).trim() !== '') {
-        worker.paisNacimiento = worker[alias];
-        break;
+    const aliasMap: Record<string, string[]> = {
+      curp: ['curp', 'CURP'],
+      entidadNacimiento: [
+        'entidadNacimiento',
+        'Entidad Nacimiento',
+        'entidad nacimiento',
+      ],
+      paisNacimiento: [
+        'paisNacimiento',
+        'País de nacimiento',
+        'Pais de nacimiento',
+        'pais de nacimiento',
+      ],
+      entidadResidencia: [
+        'entidadResidencia',
+        'Entidad Residencia',
+        'entidad residencia',
+      ],
+      municipioResidencia: [
+        'municipioResidencia',
+        'Municipio Residencia',
+        'municipio residencia',
+      ],
+      localidadResidencia: [
+        'localidadResidencia',
+        'Localidad Residencia',
+        'localidad residencia',
+      ],
+      paisResidencia: [
+        'paisResidencia',
+        'País de residencia',
+        'Pais de residencia',
+        'pais de residencia',
+      ],
+    };
+
+    for (const [target, aliases] of Object.entries(aliasMap)) {
+      for (const alias of aliases) {
+        if (worker[alias] != null && String(worker[alias]).trim() !== '') {
+          worker[target] = worker[alias];
+          break;
+        }
       }
     }
 
-    if (
-      worker.paisNacimiento != null &&
-      String(worker.paisNacimiento).trim() !== ''
-    ) {
-      const parsed = Number(worker.paisNacimiento);
-      if (!Number.isNaN(parsed)) {
-        worker.paisNacimiento = parsed;
+    for (const field of ['paisNacimiento', 'paisResidencia'] as const) {
+      if (worker[field] != null && String(worker[field]).trim() !== '') {
+        const parsed = Number(worker[field]);
+        if (!Number.isNaN(parsed)) {
+          worker[field] = parsed;
+        }
       }
     }
   }
@@ -2869,6 +2922,32 @@ export class TrabajadoresService {
       cleaned.numeroEmpleado = String(cleaned.numeroEmpleado).trim();
     if (cleaned.nss) cleaned.nss = String(cleaned.nss).trim();
     if (cleaned.curp) cleaned.curp = String(cleaned.curp).trim();
+    if (cleaned.entidadNacimiento)
+      cleaned.entidadNacimiento = String(cleaned.entidadNacimiento).trim();
+    if (cleaned.entidadResidencia)
+      cleaned.entidadResidencia = String(cleaned.entidadResidencia).trim();
+    if (cleaned.municipioResidencia)
+      cleaned.municipioResidencia = String(cleaned.municipioResidencia).trim();
+    if (cleaned.localidadResidencia)
+      cleaned.localidadResidencia = String(cleaned.localidadResidencia).trim();
+    if (
+      cleaned.paisNacimiento != null &&
+      String(cleaned.paisNacimiento).trim() !== ''
+    ) {
+      const parsedPaisNac = Number(cleaned.paisNacimiento);
+      if (!Number.isNaN(parsedPaisNac)) {
+        cleaned.paisNacimiento = parsedPaisNac;
+      }
+    }
+    if (
+      cleaned.paisResidencia != null &&
+      String(cleaned.paisResidencia).trim() !== ''
+    ) {
+      const parsedPaisRes = Number(cleaned.paisResidencia);
+      if (!Number.isNaN(parsedPaisRes)) {
+        cleaned.paisResidencia = parsedPaisRes;
+      }
+    }
     // ✅ ELIMINADO: No se procesa el estado laboral del Excel
 
     // Normalizar enumeraciones - solo loguear si hay cambios reales
@@ -3165,6 +3244,10 @@ export class TrabajadoresService {
       );
     }
 
+    if (!cleanedData.puesto || String(cleanedData.puesto).trim() === '') {
+      errors.push('El puesto es requerido');
+    }
+
     // ✅ ELIMINADO: No se valida el estado laboral del Excel
 
     // ✅ SOLUCIÓN: Validar número de empleado (opcional, pero si existe debe tener 1-7 dígitos)
@@ -3248,6 +3331,91 @@ export class TrabajadoresService {
     };
   }
 
+  private extractImportValidationMessage(error: unknown): string {
+    if (error instanceof BadRequestException) {
+      const response = error.getResponse();
+      if (typeof response === 'string') {
+        return response;
+      }
+      if (response && typeof response === 'object') {
+        const payload = response as {
+          message?: string | string[];
+          details?: Array<{ field?: string; reason?: string }>;
+        };
+        if (Array.isArray(payload.message)) {
+          return payload.message.join('; ');
+        }
+        if (payload.message) {
+          return payload.message;
+        }
+        if (Array.isArray(payload.details) && payload.details.length > 0) {
+          return payload.details
+            .map((detail) =>
+              detail.field
+                ? `${detail.field}: ${detail.reason ?? 'inválido'}`
+                : (detail.reason ?? 'Error de validación'),
+            )
+            .join('; ');
+        }
+      }
+    }
+
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return 'Error de validación regulatoria';
+  }
+
+  private async validateWorkerImportForPolicy(
+    cleanedData: any,
+    policy: RegulatoryPolicy,
+    proveedorSaludId: string | null,
+  ): Promise<string[]> {
+    const errors: string[] = [];
+    const isSiresStrict =
+      policy.validation.geoFields === 'required' &&
+      policy.validation.workerCurp === 'required_strict';
+
+    if (!isSiresStrict) {
+      return errors;
+    }
+
+    const pais = proveedorSaludId
+      ? await this.nom024Util.getProveedorPais(proveedorSaludId)
+      : null;
+
+    if (cleanedData.nss && String(cleanedData.nss).trim() !== '') {
+      const nssDigits = String(cleanedData.nss).replace(/[^0-9]/g, '');
+      if (pais === 'MX' && nssDigits.length !== 11) {
+        errors.push(
+          'El NSS debe tener exactamente 11 dígitos numéricos para proveedores en México (SIRES)',
+        );
+      }
+    }
+
+    try {
+      await this.validateNOM024PersonFields(cleanedData, proveedorSaludId);
+    } catch (error) {
+      errors.push(this.extractImportValidationMessage(error));
+    }
+
+    try {
+      await this.validateCURPForMX(cleanedData.curp, proveedorSaludId, {
+        fechaNacimiento: cleanedData.fechaNacimiento,
+        sexo: cleanedData.sexo,
+        entidadNacimiento: cleanedData.entidadNacimiento,
+        nombre: cleanedData.nombre,
+        primerApellido: cleanedData.primerApellido,
+        segundoApellido: cleanedData.segundoApellido,
+      });
+    } catch (error) {
+      errors.push(this.extractImportValidationMessage(error));
+    }
+
+    return errors;
+  }
+
   // Método para importar trabajadores
   async importarTrabajadores(
     data: any[],
@@ -3256,8 +3424,12 @@ export class TrabajadoresService {
   ) {
     const resultados = [];
     const startTime = Date.now();
+    const proveedorSaludId =
+      await this.getProveedorSaludIdFromCentroTrabajo(idCentroTrabajo);
+    const policy =
+      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
     console.log(
-      `[IMPORTACIÓN] 🚀 Iniciando importación de ${data.length} trabajadores`,
+      `[IMPORTACIÓN] 🚀 Iniciando importación de ${data.length} trabajadores (régimen: ${policy.regime})`,
     );
 
     for (const worker of data) {
@@ -3270,9 +3442,20 @@ export class TrabajadoresService {
           updatedBy: createdBy,
         });
 
-        if (!validation.isValid) {
+        const policyErrors =
+          validation.isValid
+            ? await this.validateWorkerImportForPolicy(
+                validation.cleanedData,
+                policy,
+                proveedorSaludId,
+              )
+            : [];
+
+        const allErrors = [...validation.errors, ...policyErrors];
+
+        if (allErrors.length > 0) {
           console.error(
-            `[ERROR] ${worker.primerApellido || 'Sin primer apellido'} ${worker.segundoApellido || 'Sin segundo apellido'} ${worker.nombre || 'Sin nombre'}: ${validation.errors.join(', ')}`,
+            `[ERROR] ${worker.primerApellido || 'Sin primer apellido'} ${worker.segundoApellido || 'Sin segundo apellido'} ${worker.nombre || 'Sin nombre'}: ${allErrors.join(', ')}`,
           );
           // ✅ SOLUCIÓN: Enviar datos procesados para que las fechas se muestren correctamente
           const processedData = this.processWorkerData(validation.cleanedData);
@@ -3280,7 +3463,7 @@ export class TrabajadoresService {
             success: false,
             error: 'Hay errores de validación', // ✅ Resumen genérico para evitar redundancia
             worker: processedData, // Usar datos procesados en lugar de datos originales
-            validationErrors: validation.errors,
+            validationErrors: allErrors,
           });
           continue;
         }

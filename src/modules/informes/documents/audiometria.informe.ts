@@ -8,6 +8,15 @@ import { generarFooterFirmantes } from '../helpers/footer-firmantes.helper';
 import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
 import { EnfermeraFirmanteInforme, MedicoFirmanteInforme, TecnicoFirmanteInforme } from '../types/firmante-informe.types';
 import { firmanteTieneLineaNombre, resolverFirmanteActivo } from '../helpers/firmante-informe.helpers';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const debugLogPath = path.join(process.cwd(), 'debug-8375a6.log');
+const agentLog = (location: string, message: string, data: Record<string, unknown>, hypothesisId: string) => {
+  try {
+    fs.appendFileSync(debugLogPath, JSON.stringify({ sessionId: '8375a6', location, message, data, timestamp: Date.now(), hypothesisId }) + '\n');
+  } catch { /* ignore */ }
+};
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -281,20 +290,11 @@ const calcularPorcentajePorOido = (
   const metodo = audiometria.metodoAudiometria || 'AMA';
 
   if (metodo === 'AMA') {
-    // Para AMA: usar valores guardados si están disponibles, sino calcular
-    let porcentaje: number;
-    if (oido === 'Derecho' && audiometria.perdidaMonauralOD_AMA !== undefined) {
-      porcentaje = audiometria.perdidaMonauralOD_AMA;
-    } else if (
-      oido === 'Izquierdo' &&
-      audiometria.perdidaMonauralOI_AMA !== undefined
-    ) {
-      porcentaje = audiometria.perdidaMonauralOI_AMA;
-    } else {
-      // Fallback: calcular dinámicamente
-      const pta = calcularPTA_AMA(audiometria, oido);
-      porcentaje = Math.max(0, pta - 25) * 1.5;
-    }
+    const pta = calcularPTA_AMA(audiometria, oido);
+    const porcentaje = Math.max(0, pta - 25) * 1.5;
+    // #region agent log
+    agentLog('audiometria.informe.ts:calcularPorcentajePorOido', 'PDF cálculo por oído AMA', { oido, source: 'dynamic_calc', storedOD: audiometria.perdidaMonauralOD_AMA, storedOI: audiometria.perdidaMonauralOI_AMA, porcentajeUsado: porcentaje, pta, legacyOD: audiometria.porcentajePerdidaOD, legacyOI: audiometria.porcentajePerdidaOI, runId: 'post-fix' }, 'H1-H2-H5');
+    // #endregion
 
     return {
       porcentaje: Math.round(porcentaje * 100) / 100,
@@ -351,28 +351,22 @@ const calcularResultadoBinaural = (
   const metodo = audiometria.metodoAudiometria || 'AMA';
 
   if (metodo === 'AMA') {
-    // Para AMA: usar valor guardado si está disponible, sino calcular
-    if (audiometria.perdidaAuditivaBilateralAMA !== undefined) {
-      return {
-        porcentaje: audiometria.perdidaAuditivaBilateralAMA,
-        metodo: 'AMA',
-        etiqueta: 'Pérdida auditiva bilateral',
-      };
-    } else {
-      // Fallback: calcular dinámicamente
-      const resultadoOD = calcularPorcentajePorOido(audiometria, 'Derecho');
-      const resultadoOI = calcularPorcentajePorOido(audiometria, 'Izquierdo');
+    const resultadoOD = calcularPorcentajePorOido(audiometria, 'Derecho');
+    const resultadoOI = calcularPorcentajePorOido(audiometria, 'Izquierdo');
 
-      const menor = Math.min(resultadoOD.porcentaje, resultadoOI.porcentaje);
-      const mayor = Math.max(resultadoOD.porcentaje, resultadoOI.porcentaje);
+    const menor = Math.min(resultadoOD.porcentaje, resultadoOI.porcentaje);
+    const mayor = Math.max(resultadoOD.porcentaje, resultadoOI.porcentaje);
 
-      const bilateral = (5 * menor + mayor) / 6;
-      return {
-        porcentaje: Math.round(bilateral * 100) / 100,
-        metodo: 'AMA',
-        etiqueta: 'Pérdida auditiva bilateral',
-      };
-    }
+    const bilateral = (5 * menor + mayor) / 6;
+    const porcentaje = Math.round(bilateral * 100) / 100;
+    // #region agent log
+    agentLog('audiometria.informe.ts:calcularResultadoBinaural', 'PDF bilateral AMA cálculo dinámico', { source: 'dynamic_calc', stored: audiometria.perdidaAuditivaBilateralAMA, porcentajeUsado: porcentaje, runId: 'post-fix' }, 'H1');
+    // #endregion
+    return {
+      porcentaje,
+      metodo: 'AMA',
+      etiqueta: 'Pérdida auditiva bilateral',
+    };
   } else if (metodo === 'LFT') {
     // Para LFT: calcular dinámicamente (usar valores legacy)
     const resultadoOD = calcularPorcentajePorOido(audiometria, 'Derecho');

@@ -78,6 +78,12 @@ export const policyFeatures = {
    */
   workerIdentificationImmutable: (policy: RegulatoryPolicy): boolean =>
     policy.features.workerIdentificationImmutable,
+
+  /**
+   * Indica si el documento Control Prenatal está habilitado
+   */
+  controlPrenatalEnabled: (policy: RegulatoryPolicy): boolean =>
+    policy.features.controlPrenatalEnabled,
 };
 
 /**
