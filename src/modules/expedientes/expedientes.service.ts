@@ -1623,8 +1623,6 @@ export class ExpedientesService {
     total: number;
     resultadosClinicosConteos: Record<string, number>;
     totalResultadosClinicos: number;
-    vinculadosConteos: Record<string, number>;
-    totalVinculados: number;
     fechaUltimaActividad: string | null;
   }> {
     if (!isValidObjectId(trabajadorId)) {
@@ -1637,12 +1635,6 @@ export class ExpedientesService {
       EXPEDIENTE_DOCUMENT_MODEL_NAMES.has(config.modelName),
     );
 
-    const vinculadosConfigs = WORKER_LINKED_COLLECTIONS.filter(
-      (config) =>
-        !EXPEDIENTE_DOCUMENT_MODEL_NAMES.has(config.modelName) &&
-        config.modelName !== 'ResultadoClinico',
-    );
-
     const includeControlPrenatalPromise =
       this.resolveIncludeControlPrenatalForCounts(trabajadorId);
 
@@ -1650,26 +1642,6 @@ export class ExpedientesService {
       allDocumentConfigs.map((config) =>
         this.countDocumentStatsForWorker(config, workerId),
       ),
-    );
-
-    const vinculadosConteos: Record<string, number> = {};
-    const vinculadosCountPromise = Promise.all(
-      vinculadosConfigs.map(async (config) => {
-        let model: Model<any>;
-        try {
-          model = this.connection.model(config.modelName);
-        } catch {
-          return;
-        }
-
-        const filter =
-          config.fkField === 'trabajadorId'
-            ? { trabajadorId: workerId }
-            : { idTrabajador: workerId };
-
-        const count = await model.countDocuments(filter).exec();
-        vinculadosConteos[config.modelName] = count;
-      }),
     );
 
     const rcStatsPromise = this.resultadoClinicoModel
@@ -1689,11 +1661,10 @@ export class ExpedientesService {
       ])
       .exec();
 
-    const [includeControlPrenatal, documentStats, , rcFacetRows] =
+    const [includeControlPrenatal, documentStats, rcFacetRows] =
       await Promise.all([
         includeControlPrenatalPromise,
         documentStatsPromise,
-        vinculadosCountPromise,
         rcStatsPromise,
       ]);
 
@@ -1715,11 +1686,6 @@ export class ExpedientesService {
       if (stats.latestDate) {
         latestDates.push(stats.latestDate);
       }
-    }
-
-    let totalVinculados = 0;
-    for (const count of Object.values(vinculadosConteos)) {
-      totalVinculados += count;
     }
 
     const rcFacet = rcFacetRows[0];
@@ -1748,8 +1714,6 @@ export class ExpedientesService {
       total,
       resultadosClinicosConteos,
       totalResultadosClinicos,
-      vinculadosConteos,
-      totalVinculados,
       fechaUltimaActividad,
     };
   }

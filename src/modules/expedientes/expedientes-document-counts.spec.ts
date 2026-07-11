@@ -392,28 +392,10 @@ describe('ExpedientesService.countDocumentosByTrabajador', () => {
 
     expect(result.totalResultadosClinicos).toBe(3);
 
-    expect(result.vinculadosConteos).toEqual({
-
-      Consentimiento: 1,
-
-      Deteccion: 2,
-
-      RiesgoTrabajo: 0,
-
-      SeguimientoProgramadoCardiometabolico: 0,
-
-    });
-
-    expect(result.totalVinculados).toBe(3);
-
     expect(result.fechaUltimaActividad).toBe(
       new Date('2025-07-01T12:00:00.000Z').toISOString(),
     );
     expect(result.conteos.ControlPrenatal).toBeUndefined();
-    expect(connection.model).toHaveBeenCalledWith('Consentimiento');
-
-    expect(connection.model).toHaveBeenCalledWith('Deteccion');
-
   });
 
 
@@ -439,9 +421,7 @@ describe('ExpedientesService.countDocumentosByTrabajador', () => {
     expect(result.total).toBe(6);
 
     expect(result.totalResultadosClinicos).toBe(3);
-    expect(result.totalVinculados).toBe(3);
     expect(controlPrenatalModel.aggregate).toHaveBeenCalled();
-
   });
 
 });
