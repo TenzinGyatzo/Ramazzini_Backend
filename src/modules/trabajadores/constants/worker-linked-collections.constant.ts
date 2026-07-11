@@ -45,6 +45,32 @@ export const WORKER_LINKED_COLLECTIONS: WorkerLinkedCollectionConfig[] = [
  * Model names that appear as documents in ExpedienteMedicoView (documentos store).
  * Used for user-facing counts in fusion preview; must stay aligned with fetchAllDocuments.
  */
+/** Mongoose model name → expedientes.service documentType key */
+export const EXPEDIENTE_MODEL_NAME_TO_DOCUMENT_TYPE: Record<string, string> = {
+  Antidoping: 'antidoping',
+  AptitudPuesto: 'aptitud',
+  Audiometria: 'audiometria',
+  Certificado: 'certificado',
+  CertificadoExpedito: 'certificadoExpedito',
+  DocumentoExterno: 'documentoExterno',
+  ExamenVista: 'examenVista',
+  ExploracionFisica: 'exploracionFisica',
+  HistoriaClinica: 'historiaClinica',
+  NotaMedica: 'notaMedica',
+  NotaAclaratoria: 'notaAclaratoria',
+  ControlPrenatal: 'controlPrenatal',
+  HistoriaOtologica: 'historiaOtologica',
+  PrevioEspirometria: 'previoEspirometria',
+  ConstanciaAptitud: 'constanciaAptitud',
+  Receta: 'receta',
+  EntrevistaPsicologica: 'entrevistaPsicologica',
+  TrastornosEstadoAnimo: 'trastornosEstadoAnimo',
+  CuestionarioProdromalBreve: 'cuestionarioProdromalBreve',
+  TrastornoLimitePersonalidad: 'trastornoLimitePersonalidad',
+  EventoSeguimientoCardiometabolico: 'eventoSeguimientoCardiometabolico',
+  InformeLongitudinalCardiometabolico: 'informeLongitudinalCardiometabolico',
+};
+
 export const EXPEDIENTE_DOCUMENT_MODEL_NAMES = new Set<string>([
   'Antidoping',
   'AptitudPuesto',

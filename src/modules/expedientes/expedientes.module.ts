@@ -105,6 +105,10 @@ import { AuditModule } from '../audit/audit.module';
 import { UsersModule } from '../users/users.module';
 import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
 import { FirmanteHelperModule } from './firmante-helper.module';
+import {
+  ResultadoClinico,
+  ResultadoClinicoSchema,
+} from '../resultados-clinicos/schemas/resultado-clinico.schema';
 
 @Module({
   controllers: [
@@ -163,6 +167,7 @@ import { FirmanteHelperModule } from './firmante-helper.module';
         name: InformeLongitudinalCardiometabolico.name,
         schema: InformeLongitudinalCardiometabolicoSchema,
       },
+      { name: ResultadoClinico.name, schema: ResultadoClinicoSchema },
     ]),
     forwardRef(() => InformesModule),
     FilesModule,

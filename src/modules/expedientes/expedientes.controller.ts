@@ -296,6 +296,14 @@ export class ExpedientesController {
     return this.expedientesService.findAllDocuments(trabajadorId);
   }
 
+  @Get('conteos')
+  async countDocumentos(@Param('trabajadorId') trabajadorId: string) {
+    if (!isValidObjectId(trabajadorId)) {
+      throw new BadRequestException('El ID del trabajador no es válido');
+    }
+    return this.expedientesService.countDocumentosByTrabajador(trabajadorId);
+  }
+
   @Get(':documentType')
   async findDocuments(
     @Param('trabajadorId') trabajadorId: string,

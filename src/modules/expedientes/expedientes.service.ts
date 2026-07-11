@@ -6,8 +6,8 @@ import {
   Inject,
   forwardRef,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { InjectModel, InjectConnection } from '@nestjs/mongoose';
+import { isValidObjectId, Model, Types, Connection } from 'mongoose';
 import { Antidoping } from './schemas/antidoping.schema';
 import { AptitudPuesto } from './schemas/aptitud-puesto.schema';
 import { Audiometria } from './schemas/audiometria.schema';
@@ -77,6 +77,13 @@ import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
 import { UsersService } from '../users/users.service';
 import { WorkerFusionService } from '../trabajadores/worker-fusion.service';
+import {
+  EXPEDIENTE_DOCUMENT_MODEL_NAMES,
+  EXPEDIENTE_MODEL_NAME_TO_DOCUMENT_TYPE,
+  WORKER_LINKED_COLLECTIONS,
+  type WorkerLinkedCollectionConfig,
+} from '../trabajadores/constants/worker-linked-collections.constant';
+import { ResultadoClinico } from '../resultados-clinicos/schemas/resultado-clinico.schema';
 
 @Injectable()
 export class ExpedientesService {
@@ -124,6 +131,8 @@ export class ExpedientesService {
     private eventoSeguimientoCardiometabolicoModel: Model<EventoSeguimientoCardiometabolico>,
     @InjectModel(InformeLongitudinalCardiometabolico.name)
     private informeLongitudinalCardiometabolicoModel: Model<InformeLongitudinalCardiometabolico>,
+    @InjectModel(ResultadoClinico.name)
+    private resultadoClinicoModel: Model<ResultadoClinico>,
     @InjectModel(CentroTrabajo.name)
     private centroTrabajoModel: Model<CentroTrabajo>,
     @InjectModel(Empresa.name) private empresaModel: Model<Empresa>,
@@ -142,6 +151,7 @@ export class ExpedientesService {
     private readonly workerFusionService: WorkerFusionService,
     private readonly firmanteHelper: FirmanteHelper,
     private readonly cexCatalogResolver: CexCatalogResolver,
+    @InjectConnection() private readonly connection: Connection,
   ) {
     this.models = {
       antidoping: this.antidopingModel,
@@ -1550,6 +1560,198 @@ export class ExpedientesService {
     const docs = await query.exec();
 
     return docs;
+  }
+
+  private async resolveIncludeControlPrenatalForCounts(
+    trabajadorId: string,
+  ): Promise<boolean> {
+    const proveedorSaludId =
+      await this.getProveedorSaludIdFromTrabajador(trabajadorId);
+    if (!proveedorSaludId) {
+      return true;
+    }
+
+    const policy =
+      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
+    return policy.features.controlPrenatalEnabled;
+  }
+
+  private async countDocumentStatsForWorker(
+    config: WorkerLinkedCollectionConfig,
+    workerId: Types.ObjectId,
+  ): Promise<{ modelName: string; count: number; latestDate: Date | null }> {
+    const documentType =
+      EXPEDIENTE_MODEL_NAME_TO_DOCUMENT_TYPE[config.modelName];
+    const model = documentType ? this.models[documentType] : undefined;
+    if (!model) {
+      return { modelName: config.modelName, count: 0, latestDate: null };
+    }
+
+    const filter =
+      config.fkField === 'trabajadorId'
+        ? { trabajadorId: workerId }
+        : { idTrabajador: workerId };
+
+    const dateField = this.dateFields[documentType];
+    if (dateField) {
+      const [stats] = await model
+        .aggregate<{ count: number; maxDate: Date | null }>([
+          { $match: filter },
+          {
+            $group: {
+              _id: null,
+              count: { $sum: 1 },
+              maxDate: { $max: `$${dateField}` },
+            },
+          },
+        ])
+        .exec();
+
+      return {
+        modelName: config.modelName,
+        count: stats?.count ?? 0,
+        latestDate: stats?.maxDate ? new Date(stats.maxDate) : null,
+      };
+    }
+
+    const count = await model.countDocuments(filter).exec();
+    return { modelName: config.modelName, count, latestDate: null };
+  }
+
+  async countDocumentosByTrabajador(trabajadorId: string): Promise<{
+    conteos: Record<string, number>;
+    total: number;
+    resultadosClinicosConteos: Record<string, number>;
+    totalResultadosClinicos: number;
+    vinculadosConteos: Record<string, number>;
+    totalVinculados: number;
+    fechaUltimaActividad: string | null;
+  }> {
+    if (!isValidObjectId(trabajadorId)) {
+      throw new BadRequestException('El ID del trabajador no es válido');
+    }
+
+    const workerId = new Types.ObjectId(trabajadorId);
+
+    const allDocumentConfigs = WORKER_LINKED_COLLECTIONS.filter((config) =>
+      EXPEDIENTE_DOCUMENT_MODEL_NAMES.has(config.modelName),
+    );
+
+    const vinculadosConfigs = WORKER_LINKED_COLLECTIONS.filter(
+      (config) =>
+        !EXPEDIENTE_DOCUMENT_MODEL_NAMES.has(config.modelName) &&
+        config.modelName !== 'ResultadoClinico',
+    );
+
+    const includeControlPrenatalPromise =
+      this.resolveIncludeControlPrenatalForCounts(trabajadorId);
+
+    const documentStatsPromise = Promise.all(
+      allDocumentConfigs.map((config) =>
+        this.countDocumentStatsForWorker(config, workerId),
+      ),
+    );
+
+    const vinculadosConteos: Record<string, number> = {};
+    const vinculadosCountPromise = Promise.all(
+      vinculadosConfigs.map(async (config) => {
+        let model: Model<any>;
+        try {
+          model = this.connection.model(config.modelName);
+        } catch {
+          return;
+        }
+
+        const filter =
+          config.fkField === 'trabajadorId'
+            ? { trabajadorId: workerId }
+            : { idTrabajador: workerId };
+
+        const count = await model.countDocuments(filter).exec();
+        vinculadosConteos[config.modelName] = count;
+      }),
+    );
+
+    const rcStatsPromise = this.resultadoClinicoModel
+      .aggregate<{
+        byTipo: Array<{ _id: string; count: number }>;
+        latest: Array<{ maxDate: Date | null }>;
+      }>([
+        { $match: { idTrabajador: workerId } },
+        {
+          $facet: {
+            byTipo: [
+              { $group: { _id: '$tipoEstudio', count: { $sum: 1 } } },
+            ],
+            latest: [{ $group: { _id: null, maxDate: { $max: '$fechaEstudio' } } }],
+          },
+        },
+      ])
+      .exec();
+
+    const [includeControlPrenatal, documentStats, , rcFacetRows] =
+      await Promise.all([
+        includeControlPrenatalPromise,
+        documentStatsPromise,
+        vinculadosCountPromise,
+        rcStatsPromise,
+      ]);
+
+    const conteos: Record<string, number> = {};
+    let total = 0;
+    const latestDates: Date[] = [];
+
+    for (const stats of documentStats) {
+      if (
+        stats.modelName === 'ControlPrenatal' &&
+        !includeControlPrenatal
+      ) {
+        continue;
+      }
+
+      conteos[stats.modelName] = stats.count;
+      total += stats.count;
+
+      if (stats.latestDate) {
+        latestDates.push(stats.latestDate);
+      }
+    }
+
+    let totalVinculados = 0;
+    for (const count of Object.values(vinculadosConteos)) {
+      totalVinculados += count;
+    }
+
+    const rcFacet = rcFacetRows[0];
+    const resultadosClinicosConteos: Record<string, number> = {};
+    let totalResultadosClinicos = 0;
+    for (const group of rcFacet?.byTipo ?? []) {
+      if (!group._id) continue;
+      resultadosClinicosConteos[group._id] = group.count;
+      totalResultadosClinicos += group.count;
+    }
+
+    const rcLatestDate = rcFacet?.latest?.[0]?.maxDate;
+    if (rcLatestDate) {
+      latestDates.push(new Date(rcLatestDate));
+    }
+
+    const fechaUltimaActividad =
+      latestDates.length > 0
+        ? new Date(
+            Math.max(...latestDates.map((date) => date.getTime())),
+          ).toISOString()
+        : null;
+
+    return {
+      conteos,
+      total,
+      resultadosClinicosConteos,
+      totalResultadosClinicos,
+      vinculadosConteos,
+      totalVinculados,
+      fechaUltimaActividad,
+    };
   }
 
   async findAllDocuments(trabajadorId: string): Promise<Record<string, any[]>> {
