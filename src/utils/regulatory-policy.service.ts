@@ -43,6 +43,12 @@ export interface RegulatoryPolicy {
  */
 @Injectable()
 export class RegulatoryPolicyService {
+  private readonly policyCache = new Map<
+    string,
+    { policy: RegulatoryPolicy; timestamp: number }
+  >();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
   constructor(
     @Inject(forwardRef(() => ProveedoresSaludService))
     private readonly proveedoresSaludService: ProveedoresSaludService,
@@ -57,6 +63,11 @@ export class RegulatoryPolicyService {
     proveedorSaludId: string | Types.ObjectId,
   ): Promise<RegulatoryPolicy> {
     const idString = proveedorSaludId.toString();
+
+    const cached = this.policyCache.get(idString);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.policy;
+    }
 
     try {
       // Validar ObjectId format
@@ -75,17 +86,19 @@ export class RegulatoryPolicyService {
       // Resolver régimen regulatorio
       const regimen = proveedor.regimenRegulatorio;
 
+      let policy: RegulatoryPolicy;
       // Si tiene régimen explícito, usarlo
       if (regimen === 'SIRES_NOM024') {
-        return this.createSiresPolicy();
+        policy = this.createSiresPolicy();
+      } else if (regimen === 'SIN_REGIMEN') {
+        policy = this.createSinRegimenPolicy();
+      } else {
+        // Fallback defensivo: si falta o es otro valor, asumir SIN_REGIMEN
+        policy = this.createSinRegimenPolicy();
       }
 
-      if (regimen === 'SIN_REGIMEN') {
-        return this.createSinRegimenPolicy();
-      }
-
-      // Fallback defensivo: si falta o es otro valor, asumir SIN_REGIMEN
-      return this.createSinRegimenPolicy();
+      this.policyCache.set(idString, { policy, timestamp: Date.now() });
+      return policy;
     } catch (error) {
       // Log error pero retornar política segura (SIN_REGIMEN)
       console.error(

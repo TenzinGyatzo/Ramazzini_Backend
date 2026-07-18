@@ -3,6 +3,7 @@ import { Document, Schema as MongooseSchema } from 'mongoose';
 import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
+import { PdfStatus } from '../enums/pdf-status.enum';
 
 @Schema()
 export class ControlPrenatal extends Document {
@@ -272,6 +273,13 @@ export class ControlPrenatal extends Document {
   // Archivos
   @Prop()
   rutaPDF: string;
+
+  @Prop({
+    enum: PdfStatus,
+    required: false,
+  })
+  pdfStatus?: PdfStatus;
+
 
   // Timestamps
   @Prop({ default: Date.now })

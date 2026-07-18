@@ -77,6 +77,15 @@ export interface FusionResult {
 
 @Injectable()
 export class WorkerFusionService {
+  /** TTL corto: cubre N lookups del mismo request / ráfagas; se invalida al fusionar. */
+  private static readonly CANONICAL_CACHE_TTL_MS = 30_000;
+  private readonly canonicalCache = new Map<
+    string,
+    { canonicalId: string; expiresAt: number }
+  >();
+  /** Dedupe de lookups concurrentes del mismo id (efecto request-scoped). */
+  private readonly canonicalInflight = new Map<string, Promise<string>>();
+
   constructor(
     @InjectModel(Trabajador.name) private trabajadorModel: Model<Trabajador>,
     @InjectModel(CentroTrabajo.name)
@@ -91,6 +100,33 @@ export class WorkerFusionService {
     @Inject(forwardRef(() => AuditService))
     private auditService: AuditService,
   ) {}
+
+  private getCachedCanonical(trabajadorId: string): string | null {
+    const entry = this.canonicalCache.get(trabajadorId);
+    if (!entry) return null;
+    if (entry.expiresAt <= Date.now()) {
+      this.canonicalCache.delete(trabajadorId);
+      return null;
+    }
+    return entry.canonicalId;
+  }
+
+  private rememberCanonical(trabajadorId: string, canonicalId: string): void {
+    const expiresAt =
+      Date.now() + WorkerFusionService.CANONICAL_CACHE_TTL_MS;
+    this.canonicalCache.set(trabajadorId, { canonicalId, expiresAt });
+    if (canonicalId !== trabajadorId) {
+      this.canonicalCache.set(canonicalId, {
+        canonicalId,
+        expiresAt,
+      });
+    }
+  }
+
+  /** Tras fusión, los punteros canónicos pueden cambiar para varios ids. */
+  private clearCanonicalCache(): void {
+    this.canonicalCache.clear();
+  }
 
   async findDuplicateInEmpresa(
     trabajadorDto: CreateTrabajadorDto & { folio?: string; _id?: string },
@@ -165,16 +201,38 @@ export class WorkerFusionService {
   async getCanonicalTrabajadorId(trabajadorId: string): Promise<string> {
     if (!trabajadorId) return trabajadorId;
 
-    const worker = await this.trabajadorModel
-      .findById(trabajadorId)
-      .select('idTrabajadorCanonico')
-      .lean()
-      .exec();
+    const cached = this.getCachedCanonical(trabajadorId);
+    if (cached !== null) {
+      return cached;
+    }
 
-    if (!worker) return trabajadorId;
+    const inflight = this.canonicalInflight.get(trabajadorId);
+    if (inflight) {
+      return inflight;
+    }
 
-    const canonicalId = (worker as any).idTrabajadorCanonico?.toString();
-    return canonicalId || trabajadorId;
+    const promise = (async () => {
+      const worker = await this.trabajadorModel
+        .findById(trabajadorId)
+        .select('idTrabajadorCanonico')
+        .lean()
+        .exec();
+
+      if (!worker) {
+        this.rememberCanonical(trabajadorId, trabajadorId);
+        return trabajadorId;
+      }
+
+      const canonicalId =
+        (worker as any).idTrabajadorCanonico?.toString() || trabajadorId;
+      this.rememberCanonical(trabajadorId, canonicalId);
+      return canonicalId;
+    })().finally(() => {
+      this.canonicalInflight.delete(trabajadorId);
+    });
+
+    this.canonicalInflight.set(trabajadorId, promise);
+    return promise;
   }
 
   /** Resuelve IDs canónicos en una sola consulta (evita N round-trips en listados). */
@@ -182,21 +240,42 @@ export class WorkerFusionService {
     const map = new Map<string, string>();
     if (workerIds.length === 0) return map;
 
+    const missing: string[] = [];
     for (const id of workerIds) {
-      map.set(id, id);
+      const cached = this.getCachedCanonical(id);
+      if (cached !== null) {
+        map.set(id, cached);
+      } else {
+        map.set(id, id);
+        missing.push(id);
+      }
     }
 
-    const objectIds = workerIds.map((id) => new Types.ObjectId(id));
+    if (missing.length === 0) {
+      return map;
+    }
+
+    const objectIds = missing.map((id) => new Types.ObjectId(id));
     const workers = await this.trabajadorModel
       .find({ _id: { $in: objectIds } })
       .select('_id idTrabajadorCanonico')
       .lean()
       .exec();
 
+    const found = new Set<string>();
     for (const worker of workers) {
       const wid = (worker as any)._id.toString();
-      const canonical = (worker as any).idTrabajadorCanonico?.toString();
-      map.set(wid, canonical || wid);
+      const canonical =
+        (worker as any).idTrabajadorCanonico?.toString() || wid;
+      map.set(wid, canonical);
+      this.rememberCanonical(wid, canonical);
+      found.add(wid);
+    }
+
+    for (const id of missing) {
+      if (!found.has(id)) {
+        this.rememberCanonical(id, id);
+      }
     }
 
     return map;
@@ -857,6 +936,9 @@ export class WorkerFusionService {
     } finally {
       session.endSession();
     }
+
+    // Punteros canónicos / ids afectados por la fusión dejan de ser válidos en cache
+    this.clearCanonicalCache();
 
     return {
       destinoId: trabajadorDestinoId,

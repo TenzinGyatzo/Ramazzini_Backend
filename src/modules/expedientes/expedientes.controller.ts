@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { ExpedientesService } from './expedientes.service';
+import { PdfStatus } from './enums/pdf-status.enum';
 import { isValidObjectId } from 'mongoose';
 import { CatalogsService } from '../catalogs/catalogs.service';
 import { UsersService } from '../users/users.service';
@@ -75,8 +76,15 @@ import { convertirFechaISOaDDMMYYYY } from '../../utils/dates';
 import { TreatmentConsentGuard } from '../../utils/guards/treatment-consent.guard';
 import { RequireTreatmentConsent } from '../../utils/decorators/require-treatment-consent.decorator';
 import { assertDocumentPermission } from './utils/assert-document-permission.util';
+import {
+  TREATMENT_CONSENT_REQUEST_KEY,
+  TreatmentConsentRequestContext,
+} from '../../utils/helpers/treatment-consent-request.context';
 
-type AuthenticatedRequest = Request & { userId: string };
+type AuthenticatedRequest = Request & {
+  userId: string;
+  [TREATMENT_CONSENT_REQUEST_KEY]?: TreatmentConsentRequestContext;
+};
 
 @Controller('api/expedientes/:trabajadorId/documentos')
 export class ExpedientesController {
@@ -172,9 +180,11 @@ export class ExpedientesController {
     );
 
     try {
+      const consentCtx = req[TREATMENT_CONSENT_REQUEST_KEY] ?? null;
       const document = await this.expedientesService.createDocument(
         documentType,
         dtoInstance,
+        consentCtx,
       );
       return { message: `${documentType} creado exitosamente`, data: document };
     } catch (error) {
@@ -411,6 +421,72 @@ export class ExpedientesController {
     }
   }
 
+  /**
+   * Poll liviano de generación de PDF (solo pdfStatus + rutaPDF, sin populate).
+   * Misma autenticación/alcance que GET :documentType/:id; pensado para el tracker FE.
+   */
+  @Get(':documentType/:id/pdf-status')
+  async getDocumentPdfStatus(
+    @Param('documentType') documentType: string,
+    @Param('id') id: string,
+  ) {
+    if (!isValidObjectId(id)) {
+      throw new BadRequestException('El ID proporcionado no es válido');
+    }
+
+    if (
+      !this.expedientesService['models'] ||
+      !this.expedientesService['models'][documentType]
+    ) {
+      throw new BadRequestException(
+        `Tipo de documento ${documentType} no soportado`,
+      );
+    }
+
+    const document = await this.expedientesService.getDocumentPdfStatus(
+      documentType,
+      id,
+    );
+    if (!document) {
+      return {
+        message: `No se encontró el documento de tipo ${documentType} con id ${id}`,
+      };
+    }
+    return {
+      pdfStatus: document.pdfStatus ?? null,
+      rutaPDF: document.rutaPDF ?? null,
+    };
+  }
+
+  @Post(':documentType/:id/pdf-status/generating')
+  async markPdfGenerating(
+    @Param('documentType') documentType: string,
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!isValidObjectId(id)) {
+      throw new BadRequestException('El ID proporcionado no es válido');
+    }
+
+    if (
+      !this.expedientesService['models'] ||
+      !this.expedientesService['models'][documentType]
+    ) {
+      throw new BadRequestException(
+        `Tipo de documento ${documentType} no soportado`,
+      );
+    }
+
+    await this.assertDocumentPermissionForRequest(req, documentType);
+
+    await this.expedientesService.setPdfStatus(
+      documentType,
+      id,
+      PdfStatus.GENERATING,
+    );
+    return { message: 'pdfStatus generating', documentType, id };
+  }
+
   @Post(':documentType/:id/finalizar')
   async finalizarDocumento(
     @Param('documentType') documentType: string,
@@ -431,13 +507,24 @@ export class ExpedientesController {
       );
     }
 
-    await this.assertDocumentPermissionForRequest(req, documentType);
-
+    // Una sola lectura: permisos + proveedor + snapshot de audit
     const userId = req.userId;
-    const user = await this.usersService.findById(userId, 'idProveedorSalud');
+    const user = await this.usersService.findById(
+      userId,
+      'role permisos idProveedorSalud username email',
+    );
+    assertDocumentPermission(user, documentType);
+
     const proveedorSaludId = user?.idProveedorSalud
       ? String(user.idProveedorSalud)
       : undefined;
+    const actorSnapshot = user
+      ? {
+          username: user.username ?? '',
+          email: user.email ?? '',
+          role: user.role ?? '',
+        }
+      : null;
 
     try {
       const finalizedDocument =
@@ -447,6 +534,7 @@ export class ExpedientesController {
           userId,
           proveedorSaludId,
           body?.motivo != null ? { motivo: body.motivo } : undefined,
+          actorSnapshot,
         );
       return { message: `${documentType} finalizado`, data: finalizedDocument };
     } catch (error) {

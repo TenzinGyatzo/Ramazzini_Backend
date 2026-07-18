@@ -68,6 +68,7 @@ describe('WorkerFusionService', () => {
 
     service = module.get<WorkerFusionService>(WorkerFusionService);
     jest.clearAllMocks();
+    (service as any).clearCanonicalCache();
   });
 
   it('should be defined', () => {
@@ -101,6 +102,51 @@ describe('WorkerFusionService', () => {
 
       const result = await service.getCanonicalTrabajadorId(workerId);
       expect(result).toBe(canonicalId);
+    });
+
+    it('reuses cache on second call (same id)', async () => {
+      const workerId = '507f1f77bcf86cd799439011';
+      const canonicalId = '507f1f77bcf86cd799439012';
+      const exec = jest.fn().mockResolvedValue({
+        _id: workerId,
+        idTrabajadorCanonico: canonicalId,
+      });
+      mockTrabajadorModel.findById.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec,
+      });
+
+      await expect(service.getCanonicalTrabajadorId(workerId)).resolves.toBe(
+        canonicalId,
+      );
+      await expect(service.getCanonicalTrabajadorId(workerId)).resolves.toBe(
+        canonicalId,
+      );
+      expect(exec).toHaveBeenCalledTimes(1);
+    });
+
+    it('dedupes concurrent lookups for the same id', async () => {
+      const workerId = '507f1f77bcf86cd799439011';
+      let resolveExec: (value: unknown) => void;
+      const execPromise = new Promise((resolve) => {
+        resolveExec = resolve;
+      });
+      const exec = jest.fn().mockReturnValue(execPromise);
+      mockTrabajadorModel.findById.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec,
+      });
+
+      const p1 = service.getCanonicalTrabajadorId(workerId);
+      const p2 = service.getCanonicalTrabajadorId(workerId);
+      resolveExec!({ _id: workerId });
+      await expect(Promise.all([p1, p2])).resolves.toEqual([
+        workerId,
+        workerId,
+      ]);
+      expect(exec).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -632,4 +632,33 @@ export class InformesController {
     );
     return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
   }
+
+  @Post('informeLongitudinalCardiometabolico/:empresaId/:trabajadorId/:informeLongitudinalCardiometabolicoId/:userId')
+  async getInformeLongitudinalCardiometabolicoWithGraphs(
+    @Param('empresaId') empresaId: string,
+    @Param('trabajadorId') trabajadorId: string,
+    @Param('informeLongitudinalCardiometabolicoId') informeLongitudinalCardiometabolicoId: string,
+    @Param('userId') userId: string,
+    @Body()
+    body: {
+      graficaEvolucionGlucemica?: string;
+      graficaEvolucionPresionArterial?: string;
+      graficaEvolucionPesoImc?: string;
+      graficaEvolucionPerfilLipidico?: string;
+    },
+    @Res() res: Response,
+  ) {
+    const rutaPDF =
+      await this.informesService.getInformeLongitudinalCardiometabolico(
+        empresaId,
+        trabajadorId,
+        informeLongitudinalCardiometabolicoId,
+        userId,
+        undefined,
+        body,
+      );
+    return res
+      .status(200)
+      .json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
+  }
 }

@@ -4,11 +4,14 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { AcuerdoConfidencialidadService } from '../../modules/acuerdo-confidencialidad/acuerdo-confidencialidad.service';
 import { createRegulatoryError } from '../regulatory-error-helper';
 import { RegulatoryErrorCode } from '../regulatory-error-codes';
+import {
+  REQUEST_PROVEEDOR_SALUD_ID_KEY,
+  RequestWithUserContext,
+} from '../helpers/request-user-context';
 
 const AUTH_FLOW_PATH_FRAGMENTS = [
   '/users/login',
@@ -55,9 +58,9 @@ export class ConfidentialityAgreementGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<
-      Request & { userId?: string }
-    >();
+    const request = context
+      .switchToHttp()
+      .getRequest<RequestWithUserContext>();
     const path = request.path ?? request.url ?? '';
 
     if (isAuthFlowPath(path)) {
@@ -77,19 +80,16 @@ export class ConfidentialityAgreementGuard implements CanActivate {
       return true;
     }
 
-    const required =
-      await this.acuerdoConfidencialidadService.isAgreementRequiredForUser(
+    // Reutilizar idProveedorSalud si SessionInactivityGuard ya lo resolvió
+    const preloadedProveedorSaludId = request[REQUEST_PROVEEDOR_SALUD_ID_KEY];
+    const gate =
+      await this.acuerdoConfidencialidadService.resolveAgreementGate(
         userId,
+        preloadedProveedorSaludId !== undefined
+          ? { proveedorSaludId: preloadedProveedorSaludId }
+          : undefined,
       );
-    if (!required) {
-      return true;
-    }
-
-    const accepted =
-      await this.acuerdoConfidencialidadService.hasAcceptedCurrentVersion(
-        userId,
-      );
-    if (accepted) {
+    if (!gate.required || gate.accepted) {
       return true;
     }
 

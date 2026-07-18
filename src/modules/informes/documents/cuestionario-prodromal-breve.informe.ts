@@ -584,19 +584,11 @@ const tablaCuestionarioPqB = (ep: CuestionarioProdromalBreve): Content => ({
       fillColor: proveedorSalud.colorInforme || '#343A40',
     };
 
-    const firma: Content = (
-      footerFirmantesData?.esDocumentoFinalizado
-        ? footerFirmantesData?.finalizador?.firma?.data
-        : firmanteActivo?.firma?.data
-    )
-      ? {
-          image: `assets/signatories/${
-            footerFirmantesData?.esDocumentoFinalizado
-              ? footerFirmantesData?.finalizador?.firma?.data
-              : firmanteActivo?.firma?.data
-          }`,
-          width: 65,
-        }
+    const firmaFilename = footerFirmantesData?.esDocumentoFinalizado
+      ? footerFirmantesData?.finalizador?.firma?.data
+      : firmanteActivo?.firma?.data;
+    const firma: Content = firmaFilename
+      ? { image: `assets/signatories/${firmaFilename}`, width: 65 }
       : { text: '' };
 
     const logo: Content = proveedorSalud.logotipoEmpresa?.data

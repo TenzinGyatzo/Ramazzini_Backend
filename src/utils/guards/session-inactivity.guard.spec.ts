@@ -25,21 +25,23 @@ describe('SessionInactivityGuard', () => {
     userId?: string;
     path?: string;
     isPublic?: boolean;
-  }): ExecutionContext => {
+  }): { ctx: ExecutionContext; request: Record<string, unknown> } => {
     const handler = jest.fn();
     if (opts.isPublic) {
       Reflect.defineMetadata(IS_PUBLIC_KEY, true, handler);
     }
-    return {
+    const request: Record<string, unknown> = {
+      userId: opts.userId,
+      path: opts.path ?? '/api/expedientes/abc',
+    };
+    const ctx = {
       getHandler: () => handler,
       getClass: () => ({}),
       switchToHttp: () => ({
-        getRequest: () => ({
-          userId: opts.userId,
-          path: opts.path ?? '/api/expedientes/abc',
-        }),
+        getRequest: () => request,
       }),
     } as unknown as ExecutionContext;
+    return { ctx, request };
   };
 
   beforeEach(async () => {
@@ -70,13 +72,13 @@ describe('SessionInactivityGuard', () => {
   });
 
   it('allows @Public routes without checking session', async () => {
-    const ctx = createContext({ isPublic: true });
+    const { ctx } = createContext({ isPublic: true });
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
     expect(sessionActivityService.assertAndTouchSession).not.toHaveBeenCalled();
   });
 
   it('skips auth flow paths', async () => {
-    const ctx = createContext({
+    const { ctx } = createContext({
       userId: 'user-1',
       path: '/auth/users/login',
     });
@@ -85,13 +87,17 @@ describe('SessionInactivityGuard', () => {
   });
 
   it('asserts and touches session on protected routes', async () => {
-    const ctx = createContext({ userId: 'user-1', path: '/api/trabajadores' });
+    const { ctx, request } = createContext({
+      userId: 'user-1',
+      path: '/api/trabajadores',
+    });
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
     expect(sessionActivityService.assertAndTouchSession).toHaveBeenCalledWith(
       'sid-1',
       'user-1',
       '507f1f77bcf86cd799439012',
     );
+    expect(request.idProveedorSalud).toBe('507f1f77bcf86cd799439012');
   });
 
   it('propagates SESSION_IDLE from service', async () => {
@@ -101,7 +107,7 @@ describe('SessionInactivityGuard', () => {
         message: 'Sesión bloqueada por inactividad',
       }),
     );
-    const ctx = createContext({ userId: 'user-1' });
+    const { ctx } = createContext({ userId: 'user-1' });
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });
 });

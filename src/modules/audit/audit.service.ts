@@ -201,19 +201,35 @@ export class AuditService {
     const timestamp = new Date();
     const actorIdStr = params.actorId != null ? String(params.actorId) : null;
 
-    let actorSnapshot: {
+    // Snapshot y hash anterior son independientes: paralelizar tras los early-exits
+    const actorSnapshotPromise: Promise<{
       username: string;
       email: string;
       role: string;
-    } | null = null;
-    if (actorIdStr && actorIdStr !== 'SYSTEM') {
-      try {
-        actorSnapshot =
-          await this.usersService.getAuditActorSnapshot(actorIdStr);
-      } catch {
-        // Si falla la lectura del usuario, se guarda sin snapshot (actorId sigue siendo la referencia)
-      }
-    }
+    } | null> =
+      params.actorSnapshot !== undefined
+        ? Promise.resolve(params.actorSnapshot)
+        : actorIdStr && actorIdStr !== 'SYSTEM'
+          ? this.usersService
+              .getAuditActorSnapshot(actorIdStr)
+              .catch(() => null)
+          : Promise.resolve(null);
+
+    const previousEventPromise =
+      proveedorSaludIdStr != null
+        ? this.auditEventModel
+            .findOne({
+              proveedorSaludId: new Types.ObjectId(proveedorSaludIdStr),
+            })
+            .sort({ timestamp: -1 })
+            .lean()
+            .exec()
+        : Promise.resolve(null);
+
+    const [actorSnapshot, last] = await Promise.all([
+      actorSnapshotPromise,
+      previousEventPromise,
+    ]);
 
     const canonical: AuditEventCanonicalPayload = {
       proveedorSaludId: proveedorSaludIdStr,
@@ -226,15 +242,8 @@ export class AuditService {
     };
 
     let previousHash: string | null = null;
-    if (proveedorSaludIdStr != null) {
-      const last = await this.auditEventModel
-        .findOne({ proveedorSaludId: new Types.ObjectId(proveedorSaludIdStr) })
-        .sort({ timestamp: -1 })
-        .lean()
-        .exec();
-      if (last && typeof (last as any).hashEvento === 'string') {
-        previousHash = (last as any).hashEvento;
-      }
+    if (last && typeof (last as any).hashEvento === 'string') {
+      previousHash = (last as any).hashEvento;
     }
 
     const { hashEvento, hashEventoAnterior } = computeCanonicalHash(

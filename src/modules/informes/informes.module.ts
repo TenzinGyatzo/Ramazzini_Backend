@@ -12,7 +12,6 @@ import { EnfermerasFirmantesModule } from '../enfermeras-firmantes/enfermeras-fi
 import { TecnicosFirmantesModule } from '../tecnicos-firmantes/tecnicos-firmantes.module';
 import { ProveedoresSaludModule } from '../proveedores-salud/proveedores-salud.module';
 import { UsersModule } from '../users/users.module';
-import { CentrosTrabajoModule } from '../centros-trabajo/centros-trabajo.module';
 import { ResultadosClinicosModule } from '../resultados-clinicos/resultados-clinicos.module';
 import { FirmanteHelperModule } from '../expedientes/firmante-helper.module';
 import { AuditModule } from '../audit/audit.module';
@@ -34,7 +33,6 @@ import { ProveedorInformeResolver } from './helpers/proveedor-informe.resolver';
     TecnicosFirmantesModule,
     ProveedoresSaludModule,
     UsersModule,
-    CentrosTrabajoModule,
     ResultadosClinicosModule,
     FirmanteHelperModule,
     forwardRef(() => AuditModule),

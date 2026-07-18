@@ -4,6 +4,12 @@
 import type { AuditActionTypeValue } from '../constants/audit-action-type';
 import type { AuditEventClassValue } from '../constants/audit-event-class';
 
+export interface AuditActorSnapshot {
+  username: string;
+  email: string;
+  role: string;
+}
+
 export interface RecordAuditParams {
   proveedorSaludId: string | null;
   actorId: string | null;
@@ -12,6 +18,8 @@ export interface RecordAuditParams {
   resourceId?: string | null;
   payload?: Record<string, unknown> | null;
   eventClass: AuditEventClassValue;
+  /** Si ya se resolvió el actor, evita un findById adicional en record(). */
+  actorSnapshot?: AuditActorSnapshot | null;
 }
 
 export interface IAuditService {

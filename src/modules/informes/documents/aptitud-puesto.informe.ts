@@ -648,19 +648,11 @@ export const aptitudPuestoInforme = (
     trabajador.sexo,
   );
 
-  const firma: Content = (
-    footerFirmantesData?.esDocumentoFinalizado
+  const firmaFilename = footerFirmantesData?.esDocumentoFinalizado
       ? footerFirmantesData?.finalizador?.firma?.data
-      : medicoFirmante.firma?.data
-  )
-    ? {
-        image: `assets/signatories/${
-          footerFirmantesData?.esDocumentoFinalizado
-            ? footerFirmantesData?.finalizador?.firma?.data
-            : medicoFirmante.firma?.data
-        }`,
-        width: 65,
-      }
+      : medicoFirmante.firma?.data;
+  const firma: Content = firmaFilename
+    ? { image: `assets/signatories/${firmaFilename}`, width: 65 }
     : { text: '' };
 
   const logo: Content = proveedorSalud.logotipoEmpresa?.data

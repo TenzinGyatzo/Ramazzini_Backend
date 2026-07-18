@@ -141,7 +141,8 @@ function hallazgoPorCampo(campo: string, valor: unknown): string | null {
   }
 }
 
-const ORDEN_CAMPOS_ENTREVISTA: string[] = [
+/** Campos de entrevista usados por el resumen del informe de aptitud (proyección lean). */
+export const CAMPOS_ENTREVISTA_PSICOLOGICA_APTITUD = [
   'apariencia',
   'actitudHaciaEvaluador',
   'nivelCooperacion',
@@ -162,6 +163,10 @@ const ORDEN_CAMPOS_ENTREVISTA: string[] = [
   'desempenoLaboralAutorreporte',
   'manejoEstres',
   'ideacionSuicida',
+] as const;
+
+const ORDEN_CAMPOS_ENTREVISTA: string[] = [
+  ...CAMPOS_ENTREVISTA_PSICOLOGICA_APTITUD,
 ];
 
 function esValorEsperadoEntrevista(campo: string, v: unknown): boolean {

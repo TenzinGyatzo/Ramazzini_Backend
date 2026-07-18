@@ -19,8 +19,21 @@ import { AuditEventClass } from '../audit/constants/audit-event-class';
 
 const RESOURCE_TYPE_CONFIDENTIALITY_AGREEMENT = 'CONFIDENTIALITY_AGREEMENT';
 
+/** Resultado del gate de acuerdo (misma semántica que required + hasAccepted). */
+export type ConfidentialityAgreementGate = {
+  required: boolean;
+  accepted: boolean;
+};
+
 @Injectable()
 export class AcuerdoConfidencialidadService {
+  /** Cache corta por userId: evita re-resolver user/policy/aceptación en ráfagas. */
+  private readonly gateCache = new Map<
+    string,
+    { gate: ConfidentialityAgreementGate; timestamp: number }
+  >();
+  private readonly GATE_CACHE_TTL_MS = 30_000;
+
   constructor(
     @InjectModel(AcuerdoConfidencialidadAceptacion.name)
     private readonly aceptacionModel: Model<AcuerdoConfidencialidadAceptacion>,
@@ -52,47 +65,100 @@ export class AcuerdoConfidencialidadService {
     };
   }
 
-  async isAgreementRequiredForUser(userId: string): Promise<boolean> {
-    const proveedorSaludId =
-      await this.usersService.getIdProveedorSaludByUserId(userId);
-    if (!proveedorSaludId) {
-      return false;
+  private getCachedGate(
+    userId: string,
+  ): ConfidentialityAgreementGate | null {
+    const cached = this.gateCache.get(userId);
+    if (!cached) {
+      return null;
     }
-    const policy =
-      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
-    return policy.features.confidentialityAgreementEnabled;
+    if (Date.now() - cached.timestamp >= this.GATE_CACHE_TTL_MS) {
+      this.gateCache.delete(userId);
+      return null;
+    }
+    return cached.gate;
   }
 
-  async hasAcceptedCurrentVersion(userId: string): Promise<boolean> {
-    if (!(await this.isAgreementRequiredForUser(userId))) {
-      return true;
-    }
-    const existing = await this.aceptacionModel
+  private setCachedGate(
+    userId: string,
+    gate: ConfidentialityAgreementGate,
+  ): void {
+    this.gateCache.set(userId, { gate, timestamp: Date.now() });
+  }
+
+  private async findCurrentAcceptance(userId: string) {
+    return this.aceptacionModel
       .findOne({
         userId: new Types.ObjectId(userId),
         versionAco: ACUERDO_CONFIDENCIALIDAD.version,
       })
       .lean();
-    return !!existing;
   }
 
-  async getStatus(
+  /**
+   * Resuelve required + accepted en un solo paso (1× user, 1× policy, 1× aceptación si aplica).
+   * Cache de corta vida por userId; se refresca a accepted=true en accept().
+   * `options.proveedorSaludId` (incl. null) evita re-lookup si un guard previo ya lo resolvió.
+   */
+  async resolveAgreementGate(
     userId: string,
-  ): Promise<AcuerdoConfidencialidadStatusResponseDto> {
+    options?: { proveedorSaludId?: string | null },
+  ): Promise<ConfidentialityAgreementGate> {
+    const cached = this.getCachedGate(userId);
+    if (cached) {
+      return cached;
+    }
+
     const proveedorSaludId =
-      await this.usersService.getIdProveedorSaludByUserId(userId);
+      options?.proveedorSaludId !== undefined
+        ? options.proveedorSaludId
+        : await this.usersService.getIdProveedorSaludByUserId(userId);
     if (!proveedorSaludId) {
-      return this.buildNotRequiredStatus();
+      const gate: ConfidentialityAgreementGate = {
+        required: false,
+        accepted: true,
+      };
+      this.setCachedGate(userId, gate);
+      return gate;
     }
 
     const policy =
       await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
     if (!policy.features.confidentialityAgreementEnabled) {
-      return this.buildNotRequiredStatus();
+      const gate: ConfidentialityAgreementGate = {
+        required: false,
+        accepted: true,
+      };
+      this.setCachedGate(userId, gate);
+      return gate;
     }
 
-    const accepted = await this.hasAcceptedCurrentVersion(userId);
-    return this.buildRequiredStatus(accepted);
+    const existing = await this.findCurrentAcceptance(userId);
+    const gate: ConfidentialityAgreementGate = {
+      required: true,
+      accepted: !!existing,
+    };
+    this.setCachedGate(userId, gate);
+    return gate;
+  }
+
+  async isAgreementRequiredForUser(userId: string): Promise<boolean> {
+    return (await this.resolveAgreementGate(userId)).required;
+  }
+
+  async hasAcceptedCurrentVersion(userId: string): Promise<boolean> {
+    // Misma semántica: si no aplica, se considera aceptado (no bloquea).
+    return (await this.resolveAgreementGate(userId)).accepted;
+  }
+
+  async getStatus(
+    userId: string,
+  ): Promise<AcuerdoConfidencialidadStatusResponseDto> {
+    const gate = await this.resolveAgreementGate(userId);
+    if (!gate.required) {
+      return this.buildNotRequiredStatus();
+    }
+    return this.buildRequiredStatus(gate.accepted);
   }
 
   async accept(
@@ -115,14 +181,10 @@ export class AcuerdoConfidencialidadService {
       );
     }
 
-    const existing = await this.aceptacionModel
-      .findOne({
-        userId: new Types.ObjectId(userId),
-        versionAco: ACUERDO_CONFIDENCIALIDAD.version,
-      })
-      .lean();
+    const existing = await this.findCurrentAcceptance(userId);
 
     if (existing) {
+      this.setCachedGate(userId, { required: true, accepted: true });
       return {
         accepted: true,
         versionAco: existing.versionAco,
@@ -156,6 +218,9 @@ export class AcuerdoConfidencialidadService {
       },
       eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
     });
+
+    // Evita 403 falso tras aceptar (cache previa con accepted:false).
+    this.setCachedGate(userId, { required: true, accepted: true });
 
     return {
       accepted: true,

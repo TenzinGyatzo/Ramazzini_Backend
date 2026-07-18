@@ -1748,7 +1748,10 @@ export class TrabajadoresService {
     return dashboardData;
   }
 
-  async findOne(id: string): Promise<any> {
+  async findOne(
+    id: string,
+    options?: { includeRiesgos?: boolean },
+  ): Promise<any> {
     const redirectTo = await this.workerFusionService.getFusionRedirect(id);
     if (redirectTo) {
       return { redirectTo, fused: true };
@@ -1760,16 +1763,62 @@ export class TrabajadoresService {
       throw new Error('Trabajador no encontrado');
     }
 
+    const base = {
+      ...trabajador,
+      requestedId: id !== resolvedId ? id : undefined,
+      canonicalId: resolvedId,
+    };
+
+    // PDF / informes no usan riesgos; evita query extra en rutas calientes
+    if (options?.includeRiesgos === false) {
+      return base;
+    }
+
     const riesgos = await this.riesgoTrabajoModel
       .find({ idTrabajador: resolvedId })
       .sort({ fechaRiesgo: -1 })
       .lean();
 
     return {
-      ...trabajador,
+      ...base,
       riesgosTrabajo: riesgos,
-      requestedId: id !== resolvedId ? id : undefined,
-      canonicalId: resolvedId,
+    };
+  }
+
+  /**
+   * Resuelve empresaId desde un trabajador con lecturas mínimas (sin riesgos ni documento completo).
+   * Misma semántica de fusión/canónico que findOne.
+   */
+  async resolveEmpresaIdForInforme(trabajadorId: string): Promise<{
+    empresaId: string;
+    canonicalTrabajadorId: string;
+  }> {
+    const redirectTo =
+      await this.workerFusionService.getFusionRedirect(trabajadorId);
+    if (redirectTo) {
+      // Misma falla observable que findOne + acceso a idCentroTrabajo
+      const fused = { redirectTo, fused: true } as any;
+      fused.idCentroTrabajo.toString();
+    }
+
+    const resolvedId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+    const trabajador = await this.trabajadorModel
+      .findById(resolvedId)
+      .select('_id idCentroTrabajo')
+      .lean();
+    if (!trabajador) {
+      throw new Error('Trabajador no encontrado');
+    }
+
+    const centro = await this.centroTrabajoModel
+      .findById(trabajador.idCentroTrabajo)
+      .select('idEmpresa')
+      .lean();
+
+    return {
+      empresaId: (centro as any).idEmpresa.toString(),
+      canonicalTrabajadorId: resolvedId,
     };
   }
 

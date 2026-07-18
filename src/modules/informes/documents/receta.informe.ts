@@ -237,17 +237,12 @@ export const recetaInforme = (
       ? enfermeraFirmante
       : null;
 
-  const firma: Content = (
-    footerFirmantesData?.esDocumentoFinalizado
-      ? footerFirmantesData?.finalizador?.firma?.data
-      : firmanteActivo?.firma?.data
-  )
+  const firmaFilename = footerFirmantesData?.esDocumentoFinalizado
+    ? footerFirmantesData?.finalizador?.firma?.data
+    : firmanteActivo?.firma?.data;
+  const firma: Content = firmaFilename
     ? {
-        image: `assets/signatories/${
-          footerFirmantesData?.esDocumentoFinalizado
-            ? footerFirmantesData?.finalizador?.firma?.data
-            : firmanteActivo?.firma?.data
-        }`,
+        image: `assets/signatories/${firmaFilename}`,
         width: 80,
         alignment: 'center' as const,
         margin: [0, 10, 0, 0] as [number, number, number, number],

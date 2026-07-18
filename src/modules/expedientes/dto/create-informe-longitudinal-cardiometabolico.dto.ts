@@ -380,4 +380,21 @@ export class CreateInformeLongitudinalCardiometabolicoDto {
   @IsOptional()
   @IsString()
   rutaPDF?: string;
+
+  /** PNG data URL para embeber en el PDF (persistido en Mongo). */
+  @IsOptional()
+  @IsString()
+  graficaEvolucionGlucemica?: string;
+
+  @IsOptional()
+  @IsString()
+  graficaEvolucionPresionArterial?: string;
+
+  @IsOptional()
+  @IsString()
+  graficaEvolucionPesoImc?: string;
+
+  @IsOptional()
+  @IsString()
+  graficaEvolucionPerfilLipidico?: string;
 }

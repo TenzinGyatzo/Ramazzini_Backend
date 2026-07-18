@@ -3,6 +3,7 @@ import { Document, Schema as MongooseSchema } from 'mongoose';
 import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
+import { PdfStatus } from '../enums/pdf-status.enum';
 
 @Schema()
 export class Certificado extends Document {
@@ -21,6 +22,13 @@ export class Certificado extends Document {
 
   @Prop({ required: true })
   rutaPDF: string;
+
+  @Prop({
+    enum: PdfStatus,
+    required: false,
+  })
+  pdfStatus?: PdfStatus;
+
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   createdBy: User;

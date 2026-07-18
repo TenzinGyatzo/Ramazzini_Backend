@@ -29,32 +29,82 @@ export function extractTrabajadorId(context: ExecutionContext): string | null {
   return null;
 }
 
-export async function getProveedorSaludIdFromTrabajador(
+export interface TrabajadorProveedorChain {
+  trabajador: Record<string, any> | null;
+  centroTrabajo: Record<string, any> | null;
+  empresa: Record<string, any> | null;
+  proveedorSaludId: string | null;
+}
+
+/**
+ * Resuelve trabajador → centro → empresa → proveedorSaludId en una sola pasada.
+ */
+export async function resolveTrabajadorProveedorChain(
   trabajadorId: string,
   trabajadorModel: Model<Trabajador>,
   centroTrabajoModel: Model<CentroTrabajo>,
   empresaModel: Model<Empresa>,
-): Promise<string | null> {
+): Promise<TrabajadorProveedorChain> {
   try {
     const trabajador = await trabajadorModel.findById(trabajadorId).lean();
     if (!trabajador || !trabajador.idCentroTrabajo) {
-      return null;
+      return {
+        trabajador: trabajador ?? null,
+        centroTrabajo: null,
+        empresa: null,
+        proveedorSaludId: null,
+      };
     }
 
     const centroTrabajo = await centroTrabajoModel
       .findById(trabajador.idCentroTrabajo)
       .lean();
     if (!centroTrabajo || !centroTrabajo.idEmpresa) {
-      return null;
+      return {
+        trabajador,
+        centroTrabajo: centroTrabajo ?? null,
+        empresa: null,
+        proveedorSaludId: null,
+      };
     }
 
     const empresa = await empresaModel.findById(centroTrabajo.idEmpresa).lean();
     if (!empresa || !empresa.idProveedorSalud) {
-      return null;
+      return {
+        trabajador,
+        centroTrabajo,
+        empresa: empresa ?? null,
+        proveedorSaludId: null,
+      };
     }
 
-    return empresa.idProveedorSalud.toString();
+    return {
+      trabajador,
+      centroTrabajo,
+      empresa,
+      proveedorSaludId: empresa.idProveedorSalud.toString(),
+    };
   } catch {
-    return null;
+    return {
+      trabajador: null,
+      centroTrabajo: null,
+      empresa: null,
+      proveedorSaludId: null,
+    };
   }
+}
+
+export async function getProveedorSaludIdFromTrabajador(
+  trabajadorId: string,
+  trabajadorModel: Model<Trabajador>,
+  centroTrabajoModel: Model<CentroTrabajo>,
+  empresaModel: Model<Empresa>,
+): Promise<string | null> {
+  const chain = await resolveTrabajadorProveedorChain(
+    trabajadorId,
+    trabajadorModel,
+    centroTrabajoModel,
+    empresaModel,
+  );
+  return chain.proveedorSaludId;
 }

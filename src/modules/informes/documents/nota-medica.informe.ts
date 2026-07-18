@@ -506,19 +506,11 @@ export const notaMedicaInforme = (
       ? enfermeraFirmante
       : null;
 
-  const firma: Content = (
-    footerFirmantesData?.esDocumentoFinalizado
+  const firmaFilename = footerFirmantesData?.esDocumentoFinalizado
       ? footerFirmantesData?.finalizador?.firma?.data
-      : firmanteActivo?.firma?.data
-  )
-    ? {
-        image: `assets/signatories/${
-          footerFirmantesData?.esDocumentoFinalizado
-            ? footerFirmantesData?.finalizador?.firma?.data
-            : firmanteActivo?.firma?.data
-        }`,
-        width: 65,
-      }
+      : firmanteActivo?.firma?.data;
+  const firma: Content = firmaFilename
+    ? { image: `assets/signatories/${firmaFilename}`, width: 65 }
     : { text: '' };
 
   const logo: Content = proveedorSalud.logotipoEmpresa?.data

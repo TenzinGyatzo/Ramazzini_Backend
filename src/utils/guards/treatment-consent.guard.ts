@@ -21,8 +21,12 @@ import {
 } from '../decorators/require-treatment-consent.decorator';
 import {
   extractTrabajadorId,
-  getProveedorSaludIdFromTrabajador,
+  resolveTrabajadorProveedorChain,
 } from '../helpers/treatment-consent.helper';
+import {
+  TREATMENT_CONSENT_REQUEST_KEY,
+  TreatmentConsentRequestContext,
+} from '../helpers/treatment-consent-request.context';
 import { isValidObjectId } from 'mongoose';
 import { WorkerFusionService } from '../../modules/trabajadores/worker-fusion.service';
 import { ConsentimientosService } from '../../modules/consentimientos/consentimientos.service';
@@ -31,6 +35,9 @@ import { CONSENTIMIENTO_TRATAMIENTO_INFORMACION_SIRES } from '../../modules/cons
 /**
  * Valida consentimiento para tratamiento de información en SIRES (versión vigente)
  * antes de acciones protegidas (p. ej. creación documental).
+ *
+ * Adjunta TreatmentConsentRequestContext al request para que el handler
+ * no vuelva a resolver canónico / cadena / consentimiento.
  */
 @Injectable()
 export class TreatmentConsentGuard implements CanActivate {
@@ -59,6 +66,7 @@ export class TreatmentConsentGuard implements CanActivate {
       return true;
     }
 
+    const request = context.switchToHttp().getRequest();
     const trabajadorId = extractTrabajadorId(context);
 
     if (options.skipIfNoTrabajadorId && !trabajadorId) {
@@ -78,12 +86,13 @@ export class TreatmentConsentGuard implements CanActivate {
     const canonicalTrabajadorId =
       await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
 
-    const proveedorSaludId = await getProveedorSaludIdFromTrabajador(
+    const chain = await resolveTrabajadorProveedorChain(
       canonicalTrabajadorId,
       this.trabajadorModel,
       this.centroTrabajoModel,
       this.empresaModel,
     );
+    const proveedorSaludId = chain.proveedorSaludId;
 
     if (!proveedorSaludId) {
       throw new ForbiddenException(
@@ -94,17 +103,27 @@ export class TreatmentConsentGuard implements CanActivate {
     const policy =
       await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
 
+    const consentCtx: TreatmentConsentRequestContext = {
+      canonicalTrabajadorId,
+      proveedorSaludId,
+      policy,
+      trabajador: chain.trabajador,
+      consentimientoId: null,
+    };
+    request[TREATMENT_CONSENT_REQUEST_KEY] = consentCtx;
+
     if (!policy.features.dailyConsentEnabled) {
       return true;
     }
 
     const currentVersion = CONSENTIMIENTO_TRATAMIENTO_INFORMACION_SIRES.version;
-    let accepted: boolean;
+    let consentimiento;
     try {
-      accepted = await this.consentimientosService.hasAcceptedCurrentVersion(
-        proveedorSaludId,
-        canonicalTrabajadorId,
-      );
+      consentimiento =
+        await this.consentimientosService.findCurrentConsentimientoByResolvedIds(
+          proveedorSaludId,
+          canonicalTrabajadorId,
+        );
     } catch (error) {
       this.logger.error(
         `Error al validar consentimiento para trabajador ${trabajadorId}:`,
@@ -115,7 +134,7 @@ export class TreatmentConsentGuard implements CanActivate {
       );
     }
 
-    if (!accepted) {
+    if (!consentimiento) {
       const action = options.action || 'unknown';
       this.logger.warn(
         `Consentimiento requerido (v${currentVersion}) no encontrado para trabajador ${trabajadorId} (acción: ${action})`,
@@ -130,6 +149,9 @@ export class TreatmentConsentGuard implements CanActivate {
         regime: policy.regime,
       });
     }
+
+    consentCtx.consentimientoId = (consentimiento as any)._id?.toString?.()
+      ?? String((consentimiento as any)._id);
 
     return true;
   }

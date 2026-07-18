@@ -15,7 +15,10 @@ import {
   ConsentimientoStatusResponseDto,
   ConsentimientoCreatedResponseDto,
 } from './dto/consentimiento-response.dto';
-import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
+import {
+  RegulatoryPolicy,
+  RegulatoryPolicyService,
+} from '../../utils/regulatory-policy.service';
 import { createRegulatoryError } from '../../utils/regulatory-error-helper';
 import { RegulatoryErrorCode } from '../../utils/regulatory-error-codes';
 import {
@@ -26,9 +29,20 @@ import { WorkerFusionService } from '../trabajadores/worker-fusion.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
+import {
+  getProveedorSaludIdFromTrabajador,
+  resolveTrabajadorProveedorChain,
+} from '../../utils/helpers/treatment-consent.helper';
 
 const RESOURCE_TYPE_CONSENTIMIENTO_TRATAMIENTO_SIRES =
   'CONSENTIMIENTO_TRATAMIENTO_SIRES';
+
+interface ConsentRegimeContext {
+  canonicalTrabajadorId: string;
+  trabajador: Record<string, any>;
+  proveedorSaludId: string;
+  policy: RegulatoryPolicy;
+}
 
 @Injectable()
 export class ConsentimientosService {
@@ -69,35 +83,43 @@ export class ConsentimientosService {
     };
   }
 
-  private async getProveedorSaludIdFromTrabajador(
+  /**
+   * Canónico + cadena trabajador→proveedor + policy en una sola pasada.
+   */
+  private async resolveConsentRegimeContext(
     trabajadorId: string,
-  ): Promise<string | null> {
-    try {
-      const trabajador = await this.trabajadorModel
-        .findById(trabajadorId)
-        .lean();
-      if (!trabajador || !trabajador.idCentroTrabajo) {
-        return null;
-      }
+  ): Promise<ConsentRegimeContext> {
+    const canonicalTrabajadorId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
 
-      const centroTrabajo = await this.centroTrabajoModel
-        .findById(trabajador.idCentroTrabajo)
-        .lean();
-      if (!centroTrabajo || !centroTrabajo.idEmpresa) {
-        return null;
-      }
+    const chain = await resolveTrabajadorProveedorChain(
+      canonicalTrabajadorId,
+      this.trabajadorModel,
+      this.centroTrabajoModel,
+      this.empresaModel,
+    );
 
-      const empresa = await this.empresaModel
-        .findById(centroTrabajo.idEmpresa)
-        .lean();
-      if (!empresa || !empresa.idProveedorSalud) {
-        return null;
-      }
-
-      return empresa.idProveedorSalud.toString();
-    } catch {
-      return null;
+    if (!chain.trabajador) {
+      throw new NotFoundException('Trabajador no encontrado');
     }
+
+    if (!chain.proveedorSaludId) {
+      throw new ForbiddenException(
+        'No se pudo determinar el proveedor de salud del trabajador',
+      );
+    }
+
+    const policy =
+      await this.regulatoryPolicyService.getRegulatoryPolicy(
+        chain.proveedorSaludId,
+      );
+
+    return {
+      canonicalTrabajadorId,
+      trabajador: chain.trabajador,
+      proveedorSaludId: chain.proveedorSaludId,
+      policy,
+    };
   }
 
   private buildLookupFilter(
@@ -113,15 +135,29 @@ export class ConsentimientosService {
     };
   }
 
+  /**
+   * Busca el consentimiento vigente con IDs ya resueltos (sin re-cadena).
+   */
+  async findCurrentConsentimientoByResolvedIds(
+    proveedorSaludId: string,
+    canonicalTrabajadorId: string,
+  ): Promise<Consentimiento | null> {
+    return this.consentimientoModel
+      .findOne(
+        this.buildLookupFilter(proveedorSaludId, canonicalTrabajadorId),
+      )
+      .lean()
+      .exec() as Promise<Consentimiento | null>;
+  }
+
   async hasAcceptedCurrentVersion(
     proveedorSaludId: string,
     canonicalTrabajadorId: string,
   ): Promise<boolean> {
-    const existing = await this.consentimientoModel
-      .findOne(
-        this.buildLookupFilter(proveedorSaludId, canonicalTrabajadorId),
-      )
-      .lean();
+    const existing = await this.findCurrentConsentimientoByResolvedIds(
+      proveedorSaludId,
+      canonicalTrabajadorId,
+    );
     return !!existing;
   }
 
@@ -132,27 +168,9 @@ export class ConsentimientosService {
       throw new BadRequestException('El ID del trabajador no es válido');
     }
 
-    const canonicalTrabajadorId =
-      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+    const { canonicalTrabajadorId, proveedorSaludId, policy } =
+      await this.resolveConsentRegimeContext(trabajadorId);
 
-    const trabajador = await this.trabajadorModel
-      .findById(canonicalTrabajadorId)
-      .lean();
-    if (!trabajador) {
-      throw new NotFoundException('Trabajador no encontrado');
-    }
-
-    const proveedorSaludId = await this.getProveedorSaludIdFromTrabajador(
-      canonicalTrabajadorId,
-    );
-    if (!proveedorSaludId) {
-      throw new ForbiddenException(
-        'No se pudo determinar el proveedor de salud del trabajador',
-      );
-    }
-
-    const policy =
-      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
     if (!policy.features.dailyConsentEnabled) {
       return this.buildNotRequiredStatus();
     }
@@ -205,27 +223,9 @@ export class ConsentimientosService {
       throw new BadRequestException('El ID del trabajador no es válido');
     }
 
-    const canonicalTrabajadorId =
-      await this.workerFusionService.getCanonicalTrabajadorId(dto.trabajadorId);
+    const { canonicalTrabajadorId, proveedorSaludId, policy } =
+      await this.resolveConsentRegimeContext(dto.trabajadorId);
 
-    const trabajador = await this.trabajadorModel
-      .findById(canonicalTrabajadorId)
-      .lean();
-    if (!trabajador) {
-      throw new NotFoundException('Trabajador no encontrado');
-    }
-
-    const proveedorSaludId = await this.getProveedorSaludIdFromTrabajador(
-      canonicalTrabajadorId,
-    );
-    if (!proveedorSaludId) {
-      throw new ForbiddenException(
-        'No se pudo determinar el proveedor de salud del trabajador',
-      );
-    }
-
-    const policy =
-      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
     if (!policy.features.dailyConsentEnabled) {
       throw createRegulatoryError({
         errorCode: RegulatoryErrorCode.CONSENT_NOT_ENABLED,
@@ -291,16 +291,19 @@ export class ConsentimientosService {
   ): Promise<Consentimiento | null> {
     const canonicalTrabajadorId =
       await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
-    const proveedorSaludId = await this.getProveedorSaludIdFromTrabajador(
+    const proveedorSaludId = await getProveedorSaludIdFromTrabajador(
       canonicalTrabajadorId,
+      this.trabajadorModel,
+      this.centroTrabajoModel,
+      this.empresaModel,
     );
     if (!proveedorSaludId) {
       return null;
     }
 
-    return this.consentimientoModel
-      .findOne(this.buildLookupFilter(proveedorSaludId, canonicalTrabajadorId))
-      .lean()
-      .exec() as Promise<Consentimiento | null>;
+    return this.findCurrentConsentimientoByResolvedIds(
+      proveedorSaludId,
+      canonicalTrabajadorId,
+    );
   }
 }

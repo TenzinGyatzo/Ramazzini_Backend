@@ -4,11 +4,14 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { getSidFromRequest } from '../auth-helpers';
 import { SessionActivityService } from '../../modules/users/session-activity.service';
 import { UsersService } from '../../modules/users/users.service';
+import {
+  REQUEST_PROVEEDOR_SALUD_ID_KEY,
+  RequestWithUserContext,
+} from '../helpers/request-user-context';
 
 const AUTH_FLOW_PATH_FRAGMENTS = [
   '/users/login',
@@ -40,9 +43,9 @@ export class SessionInactivityGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<
-      Request & { userId?: string }
-    >();
+    const request = context
+      .switchToHttp()
+      .getRequest<RequestWithUserContext>();
     const path = request.path ?? request.url ?? '';
     if (isAuthFlowPath(path)) {
       return true;
@@ -56,6 +59,9 @@ export class SessionInactivityGuard implements CanActivate {
     const sid = getSidFromRequest(request);
     const proveedorSaludId =
       await this.usersService.getIdProveedorSaludByUserId(userId);
+
+    // Compartir con ConfidentialityAgreementGuard (y otros) en el mismo request
+    request[REQUEST_PROVEEDOR_SALUD_ID_KEY] = proveedorSaludId;
 
     await this.sessionActivityService.assertAndTouchSession(
       sid,

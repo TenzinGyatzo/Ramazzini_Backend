@@ -3,6 +3,7 @@ import { Document, Schema as MongooseSchema } from 'mongoose';
 import { Trabajador } from 'src/modules/trabajadores/entities/trabajador.entity';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
+import { PdfStatus } from '../enums/pdf-status.enum';
 import {
   EstadoSeguimientoProgramadoCardiometabolico,
   ESTADOS_SEGUIMIENTO_PROGRAMADO_CARDIOMETABOLICO,
@@ -327,6 +328,13 @@ export class InformeLongitudinalCardiometabolico extends Document {
 
   @Prop()
   rutaPDF?: string;
+
+  @Prop({
+    enum: PdfStatus,
+    required: false,
+  })
+  pdfStatus?: PdfStatus;
+
 
   // Consentimiento tratamiento información SIRES
   @Prop({

@@ -7,7 +7,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
-import { isValidObjectId, Model, Types, Connection } from 'mongoose';
+import { isValidObjectId, Model, Types, Connection, PipelineStage } from 'mongoose';
 import { Antidoping } from './schemas/antidoping.schema';
 import { AptitudPuesto } from './schemas/aptitud-puesto.schema';
 import { Audiometria } from './schemas/audiometria.schema';
@@ -38,6 +38,7 @@ import { parseISO } from 'date-fns';
 import * as fs from 'fs/promises';
 import { Trabajador } from '../trabajadores/schemas/trabajador.schema';
 import { DocumentoEstado } from './enums/documento-estado.enum';
+import { PdfStatus } from './enums/pdf-status.enum';
 import { NOM024ComplianceUtil } from '../../utils/nom024-compliance.util';
 import { CentroTrabajo } from '../centros-trabajo/schemas/centro-trabajo.schema';
 import { Empresa } from '../empresas/schemas/empresa.schema';
@@ -68,7 +69,10 @@ import {
 } from './validators/nota-medica-embarazo.validator';
 import { Cie10CatalogLookupService } from './services/cie10-catalog-lookup.service';
 import { ProveedoresSaludService } from '../proveedores-salud/proveedores-salud.service';
-import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
+import {
+  RegulatoryPolicy,
+  RegulatoryPolicyService,
+} from '../../utils/regulatory-policy.service';
 import { createRegulatoryError } from '../../utils/regulatory-error-helper';
 import { RegulatoryErrorCode } from '../../utils/regulatory-error-codes';
 import { ConsentimientosService } from '../consentimientos/consentimientos.service';
@@ -84,6 +88,22 @@ import {
   type WorkerLinkedCollectionConfig,
 } from '../trabajadores/constants/worker-linked-collections.constant';
 import { ResultadoClinico } from '../resultados-clinicos/schemas/resultado-clinico.schema';
+import { resolveTrabajadorProveedorChain } from '../../utils/helpers/treatment-consent.helper';
+import type { TreatmentConsentRequestContext } from '../../utils/helpers/treatment-consent-request.context';
+import { getDocumentoListSelect } from './constants/documento-list-projection';
+import {
+  APTITUD_INFORME_VECINO_TYPES,
+  getAptitudInformeVecinoSelect,
+  type AptitudInformeVecinoType,
+} from './constants/aptitud-informe-vecinos-projection';
+
+/** Contexto de régimen/proveedor resuelto una vez por request (create/update/upload) */
+interface DocumentRegimeContext {
+  trabajadorId: string;
+  trabajador: Record<string, any> | null;
+  proveedorSaludId: string | null;
+  policy: RegulatoryPolicy | null;
+}
 
 @Injectable()
 export class ExpedientesService {
@@ -238,10 +258,28 @@ export class ExpedientesService {
    * Validate CIE-10 codes for documents with diagnosis fields (MX providers only)
    * NOM-024 GIIS-B015: Extended validation with cross-checks (sex, age, special cases)
    */
+  private documentHasCie10Codes(dto: any, documentType: string): boolean {
+    if (dto?.codigoCIE10Principal?.trim()) return true;
+    if (
+      Array.isArray(dto?.codigosCIE10Complementarios) &&
+      dto.codigosCIE10Complementarios.some(
+        (codigo: string) => codigo && String(codigo).trim() !== '',
+      )
+    ) {
+      return true;
+    }
+    if (documentType === 'notaMedica') {
+      if (dto?.codigoCIEDiagnostico2?.trim()) return true;
+      if (dto?.codigoCIEDiagnostico3?.trim()) return true;
+    }
+    return false;
+  }
+
   private async validateCIE10ForDocument(
     documentType: string,
     dto: any,
     trabajadorId: string,
+    regimeCtx?: DocumentRegimeContext | null,
   ): Promise<void> {
     // Only validate for NotaMedica and HistoriaClinica (documents that require CIE-10)
     if (documentType !== 'notaMedica' && documentType !== 'historiaClinica') {
@@ -249,14 +287,16 @@ export class ExpedientesService {
     }
 
     const proveedorSaludId =
-      await this.getProveedorSaludIdFromTrabajador(trabajadorId);
+      regimeCtx?.proveedorSaludId ??
+      (await this.getProveedorSaludIdFromTrabajador(trabajadorId));
     if (!proveedorSaludId) {
       // If we can't determine provider, allow (backward compatibility)
       return;
     }
 
     const policy =
-      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
+      regimeCtx?.policy ??
+      (await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId));
 
     const requirePrimeraVezDiag23 = policy.regime === 'SIRES_NOM024';
 
@@ -279,12 +319,19 @@ export class ExpedientesService {
       }
     }
 
+    // Sin códigos que validar: evitar lookups de trabajador/catálogo
+    if (!this.documentHasCie10Codes(dto, documentType)) {
+      return;
+    }
+
     // SIRES provider: validate CIE-10 codes with cross-checks (format, catalog, sex/age)
     const errors: string[] = [];
     const warnings: string[] = [];
 
     // 1. Obtener trabajador (sexo, fechaNacimiento)
-    const trabajador = await this.trabajadorModel.findById(trabajadorId).lean();
+    const trabajador =
+      regimeCtx?.trabajador ??
+      (await this.trabajadorModel.findById(trabajadorId).lean());
     if (!trabajador) {
       throw new BadRequestException('Trabajador no encontrado');
     }
@@ -311,13 +358,17 @@ export class ExpedientesService {
       return value.split(' - ')[0].trim();
     };
 
-    // Helper function to validate a single CIE-10 code
+    // Helper: valida un código y devuelve issues (sin mutar arrays compartidos;
+    // permite Promise.all conservando orden al fusionar resultados).
     const validateCIE10Code = async (
       codigo: string,
       tipo: 'principal' | 'secundario' | 'diagnostico2' | 'diagnostico3',
-    ): Promise<void> => {
+    ): Promise<{ errors: string[]; warnings: string[] }> => {
+      const localErrors: string[] = [];
+      const localWarnings: string[] = [];
+
       if (!codigo || codigo.trim() === '') {
-        return;
+        return { errors: localErrors, warnings: localWarnings };
       }
 
       // Extraer solo el código del formato "CODE - DESCRIPTION"
@@ -327,20 +378,20 @@ export class ExpedientesService {
         documentType === 'notaMedica' &&
         !isCIE10Exact4Chars(codigoNormalizado)
       ) {
-        errors.push(
+        localErrors.push(
           `Código CIE-10 ${tipo} inválido: debe tener exactamente 4 caracteres (CATALOG_KEY DIAGNOSTICO_SIS).`,
         );
-        return;
+        return { errors: localErrors, warnings: localWarnings };
       }
 
       // Validar existencia en catálogo
       const isValid =
         await this.catalogsService.validateCIE10(codigoNormalizado);
       if (!isValid) {
-        errors.push(
+        localErrors.push(
           `Código CIE-10 ${tipo} inválido: ${codigoNormalizado}. No se encuentra en el catálogo CIE-10`,
         );
-        return;
+        return { errors: localErrors, warnings: localWarnings };
       }
 
       // Obtener entrada del catálogo para validaciones cruzadas
@@ -350,24 +401,45 @@ export class ExpedientesService {
       )) as CIE10Entry | null;
 
       if (!entry) {
-        return;
+        return { errors: localErrors, warnings: localWarnings };
       }
 
       // Validar diagnósticos exclusivos
       // Si código es R69X → emitir warning (no bloqueante)
       if (codigoNormalizado.startsWith('R69')) {
-        warnings.push(
+        localWarnings.push(
           `Advertencia: El código ${codigoNormalizado} (Morbilidad desconocida) se tolera máximo un 5% por carga. Se recomienda especificar más el diagnóstico si es posible.`,
         );
       }
+
+      return { errors: localErrors, warnings: localWarnings };
     };
 
-    // Validate primary CIE-10 code
+    const mergeCie10Results = (
+      results: Array<{ errors: string[]; warnings: string[] }>,
+    ): void => {
+      for (const result of results) {
+        errors.push(...result.errors);
+        warnings.push(...result.warnings);
+      }
+    };
+
+    // Validate primary + complementary CIE-10 codes in parallel (independent lookups)
     // IMPORTANTE: La obligatoriedad solo aplica a notas médicas, no a historias clínicas
     // La validación de obligatoriedad ya se hizo arriba basándose en la política regulatoria
     const codigoPrincipalFull = dto.codigoCIE10Principal?.trim() || '';
-    if (codigoPrincipalFull) {
+
+    const validatePrincipalTask = async (): Promise<{
+      errors: string[];
+      warnings: string[];
+    }> => {
+      if (!codigoPrincipalFull) {
+        return { errors: [], warnings: [] };
+      }
+
       if (documentType === 'notaMedica') {
+        const localErrors: string[] = [];
+        const localWarnings: string[] = [];
         let tipoPersonal: number | null = null;
         const userId = dto.createdBy || dto.updatedBy;
         if (userId) {
@@ -389,36 +461,67 @@ export class ExpedientesService {
           catalogExists: (key) => this.catalogsService.validateCIE10(key),
         });
         for (const issue of diag1Issues) {
-          errors.push(issue.message);
+          localErrors.push(issue.message);
         }
 
         const codigoNorm =
           extractCodeFromFullText(codigoPrincipalFull).toUpperCase();
         if (codigoNorm.startsWith('R69')) {
-          warnings.push(
+          localWarnings.push(
             `Advertencia: El código ${codigoNorm} (Morbilidad desconocida) se tolera máximo un 5% por carga. Se recomienda especificar más el diagnóstico si es posible.`,
           );
         }
-      } else {
-        await validateCIE10Code(codigoPrincipalFull, 'principal');
+        return { errors: localErrors, warnings: localWarnings };
       }
-    }
-    // Si no hay código, la validación de obligatoriedad ya se hizo arriba (líneas 167-182)
 
-    // Validate secondary CIE-10 codes if provided
-    if (
-      dto.codigosCIE10Complementarios &&
-      Array.isArray(dto.codigosCIE10Complementarios)
-    ) {
-      for (const codigo of dto.codigosCIE10Complementarios) {
-        if (codigo && codigo.trim() !== '') {
-          await validateCIE10Code(codigo, 'secundario');
-        }
+      return validateCIE10Code(codigoPrincipalFull, 'principal');
+    };
+
+    const validateComplementariosTask = async (): Promise<{
+      errors: string[];
+      warnings: string[];
+    }> => {
+      if (
+        !dto.codigosCIE10Complementarios ||
+        !Array.isArray(dto.codigosCIE10Complementarios)
+      ) {
+        return { errors: [], warnings: [] };
       }
-    }
+
+      const codesToValidate = dto.codigosCIE10Complementarios.filter(
+        (codigo: string) => codigo && codigo.trim() !== '',
+      );
+      if (codesToValidate.length === 0) {
+        return { errors: [], warnings: [] };
+      }
+
+      const results = await Promise.all(
+        codesToValidate.map((codigo: string) =>
+          validateCIE10Code(codigo, 'secundario'),
+        ),
+      );
+
+      const localErrors: string[] = [];
+      const localWarnings: string[] = [];
+      for (const result of results) {
+        localErrors.push(...result.errors);
+        localWarnings.push(...result.warnings);
+      }
+      return { errors: localErrors, warnings: localWarnings };
+    };
+
+    // Principal y complementarios son independientes → en paralelo;
+    // al fusionar: primero principal, luego complementarios (mismo orden de mensajes).
+    const [principalResult, complementariosResult] = await Promise.all([
+      validatePrincipalTask(),
+      validateComplementariosTask(),
+    ]);
+    mergeCie10Results([principalResult, complementariosResult]);
+    // Si no hay código principal, la validación de obligatoriedad ya se hizo arriba
 
     // Validar Regla B4: No duplicar principal en complementarios
     // IMPORTANTE: Esta validación solo aplica a notas médicas
+    // Early-exit: si B4 falla, no se continúan diag 2/3 ni confirmación.
     if (documentType === 'notaMedica') {
       const duplicateCheck = validateNoDuplicateCIE10PrincipalAndComplementary(
         dto.codigoCIE10Principal,
@@ -457,40 +560,42 @@ export class ExpedientesService {
       const catalogExists = (key: string) =>
         this.catalogsService.validateCIE10(key);
 
-      const diag2Issues = await validateCodigoCIEDiagnostico23({
-        field: 'codigoCIEDiagnostico2',
-        codigo: dto.codigoCIEDiagnostico2,
-        primeraVez: dto.primeraVezDiagnostico2,
-        codigoCIEDiagnostico1: codigoPrincipalFull,
-        sexoBiologico,
-        edad,
-        tipoPersonal,
-        tipoPersonalMedicoGeneral: cexTp.medicoGeneral,
-        tipoPersonalMedicoEspecialista: cexTp.medicoEspecialista,
-        lookup,
-        catalogExists,
-        requirePrimeraVez: requirePrimeraVezDiag23,
-      });
+      // diag2 y diag3 son lookups independientes (usan valores del DTO, no el resultado del otro)
+      const [diag2Issues, diag3Issues] = await Promise.all([
+        validateCodigoCIEDiagnostico23({
+          field: 'codigoCIEDiagnostico2',
+          codigo: dto.codigoCIEDiagnostico2,
+          primeraVez: dto.primeraVezDiagnostico2,
+          codigoCIEDiagnostico1: codigoPrincipalFull,
+          sexoBiologico,
+          edad,
+          tipoPersonal,
+          tipoPersonalMedicoGeneral: cexTp.medicoGeneral,
+          tipoPersonalMedicoEspecialista: cexTp.medicoEspecialista,
+          lookup,
+          catalogExists,
+          requirePrimeraVez: requirePrimeraVezDiag23,
+        }),
+        validateCodigoCIEDiagnostico23({
+          field: 'codigoCIEDiagnostico3',
+          codigo: dto.codigoCIEDiagnostico3,
+          primeraVez: dto.primeraVezDiagnostico3,
+          primeraVezDiagnostico2: dto.primeraVezDiagnostico2,
+          codigoCIEDiagnostico1: codigoPrincipalFull,
+          codigoCIEDiagnostico2: dto.codigoCIEDiagnostico2,
+          sexoBiologico,
+          edad,
+          tipoPersonal,
+          tipoPersonalMedicoGeneral: cexTp.medicoGeneral,
+          tipoPersonalMedicoEspecialista: cexTp.medicoEspecialista,
+          lookup,
+          catalogExists,
+          requirePrimeraVez: requirePrimeraVezDiag23,
+        }),
+      ]);
       for (const issue of diag2Issues) {
         errors.push(issue.message);
       }
-
-      const diag3Issues = await validateCodigoCIEDiagnostico23({
-        field: 'codigoCIEDiagnostico3',
-        codigo: dto.codigoCIEDiagnostico3,
-        primeraVez: dto.primeraVezDiagnostico3,
-        primeraVezDiagnostico2: dto.primeraVezDiagnostico2,
-        codigoCIEDiagnostico1: codigoPrincipalFull,
-        codigoCIEDiagnostico2: dto.codigoCIEDiagnostico2,
-        sexoBiologico,
-        edad,
-        tipoPersonal,
-        tipoPersonalMedicoGeneral: cexTp.medicoGeneral,
-        tipoPersonalMedicoEspecialista: cexTp.medicoEspecialista,
-        lookup,
-        catalogExists,
-        requirePrimeraVez: requirePrimeraVezDiag23,
-      });
       for (const issue of diag3Issues) {
         errors.push(issue.message);
       }
@@ -550,7 +655,11 @@ export class ExpedientesService {
     }
   }
 
-  async createDocument(documentType: string, createDto: any): Promise<any> {
+  async createDocument(
+    documentType: string,
+    createDto: any,
+    consentCtx?: TreatmentConsentRequestContext | null,
+  ): Promise<any> {
     const model = this.models[documentType];
 
     if (!model) {
@@ -560,133 +669,110 @@ export class ExpedientesService {
     }
 
     // NOM-024: Resolver a trabajador canónico (fusión de registros)
+    // Reutiliza el canónico del TreatmentConsentGuard si ya se resolvió en el request.
     if (createDto.idTrabajador) {
-      createDto.idTrabajador =
-        await this.workerFusionService.getCanonicalTrabajadorId(
+      if (consentCtx?.canonicalTrabajadorId) {
+        createDto.idTrabajador = consentCtx.canonicalTrabajadorId;
+      } else {
+        createDto.idTrabajador =
+          await this.workerFusionService.getCanonicalTrabajadorId(
+            createDto.idTrabajador,
+          );
+      }
+    }
+
+    const regimeCtx = createDto.idTrabajador
+      ? this.regimeContextFromConsentRequest(
           createDto.idTrabajador,
-        );
-    }
+          consentCtx,
+        ) ?? (await this.resolveDocumentRegimeContext(createDto.idTrabajador))
+      : null;
 
-    if (createDto.idTrabajador) {
-      await this.assertDocumentTypeEnabledForRegime(
-        documentType,
-        createDto.idTrabajador,
-      );
-    }
-
-    // Validate CIE-10 codes for MX providers
-    if (createDto.idTrabajador) {
-      await this.validateCIE10ForDocument(
-        documentType,
-        createDto,
-        createDto.idTrabajador,
-      );
-
-      // NOM-024: Validate vital signs (MX strict, non-MX warnings)
-      await this.validateVitalSignsForNOM024(createDto, createDto.idTrabajador);
-    }
-
-    // Validación E1: fecha del documento según régimen (SIRES: no futura; SIN_REGIMEN notaMedica: solo coherencia nacimiento)
+    // Validaciones independientes en paralelo (prioridad = orden previo secuencial)
     const createDateField = this.dateFields[documentType];
-    if (
-      createDateField &&
-      createDto[createDateField] &&
-      createDto.idTrabajador
-    ) {
-      await this.validateDocumentDateE1(
-        createDto.idTrabajador,
-        createDto[createDateField],
-        documentType,
-      );
-    }
+    const createValidationTasks: Array<() => Promise<void>> = [];
 
-    // Validación embarazo CEX para notaMedica
-    if (documentType === 'notaMedica' && createDto.idTrabajador) {
-      await this.validateAndNormalizeEmbarazoForNotaMedica(
-        createDto,
-        createDto.idTrabajador,
-      );
-    }
-
-    // Validación específica para notas aclaratorias: solo permitir para SIRES_NOM024
-    if (documentType === 'notaAclaratoria') {
-      // Obtener trabajador
-      const trabajador = await this.trabajadorModel
-        .findById(createDto.idTrabajador)
-        .lean();
-      if (!trabajador) {
-        throw new BadRequestException('Trabajador no encontrado');
-      }
-
-      // Obtener centro de trabajo
-      const centroTrabajo = await this.centroTrabajoModel
-        .findById(trabajador.idCentroTrabajo)
-        .lean();
-      if (!centroTrabajo) {
-        throw new BadRequestException('Centro de trabajo no encontrado');
-      }
-
-      // Obtener empresa
-      const empresa = await this.empresaModel
-        .findById(centroTrabajo.idEmpresa)
-        .lean();
-      if (!empresa) {
-        throw new BadRequestException('Empresa no encontrada');
-      }
-
-      // Obtener política regulatoria para validar feature de notas aclaratorias
-      const policy = await this.regulatoryPolicyService.getRegulatoryPolicy(
-        empresa.idProveedorSalud.toString(),
+    if (createDto.idTrabajador) {
+      createValidationTasks.push(
+        () =>
+          this.assertDocumentTypeEnabledForRegime(
+            documentType,
+            createDto.idTrabajador,
+            regimeCtx,
+          ),
+        () =>
+          this.validateCIE10ForDocument(
+            documentType,
+            createDto,
+            createDto.idTrabajador,
+            regimeCtx,
+          ),
+        () =>
+          this.validateVitalSignsForNOM024(
+            createDto,
+            createDto.idTrabajador,
+            regimeCtx,
+          ),
       );
 
-      // Validar que la feature de notas aclaratorias esté habilitada
-      if (!policy.features.notaAclaratoriaEnabled) {
-        throw createRegulatoryError({
-          errorCode: RegulatoryErrorCode.REGIMEN_FEATURE_DISABLED,
-          details: { feature: 'notaAclaratoria' },
-          regime: policy.regime,
-        });
+      if (createDateField && createDto[createDateField]) {
+        createValidationTasks.push(() =>
+          this.validateDocumentDateE1(
+            createDto.idTrabajador,
+            createDto[createDateField],
+            documentType,
+            regimeCtx,
+          ),
+        );
       }
 
-      // Validar estado del documento origen
-      const documentoOrigen = await this.findDocument(
-        createDto.documentoOrigenTipo,
-        createDto.documentoOrigenId,
-      );
-      if (!documentoOrigen) {
-        throw new BadRequestException('Documento origen no encontrado');
-      }
-
-      if (
-        documentoOrigen.estado !== DocumentoEstado.FINALIZADO &&
-        documentoOrigen.estado !== DocumentoEstado.ANULADO
-      ) {
-        throw new BadRequestException(
-          'Solo se pueden crear notas aclaratorias para documentos finalizados o anulados',
+      if (documentType === 'notaMedica') {
+        createValidationTasks.push(() =>
+          this.validateAndNormalizeEmbarazoForNotaMedica(
+            createDto,
+            createDto.idTrabajador,
+            regimeCtx,
+          ),
         );
       }
     }
+
+    if (documentType === 'notaAclaratoria') {
+      createValidationTasks.push(() =>
+        this.assertNotaAclaratoriaCreateAllowed(createDto, regimeCtx),
+      );
+    }
+
+    await this.runValidationsInPriorityOrder(createValidationTasks);
 
     // Vincular consentimiento para tratamiento de información (SIRES)
-    if (createDto.idTrabajador) {
+    if (
+      createDto.idTrabajador &&
+      regimeCtx?.proveedorSaludId &&
+      regimeCtx.policy?.features.dailyConsentEnabled
+    ) {
       try {
-        const proveedorSaludId = await this.getProveedorSaludIdFromTrabajador(
-          createDto.idTrabajador,
-        );
-        if (proveedorSaludId) {
-          const policy =
-            await this.regulatoryPolicyService.getRegulatoryPolicy(
-              proveedorSaludId,
+        if (consentCtx?.consentimientoId) {
+          createDto.consentimientoId = consentCtx.consentimientoId;
+        } else if (
+          consentCtx?.proveedorSaludId &&
+          consentCtx.canonicalTrabajadorId
+        ) {
+          const consentimiento =
+            await this.consentimientosService.findCurrentConsentimientoByResolvedIds(
+              consentCtx.proveedorSaludId,
+              consentCtx.canonicalTrabajadorId,
             );
-          if (policy.features.dailyConsentEnabled) {
-            const consentimiento =
-              await this.consentimientosService.findCurrentConsentimientoForTrabajador(
-                createDto.idTrabajador,
-              );
-
-            if (consentimiento?._id) {
-              createDto.consentimientoId = consentimiento._id;
-            }
+          if (consentimiento?._id) {
+            createDto.consentimientoId = consentimiento._id;
+          }
+        } else {
+          const consentimiento =
+            await this.consentimientosService.findCurrentConsentimientoForTrabajador(
+              createDto.idTrabajador,
+            );
+          if (consentimiento?._id) {
+            createDto.consentimientoId = consentimiento._id;
           }
         }
       } catch (error) {
@@ -722,21 +808,132 @@ export class ExpedientesService {
       await this.actualizarUpdatedAtTrabajador(createDto.idTrabajador);
     }
 
-    await this.recordDocDraftCreated({
-      documentType,
-      documentId: savedDocument._id.toString(),
-      trabajadorId: createDto.idTrabajador ?? null,
-      actorId: createDto.createdBy,
-      source: 'createDocument',
-    });
+    // CLASS_2: no bloquear la respuesta HTTP
+    this.enqueueSoftAudit(
+      this.recordDocDraftCreated({
+        documentType,
+        documentId: savedDocument._id.toString(),
+        trabajadorId: createDto.idTrabajador ?? null,
+        actorId: createDto.createdBy,
+        source: 'createDocument',
+        proveedorSaludId: regimeCtx?.proveedorSaludId,
+      }),
+      'DOC_CREATE_DRAFT',
+    );
 
     return savedDocument;
+  }
+
+  /**
+   * Ejecuta validaciones en paralelo y relanza el primer fallo según el orden
+   * de `tasks` (misma prioridad de mensajes que la ejecución secuencial previa).
+   */
+  private async runValidationsInPriorityOrder(
+    tasks: Array<() => Promise<void>>,
+  ): Promise<void> {
+    if (tasks.length === 0) {
+      return;
+    }
+    const results = await Promise.allSettled(tasks.map((task) => task()));
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        throw result.reason;
+      }
+    }
+  }
+
+  private async assertNotaAclaratoriaCreateAllowed(
+    createDto: any,
+    regimeCtx?: DocumentRegimeContext | null,
+  ): Promise<void> {
+    if (!regimeCtx?.trabajador) {
+      throw new BadRequestException('Trabajador no encontrado');
+    }
+    if (!regimeCtx.proveedorSaludId || !regimeCtx.policy) {
+      throw new BadRequestException(
+        'No se pudo determinar el proveedor de salud del trabajador',
+      );
+    }
+
+    const policy = regimeCtx.policy;
+
+    if (!policy.features.notaAclaratoriaEnabled) {
+      throw createRegulatoryError({
+        errorCode: RegulatoryErrorCode.REGIMEN_FEATURE_DISABLED,
+        details: { feature: 'notaAclaratoria' },
+        regime: policy.regime,
+      });
+    }
+
+    const documentoOrigen = await this.findDocumentSelect(
+      createDto.documentoOrigenTipo,
+      createDto.documentoOrigenId,
+      'estado',
+    );
+    if (!documentoOrigen) {
+      throw new BadRequestException('Documento origen no encontrado');
+    }
+
+    if (
+      documentoOrigen.estado !== DocumentoEstado.FINALIZADO &&
+      documentoOrigen.estado !== DocumentoEstado.ANULADO
+    ) {
+      throw new BadRequestException(
+        'Solo se pueden crear notas aclaratorias para documentos finalizados o anulados',
+      );
+    }
+  }
+
+  private regimeContextFromConsentRequest(
+    trabajadorId: string,
+    consentCtx?: TreatmentConsentRequestContext | null,
+  ): DocumentRegimeContext | null {
+    if (!consentCtx?.proveedorSaludId || !consentCtx.policy) {
+      return null;
+    }
+    return {
+      trabajadorId,
+      trabajador: consentCtx.trabajador ?? null,
+      proveedorSaludId: consentCtx.proveedorSaludId,
+      policy: consentCtx.policy,
+    };
+  }
+
+  private async resolveDocumentRegimeContext(
+    trabajadorId: string,
+  ): Promise<DocumentRegimeContext> {
+    const chain = await resolveTrabajadorProveedorChain(
+      trabajadorId,
+      this.trabajadorModel,
+      this.centroTrabajoModel,
+      this.empresaModel,
+    );
+
+    const policy = chain.proveedorSaludId
+      ? await this.regulatoryPolicyService.getRegulatoryPolicy(
+          chain.proveedorSaludId,
+        )
+      : null;
+
+    return {
+      trabajadorId,
+      trabajador: chain.trabajador,
+      proveedorSaludId: chain.proveedorSaludId,
+      policy,
+    };
+  }
+
+  private enqueueSoftAudit(promise: Promise<void>, label: string): void {
+    void promise.catch((error) => {
+      console.warn(`Audit ${label} failed (non-blocking):`, error);
+    });
   }
 
   private async validateDocumentDateE1(
     trabajadorId: string,
     fechaDocumento: Date | string,
     documentType?: string,
+    regimeCtx?: DocumentRegimeContext | null,
   ): Promise<void> {
     await validateDocumentDateE1ForRegime(
       {
@@ -745,7 +942,18 @@ export class ExpedientesService {
         empresaModel: this.empresaModel,
         regulatoryPolicyService: this.regulatoryPolicyService,
       },
-      { trabajadorId, fechaDocumento, documentType },
+      {
+        trabajadorId,
+        fechaDocumento,
+        documentType,
+        ...(regimeCtx
+          ? {
+              proveedorSaludId: regimeCtx.proveedorSaludId,
+              policy: regimeCtx.policy,
+              fechaNacimiento: regimeCtx.trabajador?.fechaNacimiento ?? null,
+            }
+          : {}),
+      },
     );
   }
 
@@ -755,32 +963,13 @@ export class ExpedientesService {
   private async getProveedorSaludIdFromTrabajador(
     trabajadorId: string,
   ): Promise<string | null> {
-    try {
-      const trabajador = await this.trabajadorModel
-        .findById(trabajadorId)
-        .lean();
-      if (!trabajador || !trabajador.idCentroTrabajo) {
-        return null;
-      }
-
-      const centroTrabajo = await this.centroTrabajoModel
-        .findById(trabajador.idCentroTrabajo)
-        .lean();
-      if (!centroTrabajo || !centroTrabajo.idEmpresa) {
-        return null;
-      }
-
-      const empresa = await this.empresaModel
-        .findById(centroTrabajo.idEmpresa)
-        .lean();
-      if (!empresa || !empresa.idProveedorSalud) {
-        return null;
-      }
-
-      return empresa.idProveedorSalud.toString();
-    } catch {
-      return null;
-    }
+    const chain = await resolveTrabajadorProveedorChain(
+      trabajadorId,
+      this.trabajadorModel,
+      this.centroTrabajoModel,
+      this.empresaModel,
+    );
+    return chain.proveedorSaludId;
   }
 
   /**
@@ -789,19 +978,22 @@ export class ExpedientesService {
   private async assertDocumentTypeEnabledForRegime(
     documentType: string,
     trabajadorId: string,
+    regimeCtx?: DocumentRegimeContext | null,
   ): Promise<void> {
     if (documentType !== 'controlPrenatal') {
       return;
     }
 
     const proveedorSaludId =
-      await this.getProveedorSaludIdFromTrabajador(trabajadorId);
+      regimeCtx?.proveedorSaludId ??
+      (await this.getProveedorSaludIdFromTrabajador(trabajadorId));
     if (!proveedorSaludId) {
       return;
     }
 
     const policy =
-      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
+      regimeCtx?.policy ??
+      (await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId));
 
     if (!policy.features.controlPrenatalEnabled) {
       throw createRegulatoryError({
@@ -818,53 +1010,29 @@ export class ExpedientesService {
   private async getProveedorSaludIdFromDocument(
     document: any,
   ): Promise<string | null> {
-    try {
-      const trabajadorId = document.idTrabajador?.toString();
-      if (!trabajadorId) {
-        return null;
-      }
-
-      const trabajador = await this.trabajadorModel
-        .findById(trabajadorId)
-        .lean();
-      if (!trabajador || !trabajador.idCentroTrabajo) {
-        return null;
-      }
-
-      const centroTrabajo = await this.centroTrabajoModel
-        .findById(trabajador.idCentroTrabajo)
-        .lean();
-      if (!centroTrabajo || !centroTrabajo.idEmpresa) {
-        return null;
-      }
-
-      const empresa = await this.empresaModel
-        .findById(centroTrabajo.idEmpresa)
-        .lean();
-      if (!empresa || !empresa.idProveedorSalud) {
-        return null;
-      }
-
-      return empresa.idProveedorSalud.toString();
-    } catch {
+    const trabajadorId = document.idTrabajador?.toString();
+    if (!trabajadorId) {
       return null;
     }
+    return this.getProveedorSaludIdFromTrabajador(trabajadorId);
   }
 
   private async resolveProveedorSaludIdOrFail(params: {
     trabajadorId?: string | null;
     actorId?: string | null;
+    proveedorSaludId?: string | null;
   }): Promise<string> {
-    const { trabajadorId, actorId } = params;
+    const { trabajadorId, actorId, proveedorSaludId } = params;
+    if (proveedorSaludId) return proveedorSaludId;
     if (trabajadorId) {
-      const proveedorSaludId =
+      const resolved =
         await this.getProveedorSaludIdFromTrabajador(trabajadorId);
-      if (proveedorSaludId) return proveedorSaludId;
+      if (resolved) return resolved;
     }
     if (actorId) {
-      const proveedorSaludId =
+      const resolved =
         await this.usersService.getIdProveedorSaludByUserId(actorId);
-      if (proveedorSaludId) return proveedorSaludId;
+      if (resolved) return resolved;
     }
     throw new BadRequestException(
       'No se pudo resolver proveedorSaludId para auditoría',
@@ -877,10 +1045,12 @@ export class ExpedientesService {
     trabajadorId?: string | null;
     actorId: string;
     source: 'createDocument' | 'updateOrCreateDocument';
+    proveedorSaludId?: string | null;
   }): Promise<void> {
     const proveedorSaludId = await this.resolveProveedorSaludIdOrFail({
       trabajadorId: params.trabajadorId ?? null,
       actorId: params.actorId,
+      proveedorSaludId: params.proveedorSaludId,
     });
     await this.auditService.record({
       proveedorSaludId,
@@ -906,10 +1076,12 @@ export class ExpedientesService {
     actorId: string;
     estadoActual: DocumentoEstado;
     changedKeys: string[];
+    proveedorSaludId?: string | null;
   }): Promise<void> {
     const proveedorSaludId = await this.resolveProveedorSaludIdOrFail({
       trabajadorId: params.trabajadorId ?? null,
       actorId: params.actorId,
+      proveedorSaludId: params.proveedorSaludId,
     });
     await this.auditService.record({
       proveedorSaludId,
@@ -971,6 +1143,7 @@ export class ExpedientesService {
   private async isDocumentImmutable(
     proveedorSaludId: string,
     estado: DocumentoEstado,
+    policy?: RegulatoryPolicy | null,
   ): Promise<boolean> {
     // Solo documentos FINALIZADOS o ANULADOS pueden ser inmutables
     if (
@@ -980,40 +1153,12 @@ export class ExpedientesService {
       return false;
     }
 
-    // Obtener política regulatoria
-    const policy =
-      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
+    const resolvedPolicy =
+      policy ??
+      (await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId));
 
     // El documento es inmutable solo si la feature está habilitada
-    return policy.features.documentImmutabilityEnabled;
-  }
-
-  /**
-   * Determina si el trabajador pertenece a un proveedor de salud de México
-   * @param trabajadorId ID del trabajador
-   * @returns true si el país del proveedor es 'MX'
-   */
-  private async isProveedorMX(trabajadorId: string): Promise<boolean> {
-    try {
-      const trabajador = await this.trabajadorModel
-        .findById(trabajadorId)
-        .lean();
-      if (!trabajador?.idCentroTrabajo) return false;
-
-      const centroTrabajo = await this.centroTrabajoModel
-        .findById(trabajador.idCentroTrabajo)
-        .lean();
-      if (!centroTrabajo?.idEmpresa) return false;
-
-      const empresa: any = await this.empresaModel
-        .findById(centroTrabajo.idEmpresa)
-        .populate('idProveedorSalud')
-        .lean();
-
-      return empresa?.idProveedorSalud?.pais === 'MX';
-    } catch {
-      return false;
-    }
+    return resolvedPolicy.features.documentImmutabilityEnabled;
   }
 
   /**
@@ -1026,8 +1171,11 @@ export class ExpedientesService {
       fechaNotaMedica?: Date | string;
     },
     trabajadorId: string,
+    regimeCtx?: DocumentRegimeContext | null,
   ): Promise<void> {
-    const trabajador = await this.trabajadorModel.findById(trabajadorId).lean();
+    const trabajador =
+      regimeCtx?.trabajador ??
+      (await this.trabajadorModel.findById(trabajadorId).lean());
     if (!trabajador) {
       throw new BadRequestException('Trabajador no encontrado');
     }
@@ -1059,6 +1207,7 @@ export class ExpedientesService {
   private async validateVitalSignsForNOM024(
     dto: any,
     trabajadorId: string,
+    regimeCtx?: DocumentRegimeContext | null,
   ): Promise<void> {
     // Extract vital signs from DTO
     const vitalSigns = extractVitalSignsFromDTO(dto);
@@ -1083,7 +1232,8 @@ export class ExpedientesService {
 
     // Get provider country
     const proveedorSaludId =
-      await this.getProveedorSaludIdFromTrabajador(trabajadorId);
+      regimeCtx?.proveedorSaludId ??
+      (await this.getProveedorSaludIdFromTrabajador(trabajadorId));
 
     if (!proveedorSaludId) {
       // If we can't determine provider, allow (backward compatibility)
@@ -1147,9 +1297,17 @@ export class ExpedientesService {
       await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
     updateDto.idTrabajador = trabajadorId;
 
-    await this.assertDocumentTypeEnabledForRegime(documentType, trabajadorId);
+    const regimeCtx = await this.resolveDocumentRegimeContext(trabajadorId);
 
-    const existingDocument = await model.findById(id).exec();
+    // assert + findById en paralelo (assert no depende del documento)
+    const [, existingDocument] = await Promise.all([
+      this.assertDocumentTypeEnabledForRegime(
+        documentType,
+        trabajadorId,
+        regimeCtx,
+      ),
+      model.findById(id).exec(),
+    ]);
 
     if (!existingDocument) {
       throw new BadRequestException(`Documento con ID ${id} no encontrado`);
@@ -1157,15 +1315,18 @@ export class ExpedientesService {
 
     // Check immutability based on regulatory policy
     const proveedorSaludId =
-      await this.getProveedorSaludIdFromDocument(existingDocument);
+      regimeCtx.proveedorSaludId ??
+      (await this.getProveedorSaludIdFromDocument(existingDocument));
     if (proveedorSaludId) {
       const policy =
-        await this.regulatoryPolicyService.getRegulatoryPolicy(
+        regimeCtx.policy ??
+        (await this.regulatoryPolicyService.getRegulatoryPolicy(
           proveedorSaludId,
-        );
+        ));
       const isImmutable = await this.isDocumentImmutable(
         proveedorSaludId,
         existingDocument.estado,
+        policy,
       );
       if (isImmutable) {
         throw createRegulatoryError({
@@ -1180,78 +1341,94 @@ export class ExpedientesService {
     }
 
     const oldFecha = new Date(existingDocument[dateField]);
+    const existingPlainForValidation =
+      typeof existingDocument.toObject === 'function'
+        ? existingDocument.toObject()
+        : { ...existingDocument };
 
-    // NOM-024: Validate vital signs before saving (MX strict, non-MX warnings)
-    await this.validateVitalSignsForNOM024(updateDto, trabajadorId);
+    // Validaciones independientes en paralelo (prioridad = orden previo secuencial)
+    const updateValidationTasks: Array<() => Promise<void>> = [
+      () =>
+        this.validateVitalSignsForNOM024(updateDto, trabajadorId, regimeCtx),
+    ];
 
-    // Validate CIE-10 for notaMedica update (merged dto: updateDto overrides existing)
-    if (documentType === 'notaMedica' && trabajadorId) {
-      const mergedDto = {
-        ...existingDocument.toObject?.(),
-        ...updateDto,
-      };
-      await this.validateCIE10ForDocument(
-        documentType,
-        mergedDto,
-        trabajadorId,
-      );
-    }
-
-    // Validación E1: fecha del documento según régimen
-    if (updateDto[dateField] && trabajadorId) {
-      await this.validateDocumentDateE1(
-        trabajadorId,
-        updateDto[dateField],
-        documentType,
-      );
-    }
-
-    // Validar Regla B4: No duplicar principal en complementarios (para notaMedica)
     if (documentType === 'notaMedica') {
-      // Usar valores del updateDto si existen, sino del documento existente
-      const codigoPrincipal =
-        updateDto.codigoCIE10Principal !== undefined
-          ? updateDto.codigoCIE10Principal
-          : existingDocument.codigoCIE10Principal;
-      const codigosComplementarios =
-        updateDto.codigosCIE10Complementarios !== undefined
-          ? updateDto.codigosCIE10Complementarios
-          : existingDocument.codigosCIE10Complementarios;
-
-      const duplicateCheck = validateNoDuplicateCIE10PrincipalAndComplementary(
-        codigoPrincipal,
-        codigosComplementarios,
-      );
-      if (!duplicateCheck.isValid) {
-        throw new BadRequestException({
-          code: 'VALIDATION_ERROR',
-          ruleId: 'B4',
-          message:
-            'El diagnóstico principal no puede repetirse en los diagnósticos complementarios',
-          details: [
-            {
-              field: 'codigosCIE10Complementarios',
-              duplicatedCode: duplicateCheck.duplicated,
-            },
-          ],
-        });
-      }
-    }
-
-    // Validación embarazo CEX para notaMedica (update)
-    if (documentType === 'notaMedica' && trabajadorId) {
-      const mergedEmbarazoDto = {
-        ...existingDocument.toObject?.(),
+      const mergedDto = {
+        ...existingPlainForValidation,
         ...updateDto,
       };
-      await this.validateAndNormalizeEmbarazoForNotaMedica(
-        mergedEmbarazoDto,
-        trabajadorId,
+      updateValidationTasks.push(
+        () =>
+          this.validateCIE10ForDocument(
+            documentType,
+            mergedDto,
+            trabajadorId,
+            regimeCtx,
+          ),
       );
-      updateDto.relacionTemporalEmbarazo =
-        mergedEmbarazoDto.relacionTemporalEmbarazo;
-      updateDto.trimestreGestacional = mergedEmbarazoDto.trimestreGestacional;
     }
+
+    if (updateDto[dateField]) {
+      updateValidationTasks.push(() =>
+        this.validateDocumentDateE1(
+          trabajadorId,
+          updateDto[dateField],
+          documentType,
+          regimeCtx,
+        ),
+      );
+    }
+
+    if (documentType === 'notaMedica') {
+      updateValidationTasks.push(async () => {
+        const codigoPrincipal =
+          updateDto.codigoCIE10Principal !== undefined
+            ? updateDto.codigoCIE10Principal
+            : existingDocument.codigoCIE10Principal;
+        const codigosComplementarios =
+          updateDto.codigosCIE10Complementarios !== undefined
+            ? updateDto.codigosCIE10Complementarios
+            : existingDocument.codigosCIE10Complementarios;
+
+        const duplicateCheck =
+          validateNoDuplicateCIE10PrincipalAndComplementary(
+            codigoPrincipal,
+            codigosComplementarios,
+          );
+        if (!duplicateCheck.isValid) {
+          throw new BadRequestException({
+            code: 'VALIDATION_ERROR',
+            ruleId: 'B4',
+            message:
+              'El diagnóstico principal no puede repetirse en los diagnósticos complementarios',
+            details: [
+              {
+                field: 'codigosCIE10Complementarios',
+                duplicatedCode: duplicateCheck.duplicated,
+              },
+            ],
+          });
+        }
+      });
+
+      updateValidationTasks.push(async () => {
+        const mergedEmbarazoDto = {
+          ...existingPlainForValidation,
+          ...updateDto,
+        };
+        await this.validateAndNormalizeEmbarazoForNotaMedica(
+          mergedEmbarazoDto,
+          trabajadorId,
+          regimeCtx,
+        );
+        updateDto.relacionTemporalEmbarazo =
+          mergedEmbarazoDto.relacionTemporalEmbarazo;
+        updateDto.trimestreGestacional =
+          mergedEmbarazoDto.trimestreGestacional;
+      });
+    }
+
+    await this.runValidationsInPriorityOrder(updateValidationTasks);
 
     let result;
     const dateChanged = newFecha.toISOString() !== oldFecha.toISOString();
@@ -1295,13 +1472,17 @@ export class ExpedientesService {
         (
           updateDto.idTrabajador ?? existingDocument.idTrabajador
         )?.toString?.() ?? null;
-      await this.recordDocDraftCreated({
-        documentType,
-        documentId: result._id.toString(),
-        trabajadorId: resolvedTrabajadorId,
-        actorId: updateDto.updatedBy,
-        source: 'updateOrCreateDocument',
-      });
+      this.enqueueSoftAudit(
+        this.recordDocDraftCreated({
+          documentType,
+          documentId: result._id.toString(),
+          trabajadorId: resolvedTrabajadorId,
+          actorId: updateDto.updatedBy,
+          source: 'updateOrCreateDocument',
+          proveedorSaludId: regimeCtx.proveedorSaludId,
+        }),
+        'DOC_CREATE_DRAFT',
+      );
     } else {
       // Limpieza especial para antidoping
       if (documentType === 'antidoping') {
@@ -1362,14 +1543,18 @@ export class ExpedientesService {
         (
           updateDto.idTrabajador ?? existingDocument.idTrabajador
         )?.toString?.() ?? null;
-      await this.recordDocDraftUpdated({
-        documentType,
-        documentId: result._id.toString(),
-        trabajadorId: resolvedTrabajadorId,
-        actorId: updateDto.updatedBy,
-        estadoActual: (result as any).estado ?? existingDocument.estado,
-        changedKeys: Object.keys(updateDto ?? {}),
-      });
+      this.enqueueSoftAudit(
+        this.recordDocDraftUpdated({
+          documentType,
+          documentId: result._id.toString(),
+          trabajadorId: resolvedTrabajadorId,
+          actorId: updateDto.updatedBy,
+          estadoActual: (result as any).estado ?? existingDocument.estado,
+          changedKeys: Object.keys(updateDto ?? {}),
+          proveedorSaludId: regimeCtx.proveedorSaludId,
+        }),
+        'DOC_UPDATE_DRAFT',
+      );
     }
 
     // ✅ Actualizar el updatedAt del trabajador
@@ -1389,6 +1574,7 @@ export class ExpedientesService {
     userId: string,
     proveedorSaludId?: string | null,
     opciones?: { motivo?: string },
+    actorSnapshot?: { username: string; email: string; role: string } | null,
   ): Promise<any> {
     const model = this.models[documentType];
 
@@ -1440,35 +1626,62 @@ export class ExpedientesService {
       resourceId: id,
       payload,
       eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
+      ...(actorSnapshot !== undefined && { actorSnapshot }),
     });
+
+    const creadorId = document.createdBy?.toString() || userId;
+    const finalizadorId = userId;
+    const pdfStatusAntes = document.pdfStatus as PdfStatus | null | undefined;
+    const tieneRutaPdf = !!(document as any).rutaPDF;
+
+    // Misma persona elaborador/finalizador → el PDF post-save (formato simple)
+    // ya refleja el contenido final. Evita regeneración duplicada.
+    // Personas distintas → hay que regenerar (footer Elab./Rev./Fin.).
+    const reutilizarPdfPostSave =
+      creadorId === finalizadorId &&
+      tieneRutaPdf &&
+      (pdfStatusAntes === PdfStatus.READY ||
+        pdfStatusAntes === PdfStatus.GENERATING);
 
     // Update document state
     document.estado = DocumentoEstado.FINALIZADO;
     document.fechaFinalizacion = new Date();
-    document.finalizadoPor = userId;
+    document.finalizadoPor = finalizadorId;
+
+    if (!reutilizarPdfPostSave) {
+      document.pdfStatus = PdfStatus.GENERATING;
+    }
+    // Si READY: se conserva. Si GENERATING: el job post-save del FE termina el PDF.
 
     const savedDocument = await document.save();
 
-    // NUEVO: Regenerar PDF con datos de elaborador y finalizador
-    try {
-      const creadorId = document.createdBy?.toString() || userId;
-      await this.informesService.regenerarInformeAlFinalizar(
-        documentType,
-        id,
-        creadorId,
-        userId, // finalizador
-      );
-    } catch (error) {
-      console.error('Error al regenerar PDF al finalizar documento:', error);
-      // No lanzamos excepción para no bloquear la finalización del documento
-      // El documento queda finalizado aunque falle la regeneración del PDF
+    if (!reutilizarPdfPostSave) {
+      // Regenerar PDF en background: no bloquear la respuesta de finalización
+      void this.informesService
+        .regenerarInformeAlFinalizar(
+          documentType,
+          id,
+          creadorId,
+          finalizadorId,
+        )
+        .catch((error) => {
+          console.error(
+            'Error al regenerar PDF al finalizar documento:',
+            error,
+          );
+        });
     }
 
-    // Update trabajador's updatedAt
+    // updatedAt del trabajador no es parte del contrato de respuesta
     if (document.idTrabajador) {
-      await this.actualizarUpdatedAtTrabajador(
+      void this.actualizarUpdatedAtTrabajador(
         document.idTrabajador.toString(),
-      );
+      ).catch((error) => {
+        console.error(
+          'Error al actualizar updatedAt del trabajador al finalizar:',
+          error,
+        );
+      });
     }
 
     return savedDocument;
@@ -1503,10 +1716,13 @@ export class ExpedientesService {
       throw new BadRequestException('El campo idTrabajador es requerido');
     }
 
+    const regimeCtx = await this.resolveDocumentRegimeContext(trabajadorId);
+
     await this.validateDocumentDateE1(
       trabajadorId,
       fechaDocumento,
       'documentoExterno',
+      regimeCtx,
     );
 
     // ✅ SIEMPRE crear una nueva entidad para evitar archivos huérfanos
@@ -1562,60 +1778,162 @@ export class ExpedientesService {
     return docs;
   }
 
-  private async resolveIncludeControlPrenatalForCounts(
-    trabajadorId: string,
-  ): Promise<boolean> {
-    const proveedorSaludId =
-      await this.getProveedorSaludIdFromTrabajador(trabajadorId);
-    if (!proveedorSaludId) {
-      return true;
+  /**
+   * Listado liviano para abrir expediente: proyección mínima + populate de badge.
+   * Recibe el id canónico ya resuelto (evitar N lookups de fusión).
+   */
+  private async findDocumentsForList(
+    documentType: string,
+    canonicalId: string,
+  ): Promise<any[]> {
+    const model = this.models[documentType];
+    if (!model) {
+      throw new BadRequestException(
+        `Tipo de documento ${documentType} no soportado`,
+      );
     }
 
-    const policy =
-      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
-    return policy.features.controlPrenatalEnabled;
+    const query = model
+      .find({ idTrabajador: canonicalId })
+      .select(getDocumentoListSelect(documentType))
+      .populate('finalizadoPor', 'username')
+      .populate('anuladoPor', 'username')
+      .lean();
+
+    if (documentType === 'documentoExterno') {
+      query.populate({
+        path: 'idResultadoClinico',
+        select: 'tipoEstudio fechaEstudio resultadoGlobal',
+      });
+    }
+
+    const docs = await query.exec();
+
+    // DocumentoItem lee resultadoClinico (alias del populate de idResultadoClinico)
+    if (documentType === 'documentoExterno') {
+      return docs.map((doc: any) => {
+        if (
+          doc.idResultadoClinico &&
+          typeof doc.idResultadoClinico === 'object'
+        ) {
+          return { ...doc, resultadoClinico: doc.idResultadoClinico };
+        }
+        return doc;
+      });
+    }
+
+    return docs;
   }
 
-  private async countDocumentStatsForWorker(
-    config: WorkerLinkedCollectionConfig,
+  private async resolveIncludeControlPrenatalForCounts(
+    trabajadorId: string,
+    regimeCtx?: DocumentRegimeContext | null,
+  ): Promise<boolean> {
+    const ctx =
+      regimeCtx ?? (await this.resolveDocumentRegimeContext(trabajadorId));
+    if (!ctx.proveedorSaludId || !ctx.policy) {
+      return true;
+    }
+    return ctx.policy.features.controlPrenatalEnabled;
+  }
+
+  /**
+   * Conteos + max fecha por tipo de documento en 1 round-trip ($unionWith).
+   * Misma semántica que N aggregations/`countDocuments` por colección.
+   */
+  private async countAllDocumentStatsForWorker(
+    configs: WorkerLinkedCollectionConfig[],
     workerId: Types.ObjectId,
-  ): Promise<{ modelName: string; count: number; latestDate: Date | null }> {
-    const documentType =
-      EXPEDIENTE_MODEL_NAME_TO_DOCUMENT_TYPE[config.modelName];
-    const model = documentType ? this.models[documentType] : undefined;
-    if (!model) {
-      return { modelName: config.modelName, count: 0, latestDate: null };
+  ): Promise<Array<{ modelName: string; count: number; latestDate: Date | null }>> {
+    type ActiveConfig = {
+      config: WorkerLinkedCollectionConfig;
+      documentType: string;
+      model: Model<any>;
+      dateField?: string;
+    };
+
+    const activeConfigs: ActiveConfig[] = [];
+    for (const config of configs) {
+      const documentType =
+        EXPEDIENTE_MODEL_NAME_TO_DOCUMENT_TYPE[config.modelName];
+      const model = documentType ? this.models[documentType] : undefined;
+      if (!model || !documentType) {
+        continue;
+      }
+      activeConfigs.push({
+        config,
+        documentType,
+        model,
+        dateField: this.dateFields[documentType],
+      });
     }
 
-    const filter =
-      config.fkField === 'trabajadorId'
+    if (activeConfigs.length === 0) {
+      return configs.map((config) => ({
+        modelName: config.modelName,
+        count: 0,
+        latestDate: null,
+      }));
+    }
+
+    const matchFor = (fkField: WorkerLinkedCollectionConfig['fkField']) =>
+      fkField === 'trabajadorId'
         ? { trabajadorId: workerId }
         : { idTrabajador: workerId };
 
-    const dateField = this.dateFields[documentType];
-    if (dateField) {
-      const [stats] = await model
-        .aggregate<{ count: number; maxDate: Date | null }>([
-          { $match: filter },
-          {
-            $group: {
-              _id: null,
-              count: { $sum: 1 },
-              maxDate: { $max: `$${dateField}` },
-            },
-          },
-        ])
-        .exec();
+    const projectFor = (item: ActiveConfig) => ({
+      $project: {
+        _id: 0,
+        modelName: { $literal: item.config.modelName },
+        date: item.dateField
+          ? `$${item.dateField}`
+          : { $literal: null },
+      },
+    });
 
-      return {
-        modelName: config.modelName,
-        count: stats?.count ?? 0,
-        latestDate: stats?.maxDate ? new Date(stats.maxDate) : null,
-      };
+    const [first, ...rest] = activeConfigs;
+    const pipeline: PipelineStage[] = [
+      { $match: matchFor(first.config.fkField) },
+      projectFor(first),
+    ];
+
+    for (const item of rest) {
+      pipeline.push({
+        $unionWith: {
+          coll: item.config.collectionName,
+          pipeline: [
+            { $match: matchFor(item.config.fkField) },
+            projectFor(item),
+          ],
+        },
+      });
     }
 
-    const count = await model.countDocuments(filter).exec();
-    return { modelName: config.modelName, count, latestDate: null };
+    pipeline.push({
+      $group: {
+        _id: '$modelName',
+        count: { $sum: 1 },
+        maxDate: { $max: '$date' },
+      },
+    });
+
+    const rows = await first.model
+      .aggregate<{ _id: string; count: number; maxDate: Date | null }>(pipeline)
+      .exec();
+
+    const byModelName = new Map(
+      rows.map((row) => [row._id, row] as const),
+    );
+
+    // Incluir ceros para todos los configs (misma forma que N queries previas)
+    return configs.map((config) => {
+      const row = byModelName.get(config.modelName);
+      return {
+        modelName: config.modelName,
+        count: row?.count ?? 0,
+        latestDate: row?.maxDate ? new Date(row.maxDate) : null,
+      };
+    });
   }
 
   async countDocumentosByTrabajador(trabajadorId: string): Promise<{
@@ -1635,38 +1953,40 @@ export class ExpedientesService {
       EXPEDIENTE_DOCUMENT_MODEL_NAMES.has(config.modelName),
     );
 
-    const includeControlPrenatalPromise =
-      this.resolveIncludeControlPrenatalForCounts(trabajadorId);
-
-    const documentStatsPromise = Promise.all(
-      allDocumentConfigs.map((config) =>
-        this.countDocumentStatsForWorker(config, workerId),
-      ),
-    );
-
-    const rcStatsPromise = this.resultadoClinicoModel
-      .aggregate<{
-        byTipo: Array<{ _id: string; count: number }>;
-        latest: Array<{ maxDate: Date | null }>;
-      }>([
-        { $match: { idTrabajador: workerId } },
-        {
-          $facet: {
-            byTipo: [
-              { $group: { _id: '$tipoEstudio', count: { $sum: 1 } } },
-            ],
-            latest: [{ $group: { _id: null, maxDate: { $max: '$fechaEstudio' } } }],
+    // regimeCtx + docs ($unionWith) + RC ($facet) en paralelo → ~3 round-trips
+    // en lugar de ~1 policy chain + N aggregations por tipo + RC.
+    const [regimeCtx, documentStats, rcFacetRows] = await Promise.all([
+      this.resolveDocumentRegimeContext(trabajadorId),
+      this.countAllDocumentStatsForWorker(allDocumentConfigs, workerId),
+      this.resultadoClinicoModel
+        .aggregate<{
+          byTipo: Array<{ _id: string; count: number }>;
+          latest: Array<{ maxDate: Date | null }>;
+        }>([
+          { $match: { idTrabajador: workerId } },
+          {
+            $facet: {
+              byTipo: [
+                { $group: { _id: '$tipoEstudio', count: { $sum: 1 } } },
+              ],
+              latest: [
+                {
+                  $group: {
+                    _id: null,
+                    maxDate: { $max: '$fechaEstudio' },
+                  },
+                },
+              ],
+            },
           },
-        },
-      ])
-      .exec();
+        ])
+        .exec(),
+    ]);
 
-    const [includeControlPrenatal, documentStats, rcFacetRows] =
-      await Promise.all([
-        includeControlPrenatalPromise,
-        documentStatsPromise,
-        rcStatsPromise,
-      ]);
+    const includeControlPrenatal =
+      !regimeCtx.proveedorSaludId || !regimeCtx.policy
+        ? true
+        : regimeCtx.policy.features.controlPrenatalEnabled;
 
     const conteos: Record<string, number> = {};
     let total = 0;
@@ -1719,33 +2039,67 @@ export class ExpedientesService {
   }
 
   async findAllDocuments(trabajadorId: string): Promise<Record<string, any[]>> {
+    const canonicalId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+
     const documentTypes = Object.keys(this.models);
-    const entries = await Promise.all(
-      documentTypes.map(async (documentType) => {
-        const docs = await this.findDocuments(documentType, trabajadorId);
-        const storeKey =
-          this.documentTypeToStoreKey[documentType] ?? documentType;
-        return [storeKey, docs] as const;
-      }),
-    );
+    const [entries, includeControlPrenatal] = await Promise.all([
+      Promise.all(
+        documentTypes.map(async (documentType) => {
+          const docs = await this.findDocumentsForList(
+            documentType,
+            canonicalId,
+          );
+          const storeKey =
+            this.documentTypeToStoreKey[documentType] ?? documentType;
+          return [storeKey, docs] as const;
+        }),
+      ),
+      this.resolveIncludeControlPrenatalForCounts(canonicalId),
+    ]);
 
     const result = Object.fromEntries(entries);
 
-    const proveedorSaludId =
-      await this.getProveedorSaludIdFromTrabajador(trabajadorId);
-    if (proveedorSaludId) {
-      const policy =
-        await this.regulatoryPolicyService.getRegulatoryPolicy(
-          proveedorSaludId,
-        );
-      if (!policy.features.controlPrenatalEnabled) {
-        result.controlPrenatal = [];
-      }
+    if (!includeControlPrenatal) {
+      result.controlPrenatal = [];
     }
 
     return result;
   }
 
+  /**
+   * Actualiza el estado de generación del PDF de un documento clínico.
+   * Escritura interna/controlada (informes + endpoint mark-generating).
+   */
+  async setPdfStatus(
+    documentType: string,
+    id: string,
+    status: PdfStatus,
+  ): Promise<void> {
+    const model = this.models[documentType];
+    if (!model) {
+      throw new BadRequestException(
+        `Tipo de documento ${documentType} no soportado`,
+      );
+    }
+    await model.findByIdAndUpdate(id, { pdfStatus: status }).exec();
+  }
+
+  /**
+   * Lectura mínima para poll de generación de PDF (sin populate).
+   * Solo pdfStatus + rutaPDF — evita el documento filled de findDocument.
+   */
+  async getDocumentPdfStatus(
+    documentType: string,
+    id: string,
+  ): Promise<{ _id?: unknown; pdfStatus?: PdfStatus | null; rutaPDF?: string | null } | null> {
+    return this.findDocumentSelect(documentType, id, 'pdfStatus rutaPDF');
+  }
+
+  /**
+   * Documento filled para UI (GET detalle/edición): populate de users + consentimiento/RC.
+   * No usar en PDF/checks internos — preferir findDocumentLean / findDocumentSelect.
+   */
   async findDocument(documentType: string, id: string): Promise<any> {
     const model = this.models[documentType];
     if (!model) {
@@ -1781,6 +2135,106 @@ export class ExpedientesService {
     return query.exec();
   }
 
+  /**
+   * Documento completo lean sin populate de UI (users/consentimiento/RC).
+   * Para generación de PDF y validaciones internas. Mismos campos del doc;
+   * refs quedan como ObjectId (los callers de informe ya soportan `_id || ref`).
+   */
+  async findDocumentLean(
+    documentType: string,
+    id: string,
+    options?: {
+      populateRefs?: Array<{ path: string; select: string }>;
+    },
+  ): Promise<any> {
+    const model = this.models[documentType];
+    if (!model) {
+      throw new BadRequestException(
+        `Tipo de documento ${documentType} no soportado`,
+      );
+    }
+
+    let query = model.findById(id);
+    for (const ref of options?.populateRefs ?? []) {
+      query = query.populate(ref.path, ref.select);
+    }
+    return query.lean().exec();
+  }
+
+  /**
+   * Lectura mínima de documento (sin populate) para rutas internas como regeneración de PDF.
+   */
+  async findDocumentSelect(
+    documentType: string,
+    id: string,
+    select: string,
+  ): Promise<any> {
+    const model = this.models[documentType];
+    if (!model) {
+      throw new BadRequestException(
+        `Tipo de documento ${documentType} no soportado`,
+      );
+    }
+    return model.findById(id).select(select).lean().exec();
+  }
+
+  /**
+   * Listado lean con proyección (sin populate) para usos internos (PDF, etc.).
+   * Opcionalmente reutiliza el id canónico ya resuelto.
+   */
+  async findDocumentsSelect(
+    documentType: string,
+    trabajadorId: string,
+    select: string,
+    options?: { canonicalTrabajadorId?: string },
+  ): Promise<any[]> {
+    const canonicalId =
+      options?.canonicalTrabajadorId ??
+      (await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId));
+
+    const model = this.models[documentType];
+    if (!model) {
+      throw new BadRequestException(
+        `Tipo de documento ${documentType} no soportado`,
+      );
+    }
+
+    return model
+      .find({ idTrabajador: canonicalId })
+      .select(select)
+      .lean()
+      .exec();
+  }
+
+  /**
+   * Documentos vecinos del informe de aptitud: 1× canónico + N queries lean/select
+   * (sin populate de users/consentimiento). Misma población que findDocuments
+   * por tipo; la selección del “más cercano” sigue en el caller.
+   */
+  async findDocumentsForAptitudInformeVecinos(
+    trabajadorId: string,
+  ): Promise<Record<AptitudInformeVecinoType, any[]>> {
+    const canonicalId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+
+    const entries = await Promise.all(
+      APTITUD_INFORME_VECINO_TYPES.map(async (documentType) => {
+        const docs = await this.findDocumentsSelect(
+          documentType,
+          trabajadorId,
+          getAptitudInformeVecinoSelect(documentType),
+          { canonicalTrabajadorId: canonicalId },
+        );
+        return [documentType, docs] as const;
+      }),
+    );
+
+    return Object.fromEntries(entries) as Record<
+      AptitudInformeVecinoType,
+      any[]
+    >;
+  }
+
   async upsertDocumentoExterno(
     id: string | null,
     updateDto: any,
@@ -1808,10 +2262,13 @@ export class ExpedientesService {
       throw new BadRequestException('El campo idTrabajador es requerido');
     }
 
+    const regimeCtx = await this.resolveDocumentRegimeContext(trabajadorId);
+
     await this.validateDocumentDateE1(
       trabajadorId,
       newFecha,
       'documentoExterno',
+      regimeCtx,
     );
 
     let result;

@@ -3,6 +3,7 @@ import { Document, Schema as MongooseSchema } from 'mongoose';
 import { Trabajador } from 'src/modules/trabajadores/entities/trabajador.entity';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
+import { PdfStatus } from '../enums/pdf-status.enum';
 
 const siNoOpciones = ['No', 'Sí'] as const;
 
@@ -56,6 +57,13 @@ export class TrastornoLimitePersonalidad extends Document {
 
   @Prop({ required: true })
   rutaPDF: string;
+
+  @Prop({
+    enum: PdfStatus,
+    required: false,
+  })
+  pdfStatus?: PdfStatus;
+
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   createdBy: User;
