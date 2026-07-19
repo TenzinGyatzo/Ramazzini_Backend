@@ -314,6 +314,22 @@ export class ExpedientesController {
     return this.expedientesService.countDocumentosByTrabajador(trabajadorId);
   }
 
+  /**
+   * Vecinos lean para autofill de aptitud (Step9) / mismo helper que el PDF.
+   * Debe ir antes de `:documentType` para no capturarse como tipo.
+   */
+  @Get('aptitud-vecinos')
+  async findAptitudInformeVecinos(
+    @Param('trabajadorId') trabajadorId: string,
+  ) {
+    if (!isValidObjectId(trabajadorId)) {
+      throw new BadRequestException('El ID del trabajador no es válido');
+    }
+    return this.expedientesService.findDocumentsForAptitudInformeVecinos(
+      trabajadorId,
+    );
+  }
+
   @Get(':documentType')
   async findDocuments(
     @Param('trabajadorId') trabajadorId: string,
