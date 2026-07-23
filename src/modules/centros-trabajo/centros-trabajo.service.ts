@@ -1,4 +1,11 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CentroTrabajo } from './entities/centros-trabajo.entity';
@@ -17,6 +24,15 @@ import { HistoriaClinica } from '../expedientes/schemas/historia-clinica.schema'
 import { NotaMedica } from '../expedientes/schemas/nota-medica.schema';
 import { TrabajadoresService } from '../trabajadores/trabajadores.service';
 import { User } from '../users/schemas/user.schema';
+import { Empresa } from '../empresas/schemas/empresa.schema';
+import { AuditService } from '../audit/audit.service';
+import { AuditActionType } from '../audit/constants/audit-action-type';
+import { AuditEventClass } from '../audit/constants/audit-event-class';
+import { DeletionCascadeService } from 'src/utils/services/deletion-cascade.service';
+import { RegulatoryPolicyService } from 'src/utils/regulatory-policy.service';
+import { createRegulatoryError } from 'src/utils/regulatory-error-helper';
+import { RegulatoryErrorCode } from 'src/utils/regulatory-error-codes';
+import { DeletionAuditReason } from 'src/utils/constants/deletion-audit.constants';
 
 @Injectable()
 export class CentrosTrabajoService {
@@ -36,27 +52,27 @@ export class CentrosTrabajoService {
     private historiaClinicaModel: Model<HistoriaClinica>,
     @InjectModel(NotaMedica.name) private notaMedicaModel: Model<NotaMedica>,
     @InjectModel('User') private userModel: Model<User>,
+    @InjectModel(Empresa.name) private empresaModel: Model<Empresa>,
+    @Inject(forwardRef(() => TrabajadoresService))
     private trabajadoresService: TrabajadoresService,
     private geographyValidator: GeographyValidator,
+    @Inject(forwardRef(() => AuditService))
+    private readonly auditService: AuditService,
+    private readonly deletionCascadeService: DeletionCascadeService,
+    @Inject(forwardRef(() => RegulatoryPolicyService))
+    private readonly regulatoryPolicyService: RegulatoryPolicyService,
   ) {}
 
-  /**
-   * Validate geographic hierarchy (A3) for centro de trabajo
-   */
   private async validateGeographyHierarchy(
     dto: CreateCentrosTrabajoDto | UpdateCentrosTrabajoDto,
   ): Promise<void> {
-    // Only validate if any geographic field is provided
     if (!dto.estado && !dto.municipio) {
       return;
     }
 
-    // Note: estado and municipio in CentroTrabajo are stored as names (strings),
-    // but we validate using INEGI codes. The frontend should send codes.
-    // If names are sent, validation will fail (as per requirements: validate by CLAVE, not name).
     const validationResult = await this.geographyValidator.validateGeography({
-      entidad: dto.estado, // Assuming estado contains INEGI code (2 digits)
-      municipio: dto.municipio, // Assuming municipio contains INEGI code (3 digits)
+      entidad: dto.estado,
+      municipio: dto.municipio,
     });
 
     if (!validationResult.valid) {
@@ -76,10 +92,7 @@ export class CentrosTrabajoService {
     createCentrosTrabajoDto: CreateCentrosTrabajoDto,
   ): Promise<CentroTrabajo> {
     const normalizedDto = normalizeCentroTrabajoData(createCentrosTrabajoDto);
-
-    // Validate geographic hierarchy (A3) - applies to all providers
     await this.validateGeographyHierarchy(normalizedDto);
-
     const createdCentroTrabajo = new this.centroTrabajoModel(normalizedDto);
     return await createdCentroTrabajo.save();
   }
@@ -105,17 +118,13 @@ export class CentrosTrabajoService {
     }
 
     if (user.role === 'Principal') {
-      // Usuario Principal ve todos los centros de trabajo
       return await this.centroTrabajoModel.find({}).exec();
     }
 
-    // Verificar si tiene permiso de acceso completo
     if (user.permisos?.accesoCompletoEmpresasCentros) {
-      // Usuario con permiso completo ve todos los centros de trabajo
       return await this.centroTrabajoModel.find({}).exec();
     }
 
-    // Otros usuarios solo ven centros asignados
     return await this.centroTrabajoModel
       .find({
         _id: { $in: user.centrosTrabajoAsignados || [] },
@@ -128,101 +137,278 @@ export class CentrosTrabajoService {
   }
 
   async countCentrosByEmpresa(empresaId: string): Promise<number> {
-    return this.centroTrabajoModel.countDocuments({ idEmpresa: empresaId }).exec();
+    return this.centroTrabajoModel
+      .countDocuments({ idEmpresa: empresaId })
+      .exec();
   }
 
   async countTrabajadoresByCentro(centroId: string): Promise<number> {
-    return this.trabajadorModel.countDocuments({ idCentroTrabajo: centroId }).exec();
+    return this.trabajadorModel
+      .countDocuments({ idCentroTrabajo: centroId })
+      .exec();
   }
 
   async update(
     id: string,
     updateCentrosTrabajoDto: UpdateCentrosTrabajoDto,
+    actorId?: string | null,
   ): Promise<CentroTrabajo> {
     const normalizedDto = normalizeCentroTrabajoData(updateCentrosTrabajoDto);
 
-    // Get current centro to merge data for validation
     const centroActual = await this.centroTrabajoModel.findById(id).exec();
     if (!centroActual) {
       throw new BadRequestException('Centro de trabajo no encontrado');
     }
 
-    // Merge current data with update DTO for validation
     const mergedDto = {
       ...centroActual.toObject(),
       ...normalizedDto,
     } as CreateCentrosTrabajoDto;
 
-    // Validate geographic hierarchy (A3) - applies to all providers
     await this.validateGeographyHierarchy(mergedDto);
 
-    return await this.centroTrabajoModel
+    const updated = await this.centroTrabajoModel
       .findByIdAndUpdate(id, normalizedDto, { new: true })
       .exec();
+
+    if (updated) {
+      const empresaId =
+        updated.idEmpresa?.toString?.() ?? String(updated.idEmpresa ?? '');
+      const proveedorSaludId = await this.resolveProveedorSaludId(empresaId);
+      const changedKeys = Object.keys(normalizedDto).filter(
+        (k) => normalizedDto[k] !== undefined,
+      );
+      await this.auditService.record({
+        proveedorSaludId,
+        actorId: actorId ?? null,
+        actionType: AuditActionType.CENTRO_UPDATED,
+        resourceType: 'centroTrabajo',
+        resourceId: id,
+        payload: {
+          empresaId,
+          changedKeys,
+          nombreCentro: updated.nombreCentro ?? null,
+        },
+        eventClass: AuditEventClass.CLASS_2_SOFT_FAIL,
+      });
+    }
+
+    return updated;
   }
 
-  async remove(id: string): Promise<boolean> {
+  async remove(id: string, actorId?: string | null): Promise<void> {
+    const centro = await this.centroTrabajoModel.findById(id).exec();
+    if (!centro) {
+      await this.recordDeleteDenied(
+        id,
+        null,
+        null,
+        actorId,
+        DeletionAuditReason.NOT_FOUND,
+      );
+      throw new NotFoundException(
+        `El centro de trabajo con ID ${id} no existe o ya ha sido eliminado.`,
+      );
+    }
+
+    const empresaId =
+      centro.idEmpresa?.toString?.() ?? String(centro.idEmpresa ?? '');
+    const proveedorSaludId = await this.resolveProveedorSaludId(empresaId);
+
+    if (proveedorSaludId) {
+      const policy =
+        await this.regulatoryPolicyService.getRegulatoryPolicy(
+          proveedorSaludId,
+        );
+      if (policy.regime === 'SIRES_NOM024') {
+        const resguardedCount =
+          await this.deletionCascadeService.countResguardedDocsByCentro(id);
+        if (resguardedCount > 0) {
+          await this.recordDeleteDenied(
+            id,
+            empresaId,
+            proveedorSaludId,
+            actorId,
+            DeletionAuditReason.RESGUARDED_DOCS_PRESENT,
+            { resguardedDocCount: resguardedCount },
+          );
+          throw createRegulatoryError({
+            errorCode: RegulatoryErrorCode.ORG_DELETE_BLOCKED_RESGUARDED_DOCS,
+            details: {
+              centroId: id,
+              empresaId,
+              resguardedDocCount: resguardedCount,
+            },
+            regime: 'SIRES_NOM024',
+          });
+        }
+      }
+    }
+
     const session = await this.centroTrabajoModel.db.startSession();
+    let trabajadoresCount = 0;
 
     try {
       await session.withTransaction(async () => {
-        console.log(
-          `[DEBUG] Iniciando eliminación de Centro de Trabajo con ID: ${id}`,
-        );
-
-        // 1. Buscar todos los trabajadores asociados al Centro de Trabajo
         const trabajadores = await this.trabajadorModel
           .find({ idCentroTrabajo: id })
           .session(session)
           .exec();
+        trabajadoresCount = trabajadores.length;
 
-        if (trabajadores.length === 0) {
-          console.log(
-            `[DEBUG] No hay trabajadores asociados, eliminando directamente el Centro de Trabajo.`,
-          );
-        } else {
-          console.log(
-            `[DEBUG] Eliminando ${trabajadores.length} trabajadores...`,
-          );
-
-          // 2. Eliminar trabajadores en paralelo
+        if (trabajadores.length > 0) {
           const resultadosEliminacion = await Promise.all(
             trabajadores.map((trabajador) =>
               this.trabajadoresService.remove(trabajador._id.toString()),
             ),
           );
 
-          // 3. Verificar si todos los trabajadores se eliminaron correctamente
           if (resultadosEliminacion.includes(false)) {
-            throw new Error(
-              'Error en la eliminación de uno o más trabajadores, abortando transacción.',
-            );
+            throw new Error(DeletionAuditReason.CASCADE_CHILD_FAILED);
           }
         }
 
-        // 4. Eliminar el Centro de Trabajo
-        // console.log(`[DEBUG] Eliminando Centro de Trabajo de la base de datos...`);
         const result = await this.centroTrabajoModel
           .findByIdAndDelete(id)
           .session(session);
 
         if (!result) {
-          throw new Error(
-            'No se pudo eliminar el Centro de Trabajo, abortando transacción.',
-          );
+          throw new Error(DeletionAuditReason.NOT_FOUND);
         }
-
-        console.log(
-          `[DEBUG] Eliminación del Centro de Trabajo completada con éxito.`,
-        );
       });
 
       session.endSession();
-      return true;
+
+      await this.auditService.record({
+        proveedorSaludId,
+        actorId: actorId ?? null,
+        actionType: AuditActionType.CENTRO_DELETED,
+        resourceType: 'centroTrabajo',
+        resourceId: id,
+        payload: {
+          empresaId,
+          nombreCentro: centro.nombreCentro ?? null,
+          trabajadoresEliminados: trabajadoresCount,
+        },
+        eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
+      });
     } catch (error) {
-      console.error(`[ERROR] ${error.message}`);
       session.endSession();
-      return false;
+
+      if (
+        error instanceof ForbiddenException ||
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+
+      // Si el pre-check falló en detectar docs resguardados, revalidar y tratar como gate SIRES
+      if (proveedorSaludId) {
+        const policy =
+          await this.regulatoryPolicyService.getRegulatoryPolicy(
+            proveedorSaludId,
+          );
+        if (policy.regime === 'SIRES_NOM024') {
+          const resguardedCount =
+            await this.deletionCascadeService.countResguardedDocsByCentro(id);
+          if (resguardedCount > 0) {
+            await this.recordDeleteDenied(
+              id,
+              empresaId,
+              proveedorSaludId,
+              actorId,
+              DeletionAuditReason.RESGUARDED_DOCS_PRESENT,
+              { resguardedDocCount: resguardedCount, via: 'cascade_fallback' },
+            );
+            throw createRegulatoryError({
+              errorCode: RegulatoryErrorCode.ORG_DELETE_BLOCKED_RESGUARDED_DOCS,
+              details: {
+                centroId: id,
+                empresaId,
+                resguardedDocCount: resguardedCount,
+              },
+              regime: 'SIRES_NOM024',
+            });
+          }
+        }
+      }
+
+      const reason = this.mapCascadeReason(error);
+      await this.recordDeleteDenied(
+        id,
+        empresaId,
+        proveedorSaludId,
+        actorId,
+        reason,
+        { message: error?.message ?? String(error) },
+      );
+
+      if (reason === DeletionAuditReason.NOT_FOUND) {
+        throw new NotFoundException(
+          `El centro de trabajo con ID ${id} no existe o ya ha sido eliminado.`,
+        );
+      }
+
+      throw new BadRequestException(
+        'No se pudo eliminar el centro de trabajo. Revise trabajadores y documentos asociados e intente de nuevo.',
+      );
     }
+  }
+
+  private async resolveProveedorSaludId(
+    empresaId: string,
+  ): Promise<string | null> {
+    if (!empresaId) {
+      return null;
+    }
+    const empresa = await this.empresaModel
+      .findById(empresaId)
+      .select('idProveedorSalud')
+      .lean()
+      .exec();
+    if (!empresa?.idProveedorSalud) {
+      return null;
+    }
+    return String(empresa.idProveedorSalud);
+  }
+
+  private mapCascadeReason(error: unknown): string {
+    const message =
+      error instanceof Error ? error.message : String(error ?? '');
+    if (message.includes('archivo') || message.includes('FILE_CLEANUP')) {
+      return DeletionAuditReason.FILE_CLEANUP_FAILED;
+    }
+    if (message === DeletionAuditReason.CASCADE_CHILD_FAILED) {
+      return DeletionAuditReason.CASCADE_CHILD_FAILED;
+    }
+    if (message === DeletionAuditReason.NOT_FOUND) {
+      return DeletionAuditReason.NOT_FOUND;
+    }
+    if (message.includes('trabajador') || message.includes('archivos')) {
+      return message.includes('archivo')
+        ? DeletionAuditReason.FILE_CLEANUP_FAILED
+        : DeletionAuditReason.CASCADE_CHILD_FAILED;
+    }
+    return DeletionAuditReason.TRANSACTION_FAILED;
+  }
+
+  private async recordDeleteDenied(
+    centroId: string,
+    empresaId: string | null,
+    proveedorSaludId: string | null,
+    actorId: string | null | undefined,
+    reason: string,
+    extra?: Record<string, unknown>,
+  ): Promise<void> {
+    await this.auditService.record({
+      proveedorSaludId,
+      actorId: actorId ?? null,
+      actionType: AuditActionType.CENTRO_DELETE_DENIED,
+      resourceType: 'centroTrabajo',
+      resourceId: centroId,
+      payload: { reason, empresaId, ...extra },
+      eventClass: AuditEventClass.CLASS_2_SOFT_FAIL,
+    });
   }
 }

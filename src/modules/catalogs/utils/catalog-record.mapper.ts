@@ -229,9 +229,24 @@ export function mapRecordToEntry(
         } as INEGIEntry;
       }
 
+      case CatalogType.AFILIACION: {
+        const vigenteRaw = record.VIGENTE ?? record.vigente;
+        const vigente =
+          vigenteRaw === undefined || vigenteRaw === null || vigenteRaw === ''
+            ? true
+            : String(vigenteRaw).trim() === '1';
+        return {
+          code,
+          description: description || code,
+          source: catalogType,
+          version: record.version as string | undefined,
+          vigente,
+          _csvRow: { ...record },
+        };
+      }
+
       case CatalogType.TIPO_PERSONAL:
       case CatalogType.SERVICIOS_ATENCION_CE:
-      case CatalogType.AFILIACION:
       case CatalogType.PAIS:
         return {
           code,

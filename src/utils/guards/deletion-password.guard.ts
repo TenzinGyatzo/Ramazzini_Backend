@@ -15,6 +15,13 @@ import {
   DeletionCascadeCheckType,
 } from '../decorators/deletion-cascade-check.decorator';
 import { DeletionCascadeService } from '../services/deletion-cascade.service';
+import { AuditService } from 'src/modules/audit/audit.service';
+import { AuditActionType } from 'src/modules/audit/constants/audit-action-type';
+import { AuditEventClass } from 'src/modules/audit/constants/audit-event-class';
+import {
+  DeletionAuditReason,
+  DeletionAuditResourceType,
+} from '../constants/deletion-audit.constants';
 
 type AuthenticatedRequest = Request & { userId?: string };
 
@@ -24,6 +31,7 @@ export class DeletionPasswordGuard implements CanActivate {
     @InjectModel(User.name) private readonly userModel: Model<User>,
     private readonly deletionCascadeService: DeletionCascadeService,
     private readonly reflector: Reflector,
+    private readonly auditService: AuditService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -45,6 +53,12 @@ export class DeletionPasswordGuard implements CanActivate {
 
     const password = request.headers[DELETION_PASSWORD_HEADER];
     if (!password || typeof password !== 'string' || !password.trim()) {
+      await this.recordAuthFail(
+        context,
+        request,
+        userId,
+        DeletionAuditReason.MISSING_PASSWORD,
+      );
       throw new UnauthorizedException(
         'Se requiere confirmar tu contraseña para eliminar',
       );
@@ -57,20 +71,113 @@ export class DeletionPasswordGuard implements CanActivate {
 
     const isValid = await user.checkPassword(password);
     if (!isValid) {
+      await this.recordAuthFail(
+        context,
+        request,
+        userId,
+        DeletionAuditReason.INVALID_PASSWORD,
+        user.idProveedorSalud
+          ? String(user.idProveedorSalud)
+          : null,
+      );
       throw new UnauthorizedException('Contraseña incorrecta');
     }
 
     return true;
   }
 
+  private async recordAuthFail(
+    context: ExecutionContext,
+    request: AuthenticatedRequest,
+    actorId: string,
+    reason: string,
+    proveedorSaludId?: string | null,
+  ): Promise<void> {
+    const { resourceType, resourceId } = this.resolveResource(
+      context,
+      request,
+    );
+    let proveedor = proveedorSaludId ?? null;
+    if (proveedor == null) {
+      const user = await this.userModel
+        .findById(actorId)
+        .select('idProveedorSalud')
+        .lean()
+        .exec();
+      proveedor = user?.idProveedorSalud
+        ? String(user.idProveedorSalud)
+        : null;
+    }
+
+    try {
+      await this.auditService.record({
+        proveedorSaludId: proveedor,
+        actorId,
+        actionType: AuditActionType.DELETION_AUTH_FAIL,
+        resourceType,
+        resourceId,
+        payload: { reason },
+        eventClass: AuditEventClass.CLASS_2_SOFT_FAIL,
+      });
+    } catch {
+      // Class 2: never block the UnauthorizedException path on audit failure
+    }
+  }
+
+  private resolveResource(
+    context: ExecutionContext,
+    request: AuthenticatedRequest,
+  ): {
+    resourceType: DeletionAuditResourceType;
+    resourceId: string | null;
+  } {
+    const cascadeCheck = this.reflector.get<
+      DeletionCascadeCheckType | undefined
+    >(DELETION_CASCADE_CHECK_KEY, context.getHandler());
+
+    if (cascadeCheck === 'centro') {
+      return {
+        resourceType: 'centroTrabajo',
+        resourceId: request.params.centroId ?? null,
+      };
+    }
+    if (cascadeCheck === 'empresa') {
+      return {
+        resourceType: 'empresa',
+        resourceId: request.params.id ?? null,
+      };
+    }
+
+    const path = String(request.route?.path ?? request.path ?? '');
+    if (path.includes('delete-user') || path.includes('eliminar-usuario')) {
+      return {
+        resourceType: 'usuario',
+        resourceId: request.params?.email ?? request.params?.id ?? null,
+      };
+    }
+    if (request.params?.centroId) {
+      return {
+        resourceType: 'centroTrabajo',
+        resourceId: request.params.centroId,
+      };
+    }
+    if (request.params?.id) {
+      return {
+        resourceType: 'empresa',
+        resourceId: request.params.id,
+      };
+    }
+
+    return { resourceType: 'unknown', resourceId: null };
+  }
+
   private async requiresDeletionPassword(
     context: ExecutionContext,
     request: AuthenticatedRequest,
   ): Promise<boolean> {
-    const cascadeCheck = this.reflector.get<DeletionCascadeCheckType | undefined>(
-      DELETION_CASCADE_CHECK_KEY,
-      context.getHandler(),
-    );
+    const cascadeCheck = this.reflector.get<
+      DeletionCascadeCheckType | undefined
+    >(DELETION_CASCADE_CHECK_KEY, context.getHandler());
 
     if (!cascadeCheck) {
       return true;

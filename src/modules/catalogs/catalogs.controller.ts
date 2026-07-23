@@ -222,11 +222,13 @@ export class CatalogsController {
   async listGIISCatalog(
     @Param('catalogType') catalogType: string,
     @Query('limit') limit?: number,
+    @Query('vigenteOnly') vigenteOnly?: string,
   ) {
     const allowed = [
       CatalogType.TIPO_PERSONAL,
       CatalogType.PAIS,
       CatalogType.SERVICIOS_ATENCION_CE,
+      CatalogType.AFILIACION,
     ];
     const catalog = catalogType as CatalogType;
     if (!allowed.includes(catalog)) {
@@ -237,6 +239,10 @@ export class CatalogsController {
     const listLimit = limit
       ? Math.min(Math.max(1, parseInt(limit.toString())), 500)
       : 500;
-    return this.catalogsService.listCatalog(catalog, listLimit);
+    const onlyVigente =
+      vigenteOnly === '1' ||
+      vigenteOnly === 'true' ||
+      vigenteOnly === 'True';
+    return this.catalogsService.listCatalog(catalog, listLimit, onlyVigente);
   }
 }

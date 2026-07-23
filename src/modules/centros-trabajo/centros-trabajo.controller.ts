@@ -8,17 +8,21 @@ import {
   Delete,
   BadRequestException,
   NotFoundException,
-  InternalServerErrorException,
   Query,
   UseGuards,
+  Req,
+  HttpException,
 } from '@nestjs/common';
 import { CentrosTrabajoService } from './centros-trabajo.service';
 import { CreateCentrosTrabajoDto } from './dto/create-centros-trabajo.dto';
 import { UpdateCentrosTrabajoDto } from './dto/update-centros-trabajo.dto';
 import { isValidObjectId } from 'mongoose';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
 import { DeletionPasswordGuard } from 'src/utils/guards/deletion-password.guard';
 import { DeletionCascadeCheck } from 'src/utils/decorators/deletion-cascade-check.decorator';
+
+type AuthenticatedRequest = Request & { userId?: string };
 
 @Controller('api/:empresaId([0-9a-fA-F]{24})')
 @ApiTags('Centros de Trabajo')
@@ -123,6 +127,7 @@ export class CentrosTrabajoController {
   async update(
     @Param('centroId') centroId: string,
     @Body() updateCentrosTrabajoDto: UpdateCentrosTrabajoDto,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!isValidObjectId(centroId)) {
       throw new BadRequestException('El ID proporcionado no es válido');
@@ -131,6 +136,7 @@ export class CentrosTrabajoController {
     const updatedCentroTrabajo = await this.centrosTrabajoService.update(
       centroId,
       updateCentrosTrabajoDto,
+      req.userId ?? null,
     );
 
     if (!updatedCentroTrabajo) {
@@ -158,9 +164,14 @@ export class CentrosTrabajoController {
     status: 400,
     description: 'El ID de centro de trabajo proporcionado no es válido',
   })
+  @ApiResponse({
+    status: 403,
+    description: 'Eliminación bloqueada por documentos resguardados (SIRES)',
+  })
   async remove(
     @Param('empresaId') empresaId: string,
     @Param('centroId') centroId: string,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!isValidObjectId(empresaId)) {
       throw new BadRequestException(
@@ -175,19 +186,14 @@ export class CentrosTrabajoController {
     }
 
     try {
-      const deletedCentroTrabajo =
-        await this.centrosTrabajoService.remove(centroId);
-
-      if (!deletedCentroTrabajo) {
-        throw new NotFoundException(
-          `El centro de trabajo con ID ${centroId} no existe o ya ha sido eliminado.`,
-        );
-      }
-
+      await this.centrosTrabajoService.remove(centroId, req.userId ?? null);
       return { message: 'Centro de Trabajo eliminado exitosamente' };
     } catch (error) {
-      throw new InternalServerErrorException(
-        'Ocurrió un error al eliminar el centro de trabajo',
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new BadRequestException(
+        'No se pudo eliminar el centro de trabajo. Algunos documentos o dependencias no se pudieron eliminar.',
       );
     }
   }

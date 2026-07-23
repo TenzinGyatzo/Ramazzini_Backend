@@ -44,10 +44,13 @@ import {
   NotaMedicaSchema,
 } from '../expedientes/schemas/nota-medica.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { Empresa, EmpresaSchema } from '../empresas/schemas/empresa.schema';
 import { FilesModule } from '../files/files.module';
 import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
 import { UsersModule } from '../users/users.module';
 import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
+import { AuditModule } from '../audit/audit.module';
+import { ProveedoresSaludModule } from '../proveedores-salud/proveedores-salud.module';
 
 @Module({
   imports: [
@@ -63,11 +66,14 @@ import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
       { name: HistoriaClinica.name, schema: HistoriaClinicaSchema },
       { name: NotaMedica.name, schema: NotaMedicaSchema },
       { name: User.name, schema: UserSchema },
+      { name: Empresa.name, schema: EmpresaSchema },
     ]),
     FilesModule,
     forwardRef(() => TrabajadoresModule),
     forwardRef(() => UsersModule),
     DeletionAuthModule,
+    forwardRef(() => AuditModule),
+    forwardRef(() => ProveedoresSaludModule),
   ],
   controllers: [CentrosTrabajoController, CentrosTrabajoBatchController],
   providers: [CentrosTrabajoService],

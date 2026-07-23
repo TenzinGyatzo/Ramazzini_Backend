@@ -58,6 +58,7 @@ import {
   FooterFirmantesData,
 } from './interfaces/firmante-data.interface';
 import { CatalogsService } from '../catalogs/catalogs.service';
+import { CatalogType } from '../catalogs/interfaces/catalog-entry.interface';
 import { DocumentoEstado } from '../expedientes/enums/documento-estado.enum';
 import { PdfStatus } from '../expedientes/enums/pdf-status.enum';
 import { ResultadosClinicosService } from '../resultados-clinicos/resultados-clinicos.service';
@@ -3403,6 +3404,15 @@ export class InformesService {
       fs.mkdirSync(rutaDirectorio, { recursive: true });
     }
 
+    const afiliacionLabelByCode: Record<string, string> = {};
+    for (const entry of this.catalogsService.listCatalog(
+      CatalogType.AFILIACION,
+      500,
+      false,
+    )) {
+      afiliacionLabelByCode[entry.code] = entry.description || entry.code;
+    }
+
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
     const docDefinition = notaMedicaInforme(
       nombreEmpresa,
@@ -3412,6 +3422,7 @@ export class InformesService {
       datosEnfermeraFirmante,
       datosProveedorSalud,
       footerData,
+      afiliacionLabelByCode,
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);

@@ -60,6 +60,12 @@ export enum RegulatoryErrorCode {
    * Ocurre cuando un usuario SIRES intenta usar el sistema sin haber aceptado la versión vigente
    */
   CONFIDENTIALITY_AGREEMENT_REQUIRED = 'CONFIDENTIALITY_AGREEMENT_REQUIRED',
+
+  /**
+   * Eliminación organizacional bloqueada: existen documentos FINALIZADO/ANULADO
+   * bajo la jerarquía (empresa → centros → trabajadores) en régimen SIRES.
+   */
+  ORG_DELETE_BLOCKED_RESGUARDED_DOCS = 'ORG_DELETE_BLOCKED_RESGUARDED_DOCS',
 }
 
 /**
@@ -115,4 +121,15 @@ export interface RegulatoryErrorDetails {
    * Sujeto del error de inmutabilidad de identificación
    */
   subject?: 'trabajador' | 'firmante';
+
+  /**
+   * Conteo de documentos resguardados que bloquean DELETE organizacional
+   */
+  resguardedDocCount?: number;
+
+  /**
+   * ID de empresa / centro cuando aplica el gate de borrado organizacional
+   */
+  empresaId?: string;
+  centroId?: string;
 }

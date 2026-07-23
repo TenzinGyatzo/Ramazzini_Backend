@@ -808,14 +808,22 @@ export class CatalogsService implements OnModuleInit {
 
   /**
    * List all entries from a GIIS catalog (for populating selectors)
+   * @param vigenteOnly When true, keep only entries with vigente !== false
    */
-  listCatalog(catalog: CatalogType, limit: number = 500): CatalogEntry[] {
+  listCatalog(
+    catalog: CatalogType,
+    limit: number = 500,
+    vigenteOnly: boolean = false,
+  ): CatalogEntry[] {
     const cache = this.catalogCaches.get(catalog);
     if (!cache) {
       return [];
     }
-    const entries = Array.from(cache.values());
-    return entries.slice(0, limit).sort((a, b) => {
+    let entries = Array.from(cache.values());
+    if (vigenteOnly) {
+      entries = entries.filter((e) => e.vigente !== false);
+    }
+    entries.sort((a, b) => {
       const numA = Number(a.code);
       const numB = Number(b.code);
       if (!Number.isNaN(numA) && !Number.isNaN(numB)) {
@@ -823,6 +831,9 @@ export class CatalogsService implements OnModuleInit {
       }
       return (a.description || '').localeCompare(b.description || '');
     });
+    return entries
+      .slice(0, limit)
+      .map(({ _csvRow, ...safe }) => safe);
   }
 
   /**

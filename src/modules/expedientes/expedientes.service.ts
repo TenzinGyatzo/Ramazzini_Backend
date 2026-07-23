@@ -734,6 +734,11 @@ export class ExpedientesService {
             regimeCtx,
           ),
         );
+        createValidationTasks.push(() =>
+          this.validateDerechohabienciaAgainstAfiliacionCatalog(
+            createDto.derechohabiencia,
+          ),
+        );
       }
     }
 
@@ -1192,6 +1197,37 @@ export class ExpedientesService {
   }
 
   /**
+   * Valida que cada código de derechohabiencia exista en catálogo AFILIACION.
+   * No exige VIGENTE=1 (permite conservar valores históricos).
+   * Si el catálogo no está cargado, no bloquea.
+   */
+  private async validateDerechohabienciaAgainstAfiliacionCatalog(
+    derechohabiencia?: string | null,
+  ): Promise<void> {
+    if (derechohabiencia == null || String(derechohabiencia).trim() === '') {
+      return;
+    }
+    if (!this.catalogsService.isCatalogLoaded(CatalogType.AFILIACION)) {
+      return;
+    }
+    const codes = String(derechohabiencia)
+      .split('&')
+      .map((c) => c.trim())
+      .filter(Boolean);
+    for (const code of codes) {
+      const result = this.catalogsService.validateGIISAfiliacion(code);
+      if (!result.valid) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          ruleId: 'CEX_AFILIACION',
+          message: `derechohabiencia: código "${code}" no encontrado en catálogo AFILIACION`,
+          details: [{ field: 'derechohabiencia', code }],
+        });
+      }
+    }
+  }
+
+  /**
    * Validate vital signs for NOM-024 compliance
    * - MX providers: Strict enforcement (throw errors)
    * - Non-MX providers: Warnings only (log but allow)
@@ -1425,6 +1461,16 @@ export class ExpedientesService {
           mergedEmbarazoDto.relacionTemporalEmbarazo;
         updateDto.trimestreGestacional =
           mergedEmbarazoDto.trimestreGestacional;
+      });
+
+      updateValidationTasks.push(async () => {
+        const derechohabiencia =
+          updateDto.derechohabiencia !== undefined
+            ? updateDto.derechohabiencia
+            : existingPlainForValidation.derechohabiencia;
+        await this.validateDerechohabienciaAgainstAfiliacionCatalog(
+          derechohabiencia,
+        );
       });
     }
 

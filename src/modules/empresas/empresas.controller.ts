@@ -10,9 +10,10 @@ import {
   NotFoundException,
   UseInterceptors,
   UploadedFile,
-  InternalServerErrorException,
   Query,
   UseGuards,
+  Req,
+  HttpException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -23,11 +24,14 @@ import { isValidObjectId } from 'mongoose';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
+import { Request } from 'express';
 import { TrabajadoresService } from '../trabajadores/trabajadores.service';
 import { DeletionPasswordGuard } from 'src/utils/guards/deletion-password.guard';
 import { DeletionCascadeCheck } from 'src/utils/decorators/deletion-cascade-check.decorator';
 
 dotenv.config();
+
+type AuthenticatedRequest = Request & { userId?: string };
 
 @Controller('api')
 @ApiTags('Empresas')
@@ -177,15 +181,12 @@ export class EmpresasController {
     @Param('id') id: string,
     @Body() updateEmpresaDto: UpdateEmpresaDto,
     @UploadedFile() file: Express.Multer.File,
+    @Req() req: AuthenticatedRequest,
   ) {
-    // console.log('Archivo recibido:', file);
-    // console.log('Datos de la empresa:', updateEmpresaDto);
-
     if (!isValidObjectId(id)) {
       throw new BadRequestException('El ID proporcionado no es válido');
     }
 
-    // Si se sube un archivo, se añade al DTO para actualizar el logotipo
     if (file) {
       updateEmpresaDto.logotipoEmpresa = {
         data: file.filename,
@@ -196,6 +197,7 @@ export class EmpresasController {
     const updatedEmpresa = await this.empresasService.update(
       id,
       updateEmpresaDto,
+      req.userId ?? null,
     );
 
     if (!updatedEmpresa) {
@@ -218,24 +220,24 @@ export class EmpresasController {
       'Empresa eliminada exitosamente | La empresa del ID proporcionado no existe o ya ha sido eliminada',
   })
   @ApiResponse({ status: 400, description: 'El ID proporcionado no es válido' })
-  async remove(@Param('id') id: string) {
+  @ApiResponse({
+    status: 403,
+    description: 'Eliminación bloqueada por documentos resguardados (SIRES)',
+  })
+  async remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     if (!isValidObjectId(id)) {
       throw new BadRequestException('El ID proporcionado no es válido');
     }
 
     try {
-      const deletedEmpresa = await this.empresasService.remove(id);
-
-      if (!deletedEmpresa) {
-        throw new NotFoundException(
-          `La empresa con ID ${id} no existe o ya ha sido eliminada.`,
-        );
-      }
-
+      await this.empresasService.remove(id, req.userId ?? null);
       return { message: 'Empresa eliminada exitosamente' };
     } catch (error) {
-      throw new InternalServerErrorException(
-        'Ocurrió un error al eliminar la empresa',
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new BadRequestException(
+        'No se pudo eliminar la empresa. Algunos documentos o dependencias no se pudieron eliminar.',
       );
     }
   }

@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 export class RegistrarExportacionExcelDto {
   @ApiProperty({ description: 'Número de filas exportadas' })
@@ -16,4 +25,28 @@ export class RegistrarExportacionExcelDto {
   @IsOptional()
   @IsBoolean()
   filtered?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Keys de columnas incluidas en el Excel generado en el cliente',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(80)
+  @IsString({ each: true })
+  columnKeys?: string[];
+
+  @ApiPropertyOptional({ description: 'Cantidad de columnas exportadas' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  columnCount?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Si el usuario activó en el modal “Mostrar columnas vacías” (UI; no altera el Excel por sí solo)',
+  })
+  @IsOptional()
+  @IsBoolean()
+  showEmptyColumns?: boolean;
 }

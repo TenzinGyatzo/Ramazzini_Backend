@@ -169,6 +169,11 @@ export class TrabajadoresController {
       filtered: dto.filtered ?? true,
       rowCount: dto.rowCount,
       filename: dto.filename,
+      ...(dto.columnKeys != null ? { columnKeys: dto.columnKeys } : {}),
+      ...(dto.columnCount != null ? { columnCount: dto.columnCount } : {}),
+      ...(dto.showEmptyColumns != null
+        ? { showEmptyColumns: dto.showEmptyColumns }
+        : {}),
     });
 
     return { ok: true };

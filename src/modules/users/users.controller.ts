@@ -718,8 +718,30 @@ export class UsersController {
   ) {
     const userId = getUserIdFromRequest(req);
     const user = await this.usersService.findById(userId);
+    const passwordOk =
+      !!user && (await user.checkPassword(body.password));
 
-    if (!user || !(await user.checkPassword(body.password))) {
+    if (!passwordOk) {
+      if (body.purpose === 'deletion') {
+        try {
+          await this.auditService.record({
+            proveedorSaludId: user?.idProveedorSalud
+              ? String(user.idProveedorSalud)
+              : null,
+            actorId: userId,
+            actionType: AuditActionType.DELETION_AUTH_FAIL,
+            resourceType: body.resourceType ?? 'unknown',
+            resourceId: body.resourceId ?? null,
+            payload: {
+              reason: 'INVALID_PASSWORD',
+              via: 'verify-password',
+            },
+            eventClass: AuditEventClass.CLASS_2_SOFT_FAIL,
+          });
+        } catch {
+          // Class 2: no bloquear el 401 si falla la auditoría
+        }
+      }
       throw new UnauthorizedException('Contraseña incorrecta');
     }
 

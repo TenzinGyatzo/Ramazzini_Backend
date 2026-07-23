@@ -5,6 +5,10 @@ import { CentrosTrabajoService } from './centros-trabajo.service';
 import { CentroTrabajo } from './schemas/centro-trabajo.schema';
 import { GeographyValidator } from '../catalogs/validators/geography.validator';
 import { TrabajadoresService } from '../trabajadores/trabajadores.service';
+import { Empresa } from '../empresas/schemas/empresa.schema';
+import { AuditService } from '../audit/audit.service';
+import { DeletionCascadeService } from 'src/utils/services/deletion-cascade.service';
+import { RegulatoryPolicyService } from 'src/utils/regulatory-policy.service';
 
 describe('CentrosTrabajoService - Geographic Hierarchy Validation (A3)', () => {
   let service: CentrosTrabajoService;
@@ -92,11 +96,33 @@ describe('CentrosTrabajoService - Geographic Hierarchy Validation (A3)', () => {
         },
         { provide: getModelToken('NotaMedica'), useValue: createMockModel() },
         { provide: getModelToken('User'), useValue: createMockModel() },
+        { provide: getModelToken(Empresa.name), useValue: createMockModel() },
         {
           provide: TrabajadoresService,
           useValue: mockTrabajadoresService,
         },
         { provide: GeographyValidator, useValue: mockGeographyValidator },
+        {
+          provide: AuditService,
+          useValue: { record: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: DeletionCascadeService,
+          useValue: {
+            countResguardedDocsByCentro: jest.fn().mockResolvedValue(0),
+            countResguardedDocsByEmpresa: jest.fn().mockResolvedValue(0),
+          },
+        },
+        {
+          provide: RegulatoryPolicyService,
+          useValue: {
+            getRegulatoryPolicy: jest.fn().mockResolvedValue({
+              regime: 'SIN_REGIMEN',
+              features: {},
+              validation: {},
+            }),
+          },
+        },
       ],
     }).compile();
 
@@ -153,12 +179,6 @@ describe('CentrosTrabajoService - Geographic Hierarchy Validation (A3)', () => {
         errors: [],
       });
 
-      const mockCentroTrabajoModel = createMockModel();
-      mockCentroTrabajoModel.save = jest.fn().mockResolvedValue({
-        _id: '507f1f77bcf86cd799439013',
-        ...dto,
-      });
-
       const dto = {
         nombreCentro: 'Centro de Prueba',
         estado: '25',
@@ -168,7 +188,15 @@ describe('CentrosTrabajoService - Geographic Hierarchy Validation (A3)', () => {
         updatedBy: '507f1f77bcf86cd799439012',
       };
 
-      (service as any).centroTrabajoModel = mockCentroTrabajoModel;
+      const mockCentroTrabajoModel = createMockModel();
+      const ctor: any = jest.fn().mockImplementation(() => ({
+        save: jest.fn().mockResolvedValue({
+          _id: '507f1f77bcf86cd799439013',
+          ...dto,
+        }),
+      }));
+      Object.assign(ctor, mockCentroTrabajoModel);
+      (service as any).centroTrabajoModel = ctor;
 
       const result = await service.create(dto as any);
       expect(result).toBeDefined();
@@ -236,12 +264,6 @@ describe('CentrosTrabajoService - Geographic Hierarchy Validation (A3)', () => {
         errors: [],
       });
 
-      const mockCentroTrabajoModel = createMockModel();
-      mockCentroTrabajoModel.save = jest.fn().mockResolvedValue({
-        _id: '507f1f77bcf86cd799439013',
-        ...dto,
-      });
-
       const dto = {
         nombreCentro: 'Centro de Prueba',
         idEmpresa: '507f1f77bcf86cd799439011',
@@ -249,15 +271,20 @@ describe('CentrosTrabajoService - Geographic Hierarchy Validation (A3)', () => {
         updatedBy: '507f1f77bcf86cd799439012',
       };
 
-      (service as any).centroTrabajoModel = mockCentroTrabajoModel;
+      const mockCentroTrabajoModel = createMockModel();
+      // Model constructor + save used by service.create
+      const ctor: any = jest.fn().mockImplementation(() => ({
+        save: jest.fn().mockResolvedValue({
+          _id: '507f1f77bcf86cd799439013',
+          ...dto,
+        }),
+      }));
+      Object.assign(ctor, mockCentroTrabajoModel);
+      (service as any).centroTrabajoModel = ctor;
 
       const result = await service.create(dto as any);
       expect(result).toBeDefined();
-      // validateGeography should not be called if no geographic data
-      expect(mockGeographyValidator.validateGeography).toHaveBeenCalledWith({
-        entidad: undefined,
-        municipio: undefined,
-      });
+      expect(mockGeographyValidator.validateGeography).not.toHaveBeenCalled();
     });
   });
 });

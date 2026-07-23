@@ -123,6 +123,25 @@ describe('TrabajadoresController — exportar (H-04)', () => {
     expect(res.send).toHaveBeenCalledWith(Buffer.from('xlsx'));
   });
 
+  it('rechaza registrar-exportacion-excel sin permiso gestionarTrabajadores', async () => {
+    usersService.findById.mockResolvedValue({
+      role: 'Médico',
+      permisos: { gestionarTrabajadores: false },
+    });
+
+    await expect(
+      controller.registrarExportacionExcel(
+        empresaId,
+        centroId,
+        { rowCount: 12, filename: 'trabajadores_filtrados.xlsx', filtered: true },
+        { userId } as any,
+      ),
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(organizationalAccessService.assertUserCanAccessCentro).not.toHaveBeenCalled();
+    expect(auditService.record).not.toHaveBeenCalled();
+  });
+
   it('registrar-exportacion-excel registra auditoría para exportación en cliente', async () => {
     usersService.findById
       .mockResolvedValueOnce({
@@ -136,7 +155,14 @@ describe('TrabajadoresController — exportar (H-04)', () => {
     const result = await controller.registrarExportacionExcel(
       empresaId,
       centroId,
-      { rowCount: 12, filename: 'trabajadores_filtrados.xlsx', filtered: true },
+      {
+        rowCount: 12,
+        filename: 'trabajadores_filtrados.xlsx',
+        filtered: true,
+        columnKeys: ['nombre', 'aptitud'],
+        columnCount: 2,
+        showEmptyColumns: false,
+      },
       { userId } as any,
     );
 
@@ -149,6 +175,9 @@ describe('TrabajadoresController — exportar (H-04)', () => {
           filtered: true,
           rowCount: 12,
           filename: 'trabajadores_filtrados.xlsx',
+          columnKeys: ['nombre', 'aptitud'],
+          columnCount: 2,
+          showEmptyColumns: false,
         }),
       }),
     );

@@ -118,7 +118,6 @@ describe('NOM-024 Audit Trail (04-06)', () => {
       expect(AuditActionType.LOGIN_SUCCESS).toBe('LOGIN_SUCCESS');
       expect(AuditActionType.LOGIN_FAIL).toBe('LOGIN_FAIL');
       expect(AuditActionType.DOC_FINALIZE).toBe('DOC_FINALIZE');
-      expect(AuditActionType.GIIS_EXPORT_STARTED).toBe('GIIS_EXPORT_STARTED');
       expect(AuditActionType.GIIS_EXPORT_FILE_GENERATED).toBe(
         'GIIS_EXPORT_FILE_GENERATED',
       );

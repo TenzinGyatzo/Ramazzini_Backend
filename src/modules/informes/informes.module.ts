@@ -18,6 +18,7 @@ import { AuditModule } from '../audit/audit.module';
 import { OrganizationalAccessModule } from 'src/utils/organizational-access.module';
 import { ExpedienteColaboracionModule } from '../expediente-colaboracion/expediente-colaboracion.module';
 import { ProveedorInformeResolver } from './helpers/proveedor-informe.resolver';
+import { CatalogsModule } from '../catalogs/catalogs.module';
 
 @Module({
   controllers: [InformesController],
@@ -38,6 +39,7 @@ import { ProveedorInformeResolver } from './helpers/proveedor-informe.resolver';
     forwardRef(() => AuditModule),
     OrganizationalAccessModule,
     ExpedienteColaboracionModule,
+    CatalogsModule,
   ],
   exports: [InformesService],
 })

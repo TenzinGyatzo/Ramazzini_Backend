@@ -6,6 +6,8 @@ export interface CatalogEntry {
   description: string;
   source?: string;
   version?: string;
+  /** GIIS catalogs with VIGENTE column (e.g. AFILIACION). */
+  vigente?: boolean;
   /** Original CSV row for round-trip writes (admin module). */
   _csvRow?: Record<string, string | number | undefined>;
   [key: string]: any; // Allow additional fields for catalog-specific data

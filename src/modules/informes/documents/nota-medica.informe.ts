@@ -314,7 +314,10 @@ interface ProveedorSalud {
   colorInforme: string;
 }
 
-function construirDatosDemograficos(notaMedica: NotaMedica): Content | null {
+function construirDatosDemograficos(
+  notaMedica: NotaMedica,
+  afiliacionLabelByCode: Record<string, string> = {},
+): Content | null {
   const datos: Array<{ text: string; bold?: boolean }> = [];
 
   if (notaMedica.genero != null) {
@@ -339,21 +342,9 @@ function construirDatosDemograficos(notaMedica: NotaMedica): Content | null {
     notaMedica.derechohabiencia !== '0' &&
     notaMedica.derechohabiencia !== '99'
   ) {
-    const catalogoDerechohabiencia: Record<string, string> = {
-      '1': 'Ninguna',
-      '2': 'IMSS',
-      '3': 'ISSSTE',
-      '4': 'PEMEX',
-      '5': 'SEDENA',
-      '6': 'SEMAR',
-      '8': 'Otra',
-      '10': 'IMSS Bienestar',
-      '11': 'ISSFAM',
-      '14': 'OPD IMSS BIENESTAR',
-    };
     const etiquetas = notaMedica.derechohabiencia
       .split('&')
-      .map((v) => catalogoDerechohabiencia[v] || v)
+      .map((v) => afiliacionLabelByCode[v] || v)
       .join(', ');
     if (datos.length > 0) datos.push({ text: '  |  ' });
     datos.push({ text: 'Derechohabiencia: ', bold: true });
@@ -494,6 +485,7 @@ export const notaMedicaInforme = (
   enfermeraFirmante: EnfermeraFirmanteInforme | null,
   proveedorSalud: ProveedorSalud,
   footerFirmantesData?: FooterFirmantesData,
+  afiliacionLabelByCode: Record<string, string> = {},
 ): TDocumentDefinitions => {
   // Determinar cuál firmante usar (médico tiene prioridad)
   const usarMedico = medicoFirmante?.nombre ? true : false;
@@ -690,7 +682,7 @@ export const notaMedicaInforme = (
         : null,
 
       // Datos demográficos SIRES
-      construirDatosDemograficos(notaMedica),
+      construirDatosDemograficos(notaMedica, afiliacionLabelByCode),
 
       // Signos Vitales
       construirSignosVitales(notaMedica),

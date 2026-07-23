@@ -49,6 +49,8 @@ import { CentrosTrabajoModule } from '../centros-trabajo/centros-trabajo.module'
 import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
 import { UsersModule } from '../users/users.module';
 import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
+import { AuditModule } from '../audit/audit.module';
+import { ProveedoresSaludModule } from '../proveedores-salud/proveedores-salud.module';
 
 @Module({
   imports: [
@@ -66,11 +68,13 @@ import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
       { name: NotaMedica.name, schema: NotaMedicaSchema },
       { name: User.name, schema: UserSchema },
     ]),
-    FilesModule, // Importar FilesModule para poder usar FilesService
-    forwardRef(() => CentrosTrabajoModule), // Importar si hay referencias cruzadas
-    forwardRef(() => TrabajadoresModule), // Importar si hay referencias cruzadas
+    FilesModule,
+    forwardRef(() => CentrosTrabajoModule),
+    forwardRef(() => TrabajadoresModule),
     UsersModule,
     DeletionAuthModule,
+    forwardRef(() => AuditModule),
+    forwardRef(() => ProveedoresSaludModule),
   ],
   controllers: [EmpresasController],
   providers: [EmpresasService],

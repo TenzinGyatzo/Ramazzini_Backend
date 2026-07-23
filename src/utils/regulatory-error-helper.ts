@@ -159,6 +159,16 @@ function generateBaseMessage(
     case RegulatoryErrorCode.CONFIDENTIALITY_AGREEMENT_REQUIRED:
       return 'Debe aceptar el Acuerdo de Confidencialidad y Uso de la Información para continuar';
 
+    case RegulatoryErrorCode.ORG_DELETE_BLOCKED_RESGUARDED_DOCS: {
+      if (details?.centroId) {
+        return 'No se puede eliminar este centro de trabajo porque contiene documentos finalizados o anulados.';
+      }
+      if (details?.empresaId) {
+        return 'No se puede eliminar esta empresa porque contiene documentos finalizados o anulados en sus centros de trabajo.';
+      }
+      return 'No se puede eliminar porque existen documentos finalizados o anulados asociados.';
+    }
+
     default:
       return 'Error regulatorio';
   }
@@ -176,6 +186,7 @@ function getStatusCodeForErrorCode(errorCode: RegulatoryErrorCode): number {
     case RegulatoryErrorCode.CONSENT_REQUIRED:
     case RegulatoryErrorCode.CONSENT_INVALID_DATE:
     case RegulatoryErrorCode.CONFIDENTIALITY_AGREEMENT_REQUIRED:
+    case RegulatoryErrorCode.ORG_DELETE_BLOCKED_RESGUARDED_DOCS:
       return 403; // Forbidden
     case RegulatoryErrorCode.REGIMEN_FIELD_REQUIRED:
       return 400; // Bad Request (validación)

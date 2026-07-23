@@ -148,15 +148,6 @@ export class GiisBatchService {
       startedAt: new Date(),
       options: options ?? {},
     });
-    await this.auditService.record({
-      proveedorSaludId,
-      actorId:
-        (options as { createdByUserId?: string })?.createdByUserId ?? 'SYSTEM',
-      actionType: AuditActionType.GIIS_EXPORT_STARTED,
-      resourceType: 'GiisBatch',
-      resourceId: batch._id.toString(),
-      eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
-    });
     return batch;
   }
 
@@ -450,45 +441,28 @@ export class GiisBatchService {
       if (artifactCount >= 1 && needsEncryption) {
         await this.encryptAndZipArtifacts(batchId);
       }
+      const completed = await this.getBatch(batchId);
+      if (completed && (completed.artifacts?.length ?? 0) >= 1) {
+        await this.emitFileGeneratedAudit(completed);
+      }
     }
     return this.getBatch(batchId);
   }
 
-  private async recordBatchCompletionAudit(batch: GiisBatch) {
-    const [year, month] = batch.yearMonth.split('-').map(Number);
-    const clues = batch.establecimientoClues || '9998';
-    const totalRows = (batch.artifacts ?? []).reduce(
-      (s, a) => s + (Number(a.rowCount) || 0),
-      0,
-    );
-    const totalExcluded =
-      (batch.excludedReport as GiisExcludedReport)?.totalExcluded ?? 0;
-    const resumen = `${totalRows} procesados, ${totalExcluded} excluidos`;
+  /** AuditTrail Clase 1: archivo GIIS listo. GiisExportAudit (dominio) lo escribe encryptAndZipArtifacts. */
+  private async emitFileGeneratedAudit(batch: GiisBatch) {
     const userId = (batch.options as { createdByUserId?: string })
       ?.createdByUserId;
-
     const proveedorSaludId = batch.proveedorSaludId.toString();
     for (const art of batch.artifacts ?? []) {
       if (art.guide !== 'CEX') continue;
-      const guide = art.guide;
-      const baseName = getOfficialBaseName(guide, clues, year, month);
-      await this.giisExportAuditService.recordGenerationAudit({
-        proveedorSaludId,
-        usuarioGeneradorId: userId,
-        periodo: batch.yearMonth,
-        establecimientoClues: clues,
-        tipoGuia: guide,
-        nombreArchivoOficial: getOfficialFileName(baseName, 'TXT'),
-        resumenValidacion: resumen,
-        batchId: batch._id.toString(),
-      });
       await this.auditService.record({
         proveedorSaludId,
         actorId: userId ?? 'SYSTEM',
         actionType: AuditActionType.GIIS_EXPORT_FILE_GENERATED,
         resourceType: 'GiisBatch',
         resourceId: batch._id.toString(),
-        payload: { guide },
+        payload: { guide: art.guide },
         eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
       });
     }
