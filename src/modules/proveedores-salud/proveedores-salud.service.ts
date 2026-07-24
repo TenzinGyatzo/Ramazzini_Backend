@@ -67,11 +67,16 @@ export class ProveedoresSaludService {
   ) {}
 
   /**
-   * Validate régimen regulatorio according to business rules
+   * Validate régimen regulatorio according to business rules.
+   * La declaración de contexto operativo solo es obligatoria en create/onboarding
+   * (requireDeclaracionOperativa = true), no al editar el perfil.
    */
   private validateRegimenRegulatorio(
     dto: CreateProveedoresSaludDto | any,
+    options: { requireDeclaracionOperativa?: boolean } = {},
   ): void {
+    const requireDeclaracionOperativa =
+      options.requireDeclaracionOperativa ?? true;
     const pais = dto.pais?.trim().toUpperCase();
     const isMX = pais === 'MX';
     let regimen = dto.regimenRegulatorio;
@@ -100,8 +105,9 @@ export class ProveedoresSaludService {
       dto.regimenRegulatorio = 'SIN_REGIMEN';
     }
 
-    // Regla 3: Si es México y régimen es SIN_REGIMEN, declaración es obligatoria
+    // Regla 3: Declaración de contexto operativo solo en onboarding/create
     if (
+      requireDeclaracionOperativa &&
       isMX &&
       (regimen === 'SIN_REGIMEN' || dto.regimenRegulatorio === 'SIN_REGIMEN')
     ) {
@@ -283,7 +289,10 @@ export class ProveedoresSaludService {
             ? normalizedDto.declaracionAceptada
             : proveedor.declaracionAceptada,
       };
-      this.validateRegimenRegulatorio(dtoToValidate);
+      // En update/perfil no exigir declaración (solo aplica en onboarding/create)
+      this.validateRegimenRegulatorio(dtoToValidate, {
+        requireDeclaracionOperativa: false,
+      });
 
       // Normalizar valores antiguos a nuevo formato
       if (dtoToValidate.regimenRegulatorio === 'NO_SUJETO_SIRES') {
