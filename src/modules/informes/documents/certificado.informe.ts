@@ -4,7 +4,10 @@ import type {
   TDocumentDefinitions,
 } from 'pdfmake/interfaces';
 import { FooterFirmantesData } from '../interfaces/firmante-data.interface';
-import { formatearNombreTrabajadorCertificado, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
+import {
+  formatearNombreTrabajadorCertificado,
+  formatearTituloYNombreFirmante,
+} from '../../../utils/names';
 import { MedicoFirmanteInforme } from '../types/firmante-informe.types';
 
 // ==================== ESTILOS ====================
@@ -249,6 +252,7 @@ interface ExamenVista {
   ojoDerechoCegueraTotal?: boolean;
   ojoIzquierdoLejanaCegueraTotal?: boolean;
   ojoDerechoLejanaCegueraTotal?: boolean;
+  sinCorreccionNoEvaluablePorLentesContacto?: boolean;
   ojoIzquierdoLejanaSinCorreccion: number | null;
   ojoDerechoLejanaSinCorreccion: number | null;
   sinCorreccionLejanaInterpretacion: string;
@@ -364,31 +368,48 @@ export const certificadoInforme = (
   };
 
   const contenidoExamenVista: Content[] = examenVista
-    ? [
-        {
-          text: `Examen visual con agudeza lejana sin corrección: OI ${formatearAgudezaVisual(examenVista.ojoIzquierdoLejanaSinCorreccion, getCiegaOI(examenVista))} y OD ${formatearAgudezaVisual(examenVista.ojoDerechoLejanaSinCorreccion, getCiegaOD(examenVista))} `,
-        },
-        {
-          text: `(${examenVista.sinCorreccionLejanaInterpretacion || 'categoría no disponible'}). `,
-        },
-        ...(examenVista.interpretacionIshihara === 'Daltonismo'
-          ? [
-              {
-                text: 'Se detecta alteración en la percepción cromática (Daltonismo). ',
-              },
-            ]
-          : examenVista.interpretacionIshihara === 'Normal'
+    ? (() => {
+        const reportarConCorreccion =
+          !!examenVista.sinCorreccionNoEvaluablePorLentesContacto;
+        const oi = reportarConCorreccion
+          ? examenVista.ojoIzquierdoLejanaConCorreccion
+          : examenVista.ojoIzquierdoLejanaSinCorreccion;
+        const od = reportarConCorreccion
+          ? examenVista.ojoDerechoLejanaConCorreccion
+          : examenVista.ojoDerechoLejanaSinCorreccion;
+        const interpretacion = reportarConCorreccion
+          ? examenVista.conCorreccionLejanaInterpretacion
+          : examenVista.sinCorreccionLejanaInterpretacion;
+        const tipoAgudeza = reportarConCorreccion
+          ? 'con corrección'
+          : 'sin corrección';
+
+        return [
+          {
+            text: `Examen visual con agudeza lejana ${tipoAgudeza}: OI ${formatearAgudezaVisual(oi, getCiegaOI(examenVista))} y OD ${formatearAgudezaVisual(od, getCiegaOD(examenVista))} `,
+          },
+          {
+            text: `(${interpretacion || 'categoría no disponible'}). `,
+          },
+          ...(examenVista.interpretacionIshihara === 'Daltonismo'
             ? [
                 {
-                  text: 'No se detectan alteraciones en la percepción cromática. ',
+                  text: 'Se detecta alteración en la percepción cromática (Daltonismo). ',
                 },
               ]
-            : [
-                {
-                  text: 'No se cuenta con resultado de prueba de percepción cromática. ',
-                },
-              ]),
-      ]
+            : examenVista.interpretacionIshihara === 'Normal'
+              ? [
+                  {
+                    text: 'No se detectan alteraciones en la percepción cromática. ',
+                  },
+                ]
+              : [
+                  {
+                    text: 'No se cuenta con resultado de prueba de percepción cromática. ',
+                  },
+                ]),
+        ];
+      })()
     : [];
 
   const contenidoExploracionFisica: Content[] = exploracionFisica
@@ -493,7 +514,7 @@ export const certificadoInforme = (
               },
 
           {
-            text: `${formatearTituloYNombreFirmante(medicoFirmante)}${medicoFirmante.especialistaSaludTrabajo === 'Si' ? '' : '.'}`,  // Sin espacio antes del punto
+            text: `${formatearTituloYNombreFirmante(medicoFirmante)}${medicoFirmante.especialistaSaludTrabajo === 'Si' ? '' : '.'}`, // Sin espacio antes del punto
             bold: true,
           },
 
