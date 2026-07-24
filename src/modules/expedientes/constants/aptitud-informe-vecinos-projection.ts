@@ -46,6 +46,7 @@ const EXAMEN_VISTA_FIELDS = [
   'ojoDerechoLejanaCegueraTotal',
   'ojoIzquierdoCercanaCegueraTotal',
   'ojoDerechoCercanaCegueraTotal',
+  'sinCorreccionNoEvaluablePorLentesContacto',
   'ojoIzquierdoLejanaSinCorreccion',
   'ojoDerechoLejanaSinCorreccion',
   'sinCorreccionLejanaInterpretacion',

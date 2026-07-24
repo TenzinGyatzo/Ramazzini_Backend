@@ -47,14 +47,27 @@ export class CreateExamenVistaDto {
   @IsOptional()
   ojoDerechoCegueraTotal?: boolean;
 
+  @ApiProperty({
+    description:
+      'AV sin corrección no evaluable por lentes de contacto (null en OI/OD)',
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  sinCorreccionNoEvaluablePorLentesContacto?: boolean;
+
   // Sin corrección vista lejana
   @ApiProperty({
     description:
-      'Agudeza visual lejana de ojo izquierdo sin corrección (null si ceguera total)',
+      'Agudeza visual lejana de ojo izquierdo sin corrección (null si ceguera total o lentes de contacto)',
     example: 20,
     nullable: true,
   })
-  @ValidateIf((o) => !o.ojoIzquierdoCegueraTotal)
+  @ValidateIf(
+    (o) =>
+      !o.ojoIzquierdoCegueraTotal &&
+      !o.sinCorreccionNoEvaluablePorLentesContacto,
+  )
   @IsNumber({ maxDecimalPlaces: 0 })
   @Min(5)
   @Max(400)
@@ -66,11 +79,15 @@ export class CreateExamenVistaDto {
 
   @ApiProperty({
     description:
-      'Agudeza visual lejana de ojo derecho sin corrección (null si ceguera total)',
+      'Agudeza visual lejana de ojo derecho sin corrección (null si ceguera total o lentes de contacto)',
     example: 20,
     nullable: true,
   })
-  @ValidateIf((o) => !o.ojoDerechoCegueraTotal)
+  @ValidateIf(
+    (o) =>
+      !o.ojoDerechoCegueraTotal &&
+      !o.sinCorreccionNoEvaluablePorLentesContacto,
+  )
   @IsNumber({ maxDecimalPlaces: 0 })
   @Min(5)
   @Max(400)
@@ -118,11 +135,15 @@ export class CreateExamenVistaDto {
   // Sin corrección vista cercana
   @ApiProperty({
     description:
-      'Agudeza visual cercana de ojo izquierdo sin corrección (null si ceguera total)',
+      'Agudeza visual cercana de ojo izquierdo sin corrección (null si ceguera total o lentes de contacto)',
     example: 20,
     nullable: true,
   })
-  @ValidateIf((o) => !o.ojoIzquierdoCegueraTotal)
+  @ValidateIf(
+    (o) =>
+      !o.ojoIzquierdoCegueraTotal &&
+      !o.sinCorreccionNoEvaluablePorLentesContacto,
+  )
   @IsNumber({ maxDecimalPlaces: 0 })
   @Min(5)
   @Max(400)
@@ -134,11 +155,15 @@ export class CreateExamenVistaDto {
 
   @ApiProperty({
     description:
-      'Agudeza visual cercana de ojo derecho sin corrección (null si ceguera total)',
+      'Agudeza visual cercana de ojo derecho sin corrección (null si ceguera total o lentes de contacto)',
     example: 20,
     nullable: true,
   })
-  @ValidateIf((o) => !o.ojoDerechoCegueraTotal)
+  @ValidateIf(
+    (o) =>
+      !o.ojoDerechoCegueraTotal &&
+      !o.sinCorreccionNoEvaluablePorLentesContacto,
+  )
   @IsNumber({ maxDecimalPlaces: 0 })
   @Min(5)
   @Max(400)

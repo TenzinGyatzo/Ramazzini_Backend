@@ -1301,6 +1301,8 @@ export class InformesService {
             nearestExamenVista.ojoIzquierdoCercanaCegueraTotal,
           ojoDerechoCercanaCegueraTotal:
             nearestExamenVista.ojoDerechoCercanaCegueraTotal,
+          sinCorreccionNoEvaluablePorLentesContacto:
+            nearestExamenVista.sinCorreccionNoEvaluablePorLentesContacto,
           ojoIzquierdoLejanaSinCorreccion:
             nearestExamenVista.ojoIzquierdoLejanaSinCorreccion,
           ojoDerechoLejanaSinCorreccion:
@@ -2122,6 +2124,8 @@ export class InformesService {
             nearestExamenVista.ojoIzquierdoCercanaCegueraTotal,
           ojoDerechoCercanaCegueraTotal:
             nearestExamenVista.ojoDerechoCercanaCegueraTotal,
+          sinCorreccionNoEvaluablePorLentesContacto:
+            nearestExamenVista.sinCorreccionNoEvaluablePorLentesContacto,
           ojoIzquierdoLejanaSinCorreccion:
             nearestExamenVista.ojoIzquierdoLejanaSinCorreccion,
           ojoDerechoLejanaSinCorreccion:
@@ -2419,6 +2423,8 @@ export class InformesService {
       ojoDerechoLejanaCegueraTotal: examenVista.ojoDerechoLejanaCegueraTotal,
       ojoIzquierdoCercanaCegueraTotal: examenVista.ojoIzquierdoCercanaCegueraTotal,
       ojoDerechoCercanaCegueraTotal: examenVista.ojoDerechoCercanaCegueraTotal,
+      sinCorreccionNoEvaluablePorLentesContacto:
+        examenVista.sinCorreccionNoEvaluablePorLentesContacto,
       ojoIzquierdoLejanaSinCorreccion: examenVista.ojoIzquierdoLejanaSinCorreccion,
       ojoDerechoLejanaSinCorreccion: examenVista.ojoDerechoLejanaSinCorreccion,
       sinCorreccionLejanaInterpretacion: examenVista.sinCorreccionLejanaInterpretacion,

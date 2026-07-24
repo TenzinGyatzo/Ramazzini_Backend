@@ -26,6 +26,7 @@ const CAMPOS_CONSUMIDOS_POR_TIPO: Record<string, string[]> = {
     'ojoDerechoLejanaCegueraTotal',
     'ojoIzquierdoCercanaCegueraTotal',
     'ojoDerechoCercanaCegueraTotal',
+    'sinCorreccionNoEvaluablePorLentesContacto',
     'ojoIzquierdoLejanaSinCorreccion',
     'ojoDerechoLejanaSinCorreccion',
     'sinCorreccionLejanaInterpretacion',

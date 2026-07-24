@@ -23,6 +23,10 @@ export class ExamenVista extends Document {
   @Prop({ default: false })
   ojoDerechoCegueraTotal: boolean;
 
+  // AV sin corrección no evaluable (p. ej. paciente con lentes de contacto)
+  @Prop({ default: false })
+  sinCorreccionNoEvaluablePorLentesContacto: boolean;
+
   // Obsoleto: mantener para backward compat al leer docs antiguos
   @Prop({ required: false })
   ojoIzquierdoLejanaCegueraTotal?: boolean;
