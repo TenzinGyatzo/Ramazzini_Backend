@@ -24,7 +24,6 @@ export const ACTION_TYPE_TO_CLASS: Record<
   | typeof AuditEventClass.CLASS_2_SOFT_FAIL
 > = {
   [AuditActionType.DOC_FINALIZE]: AuditEventClass.CLASS_1_HARD_FAIL,
-  [AuditActionType.DOC_CREATE_CORRECTION]: AuditEventClass.CLASS_1_HARD_FAIL,
   [AuditActionType.DOC_ANULATE]: AuditEventClass.CLASS_1_HARD_FAIL,
   [AuditActionType.ADMIN_ROLES_PERMISSIONS]: AuditEventClass.CLASS_1_HARD_FAIL,
   [AuditActionType.ADMIN_CONFIG_SIRES]: AuditEventClass.CLASS_1_HARD_FAIL,
@@ -38,7 +37,6 @@ export const ACTION_TYPE_TO_CLASS: Record<
   [AuditActionType.SESSION_UNLOCK_FAIL]: AuditEventClass.CLASS_2_SOFT_FAIL,
   [AuditActionType.DOC_CREATE_DRAFT]: AuditEventClass.CLASS_2_SOFT_FAIL,
   [AuditActionType.DOC_UPDATE_DRAFT]: AuditEventClass.CLASS_2_SOFT_FAIL,
-  [AuditActionType.SYSTEM_JOB]: AuditEventClass.CLASS_2_SOFT_FAIL,
   [AuditActionType.ADMIN_USER_ASSIGNMENTS]: AuditEventClass.CLASS_1_HARD_FAIL,
   // Phase 5: user and signer mutations
   [AuditActionType.USER_INVITATION_SENT]: AuditEventClass.CLASS_1_HARD_FAIL,

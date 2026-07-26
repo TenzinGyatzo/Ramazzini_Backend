@@ -70,10 +70,7 @@ import {
   TecnicoFirmanteInforme,
 } from './types/firmante-informe.types';
 import { ProveedorInformeResolver } from './helpers/proveedor-informe.resolver';
-import { ResolveProveedorInformeResult } from './types/proveedor-informe.types';
-import { AuditService } from '../audit/audit.service';
-import { AuditActionType } from '../audit/constants/audit-action-type';
-import { AuditEventClass } from '../audit/constants/audit-event-class';
+
 @Injectable()
 export class InformesService {
   // Mapeo de tipos de documentos técnicos a nombres legibles
@@ -127,34 +124,7 @@ export class InformesService {
     private readonly resultadosClinicosService: ResultadosClinicosService,
     private readonly firmanteHelper: FirmanteHelper,
     private readonly proveedorInformeResolver: ProveedorInformeResolver,
-    @Inject(forwardRef(() => AuditService))
-    private readonly auditService: AuditService,
   ) {}
-
-  private async recordDelegatedPdfRegenerationIfNeeded(
-    proveedorInforme: ResolveProveedorInformeResult,
-    actorUserId: string,
-    documentType: string,
-    documentId: string,
-  ): Promise<void> {
-    if (!proveedorInforme.delegated || !proveedorInforme.proveedorBrandingId) {
-      return;
-    }
-
-    await this.auditService.record({
-      proveedorSaludId: proveedorInforme.proveedorBrandingId,
-      actorId: actorUserId,
-      actionType: AuditActionType.EXPEDIENTE_PDF_REGENERADO_DELEGADO,
-      resourceType: documentType,
-      resourceId: documentId,
-      payload: {
-        colaboracionId: proveedorInforme.colaboracionId,
-        proveedorBrandingId: proveedorInforme.proveedorBrandingId,
-        trabajadorContext: true,
-      },
-      eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
-    });
-  }
 
   private mapMedicoFirmante(
     medicoFirmante: {
@@ -1029,12 +999,6 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'antidoping',
-      antidopingId,
-    );
 
     return rutaCompleta;
   
@@ -1527,18 +1491,11 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'aptitud',
-      aptitudId,
-    );
 
     return rutaCompleta;
   
     });
   }
-
 
   async getInformeConstanciaAptitud(
     empresaId: string,
@@ -1689,12 +1646,6 @@ export class InformesService {
 
     // Generar y guardar el PDF
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'constanciaAptitud',
-      constanciaAptitudId,
-    );
 
     return rutaCompleta; // Retorna la ruta del archivo generado
   
@@ -1927,12 +1878,6 @@ export class InformesService {
 
     // Generar y guardar el PDF
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'audiometria',
-      audiometriaId,
-    );
 
     return rutaCompleta; // Retorna la ruta del archivo generado
   
@@ -2215,12 +2160,6 @@ export class InformesService {
       footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'certificado',
-      certificadoId,
-    );
 
     return rutaCompleta;
   
@@ -2368,12 +2307,6 @@ export class InformesService {
       footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'certificadoExpedito',
-      certificadoExpeditoId,
-    );
 
     return rutaCompleta;
   
@@ -2601,12 +2534,6 @@ export class InformesService {
       footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'examenVista',
-      examenVistaId,
-    );
 
     return rutaCompleta;
   
@@ -2865,12 +2792,6 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'exploracionFisica',
-      exploracionFisicaId,
-    );
 
     return rutaCompleta;
   
@@ -3174,12 +3095,6 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'historiaClinica',
-      historiaClinicaId,
-    );
 
     return rutaCompleta;
   
@@ -3432,12 +3347,6 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'notaMedica',
-      notaMedicaId,
-    );
     return rutaCompleta;
   
     });
@@ -3716,12 +3625,6 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'notaAclaratoria',
-      notaAclaratoriaId,
-    );
     return rutaCompleta;
   
     });
@@ -4025,12 +3928,6 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'controlPrenatal',
-      controlPrenatalId,
-    );
     return rutaCompleta;
   
     });
@@ -4265,12 +4162,6 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'historiaOtologica',
-      historiaOtologicaId,
-    );
     return rutaCompleta;
   
     });
@@ -4511,12 +4402,6 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'previoEspirometria',
-      previoEspirometriaId,
-    );
     return rutaCompleta;
   
     });
@@ -4894,12 +4779,6 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'entrevistaPsicologica',
-      entrevistaPsicologicaId,
-    );
 
     return rutaCompleta;
   
@@ -5135,12 +5014,6 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'trastornosEstadoAnimo',
-      trastornosEstadoAnimoId,
-    );
 
     return rutaCompleta;
   
@@ -5414,12 +5287,6 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'cuestionarioProdromalBreve',
-      cuestionarioProdromalBreveId,
-    );
 
     return rutaCompleta;
   
@@ -5648,12 +5515,6 @@ export class InformesService {
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'trastornoLimitePersonalidad',
-      trastornoLimitePersonalidadId,
-    );
 
     return rutaCompleta;
   
@@ -5885,8 +5746,6 @@ export class InformesService {
         firma: null,
       };
 
-
-
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
@@ -5947,12 +5806,6 @@ export class InformesService {
       footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'eventoSeguimientoCardiometabolico',
-      eventoSeguimientoCardiometabolicoId,
-    );
 
     return rutaCompleta;
   
@@ -6159,8 +6012,6 @@ export class InformesService {
         firma: null,
       };
 
-
-
     const tecnicoFirmante =
       await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
     const datosTecnicoFirmante = tecnicoFirmante
@@ -6221,12 +6072,6 @@ export class InformesService {
       footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
-    await this.recordDelegatedPdfRegenerationIfNeeded(
-      proveedorInforme,
-      userId,
-      'longitudinalCardiometabolico',
-      informeLongitudinalCardiometabolicoId,
-    );
 
     return rutaCompleta;
   

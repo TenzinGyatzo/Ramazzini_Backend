@@ -2,9 +2,6 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-  Optional,
-  Inject,
-  forwardRef,
 } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
@@ -17,9 +14,6 @@ import { CentroTrabajo } from 'src/modules/centros-trabajo/schemas/centro-trabaj
 import { Trabajador } from 'src/modules/trabajadores/schemas/trabajador.schema';
 import { Empresa } from 'src/modules/empresas/schemas/empresa.schema';
 import { WORKER_LINKED_COLLECTIONS } from 'src/modules/trabajadores/constants/worker-linked-collections.constant';
-import { AuditService } from '../audit/audit.service';
-import { AuditActionType } from '../audit/constants/audit-action-type';
-import { AuditEventClass } from '../audit/constants/audit-event-class';
 
 @Injectable()
 export class ExpedienteColaboracionService {
@@ -34,9 +28,6 @@ export class ExpedienteColaboracionService {
     private readonly empresaModel: Model<Empresa>,
     @InjectConnection()
     private readonly connection: Connection,
-    @Optional()
-    @Inject(forwardRef(() => AuditService))
-    private readonly auditService?: AuditService,
   ) {}
 
   async crearDesdeClon(
@@ -101,8 +92,6 @@ export class ExpedienteColaboracionService {
         ),
       ),
     );
-
-    await this.recordColaboracionCreated(colaboracion, params);
 
     return colaboracion;
   }
@@ -197,7 +186,7 @@ export class ExpedienteColaboracionService {
     return String(trabajador.idProveedorSaludOrigen);
   }
 
-  async revocar(colaboracionId: string, actorId?: string): Promise<void> {
+  async revocar(colaboracionId: string, _actorId?: string): Promise<void> {
     const colaboracion = await this.colaboracionModel
       .findById(colaboracionId)
       .exec();
@@ -207,32 +196,6 @@ export class ExpedienteColaboracionService {
 
     colaboracion.estado = ExpedienteColaboracionEstado.REVOCADA;
     await colaboracion.save();
-
-    if (this.auditService) {
-      const payload = {
-        colaboracionId: String(colaboracion._id),
-        centroOrigenId: String(colaboracion.centroOrigenId),
-        centroDestinoId: String(colaboracion.centroDestinoId),
-      };
-      await this.auditService.record({
-        proveedorSaludId: String(colaboracion.proveedorOrigenId),
-        actorId: actorId ?? null,
-        actionType: AuditActionType.EXPEDIENTE_COLABORACION_REVOKED,
-        resourceType: 'ExpedienteColaboracion',
-        resourceId: String(colaboracion._id),
-        payload,
-        eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
-      });
-      await this.auditService.record({
-        proveedorSaludId: String(colaboracion.proveedorDestinoId),
-        actorId: actorId ?? null,
-        actionType: AuditActionType.EXPEDIENTE_COLABORACION_REVOKED,
-        resourceType: 'ExpedienteColaboracion',
-        resourceId: String(colaboracion._id),
-        payload,
-        eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
-      });
-    }
   }
 
   async hasDocumentAtPathForTrabajador(
@@ -276,42 +239,5 @@ export class ExpedienteColaboracionService {
       .replace(/^\/+/, '')
       .replace(/^expedientes-medicos\/?/, '')
       .replace(/\\/g, '/');
-  }
-
-  private async recordColaboracionCreated(
-    colaboracion: ExpedienteColaboracion,
-    params: CrearColaboracionDesdeClonParams,
-  ): Promise<void> {
-    if (!this.auditService) {
-      return;
-    }
-
-    const payload = {
-      colaboracionId: String(colaboracion._id),
-      centroOrigenId: params.centroOrigenId,
-      centroDestinoId: params.centroDestinoId,
-      trabajadores: params.trabajadorMap.length,
-      cloneRunId: params.cloneRunId ?? null,
-    };
-
-    await this.auditService.record({
-      proveedorSaludId: params.proveedorOrigenId,
-      actorId: params.creadoPor ?? params.autorizadoPor ?? null,
-      actionType: AuditActionType.EXPEDIENTE_COLABORACION_CREATED,
-      resourceType: 'ExpedienteColaboracion',
-      resourceId: String(colaboracion._id),
-      payload,
-      eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
-    });
-
-    await this.auditService.record({
-      proveedorSaludId: params.proveedorDestinoId,
-      actorId: params.creadoPor ?? params.autorizadoPor ?? null,
-      actionType: AuditActionType.EXPEDIENTE_COLABORACION_CREATED,
-      resourceType: 'ExpedienteColaboracion',
-      resourceId: String(colaboracion._id),
-      payload,
-      eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
-    });
   }
 }

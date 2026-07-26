@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
   ExpedienteColaboracion,
@@ -8,7 +8,6 @@ import { ExpedienteColaboracionService } from './expediente-colaboracion.service
 import { CentroTrabajo, CentroTrabajoSchema } from '../centros-trabajo/schemas/centro-trabajo.schema';
 import { Trabajador, TrabajadorSchema } from '../trabajadores/schemas/trabajador.schema';
 import { Empresa, EmpresaSchema } from '../empresas/schemas/empresa.schema';
-import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
@@ -18,7 +17,6 @@ import { AuditModule } from '../audit/audit.module';
       { name: Trabajador.name, schema: TrabajadorSchema },
       { name: Empresa.name, schema: EmpresaSchema },
     ]),
-    forwardRef(() => AuditModule),
   ],
   providers: [ExpedienteColaboracionService],
   exports: [ExpedienteColaboracionService],
