@@ -1030,59 +1030,61 @@ export const notaMedicaInforme = (
         {
           columns: [
             {
-              text: [
-                // Nombre y título profesional
-                firmanteTieneLineaNombre(firmanteActivo)
-                  ? {
-                      text: `${formatearTituloYNombreFirmante(firmanteActivo)}\n`,
-                      bold: true,
-                    }
-                  : null,
+              text: footerFirmantesData?.esDocumentoFinalizado
+                ? generarFooterFirmantes(footerFirmantesData, proveedorSalud)
+                : [
+                    // Nombre y título profesional
+                    firmanteTieneLineaNombre(firmanteActivo)
+                      ? {
+                          text: `${formatearTituloYNombreFirmante(firmanteActivo)}\n`,
+                          bold: true,
+                        }
+                      : null,
 
-                // Cédula profesional (para médicos y enfermeras)
-                firmanteActivo?.numeroCedulaProfesional
-                  ? {
-                      text:
-                        proveedorSalud.pais === 'MX'
-                          ? `Cédula Profesional ${usarMedico ? 'Médico Cirujano' : ''} No. ${firmanteActivo.numeroCedulaProfesional}\n`
-                          : proveedorSalud.pais === 'GT'
-                            ? `Colegiado Activo No. ${firmanteActivo.numeroCedulaProfesional}\n`
-                            : `Registro Profesional No. ${firmanteActivo.numeroCedulaProfesional}\n`,
-                      bold: false,
-                    }
-                  : null,
+                    // Cédula profesional (para médicos y enfermeras)
+                    firmanteActivo?.numeroCedulaProfesional
+                      ? {
+                          text:
+                            proveedorSalud.pais === 'MX'
+                              ? `Cédula Profesional ${usarMedico ? 'Médico Cirujano' : ''} No. ${firmanteActivo.numeroCedulaProfesional}\n`
+                              : proveedorSalud.pais === 'GT'
+                                ? `Colegiado Activo No. ${firmanteActivo.numeroCedulaProfesional}\n`
+                                : `Registro Profesional No. ${firmanteActivo.numeroCedulaProfesional}\n`,
+                          bold: false,
+                        }
+                      : null,
 
-                // Cédula de especialista (solo para médicos)
-                usarMedico && medicoFirmante?.numeroCedulaEspecialista
-                  ? {
-                      text:
-                        proveedorSalud.pais === 'MX'
-                          ? `Cédula Especialidad Med. del Trab. No. ${medicoFirmante.numeroCedulaEspecialista}\n`
-                          : `Registro de Especialidad No. ${medicoFirmante.numeroCedulaEspecialista}\n`,
-                      bold: false,
-                    }
-                  : null,
+                    // Cédula de especialista (solo para médicos)
+                    usarMedico && medicoFirmante?.numeroCedulaEspecialista
+                      ? {
+                          text:
+                            proveedorSalud.pais === 'MX'
+                              ? `Cédula Especialidad Med. del Trab. No. ${medicoFirmante.numeroCedulaEspecialista}\n`
+                              : `Registro de Especialidad No. ${medicoFirmante.numeroCedulaEspecialista}\n`,
+                          bold: false,
+                        }
+                      : null,
 
-                // Credencial adicional
-                firmanteActivo?.nombreCredencialAdicional &&
-                firmanteActivo?.numeroCredencialAdicional
-                  ? {
-                      text: `${(firmanteActivo.nombreCredencialAdicional + ' No. ' + firmanteActivo.numeroCredencialAdicional).substring(0, 60)}${(firmanteActivo.nombreCredencialAdicional + ' No. ' + firmanteActivo.numeroCredencialAdicional).length > 60 ? '...' : ''}\n`,
-                      bold: false,
-                    }
-                  : null,
+                    // Credencial adicional
+                    firmanteActivo?.nombreCredencialAdicional &&
+                    firmanteActivo?.numeroCredencialAdicional
+                      ? {
+                          text: `${(firmanteActivo.nombreCredencialAdicional + ' No. ' + firmanteActivo.numeroCredencialAdicional).substring(0, 60)}${(firmanteActivo.nombreCredencialAdicional + ' No. ' + firmanteActivo.numeroCredencialAdicional).length > 60 ? '...' : ''}\n`,
+                          bold: false,
+                        }
+                      : null,
 
-                // Texto específico para enfermeras
-                usarEnfermera && enfermeraFirmante?.sexo
-                  ? {
-                      text:
-                        enfermeraFirmante.sexo === 'Femenino'
-                          ? 'Enfermera responsable de la nota\n'
-                          : 'Enfermero responsable de la nota\n',
-                      bold: false,
-                    }
-                  : null,
-              ].filter((item) => item !== null), // Filtrar los nulos para que no aparezcan en el informe
+                    // Texto específico para enfermeras
+                    usarEnfermera && enfermeraFirmante?.sexo
+                      ? {
+                          text:
+                            enfermeraFirmante.sexo === 'Femenino'
+                              ? 'Enfermera responsable de la nota\n'
+                              : 'Enfermero responsable de la nota\n',
+                          bold: false,
+                        }
+                      : null,
+                  ].filter((item) => item !== null), // Filtrar los nulos para que no aparezcan en el informe
               fontSize: 8,
               margin: [40, 0, 0, 0],
             },
