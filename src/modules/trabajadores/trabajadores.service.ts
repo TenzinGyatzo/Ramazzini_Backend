@@ -3754,43 +3754,58 @@ export class TrabajadoresService {
 
     let eliminacionesExitosas = 0;
     let erroresEncontrados = 0;
-    const archivosAEliminar: string[] = [];
+    const archivosAEliminar: { filePath: string; required: boolean }[] = [];
 
     try {
-      // 1️⃣ Verificar que los archivos existen antes de eliminarlos
       for (const doc of documentos) {
         let fullPath = '';
+        // DocumentoExterno no es regenerable: su ausencia debe fallar la cascada.
+        // PDFs Ramazzini (rutaPDF) sí lo son: ENOENT u otros fallos FS son best-effort.
+        let required = false;
 
         if ('rutaPDF' in doc && doc.rutaPDF) {
           fullPath = this.buildFilePath(doc.rutaPDF, doc);
+          required = false;
         } else if ('rutaDocumento' in doc && doc.rutaDocumento) {
           fullPath = this.buildFilePath(doc.rutaDocumento, doc);
+          // Uploads externos (p. ej. DocumentoExterno): deben existir para permitir la cascada.
+          required = true;
         }
 
         if (!fullPath) continue;
 
-        archivosAEliminar.push(fullPath);
+        archivosAEliminar.push({ filePath: fullPath, required });
       }
 
-      // Si no hay archivos a eliminar, salir exitosamente
       if (archivosAEliminar.length === 0) return true;
 
-      // 2️⃣ Intentar eliminar los archivos solo después de confirmar la eliminación en la base de datos
       await Promise.all(
-        archivosAEliminar.map(async (filePath) => {
+        archivosAEliminar.map(async ({ filePath, required }) => {
           try {
-            await this.filesService.deleteFile(filePath);
+            const result = await this.filesService.deleteFile(filePath);
+            if (result === 'missing' && required) {
+              erroresEncontrados++;
+              console.error(
+                `[ERROR] Documento externo no disponible para eliminar: ${filePath}`,
+              );
+              return;
+            }
             eliminacionesExitosas++;
           } catch (error) {
-            erroresEncontrados++;
-            console.error(
-              `[ERROR] No se pudo eliminar el archivo ${filePath}: ${error.message}`,
-            );
+            if (required) {
+              erroresEncontrados++;
+              console.error(
+                `[ERROR] No se pudo eliminar el archivo ${filePath}: ${error.message}`,
+              );
+            } else {
+              console.warn(
+                `[ARCHIVOS] Fallo best-effort al eliminar PDF regenerable ${filePath}: ${error.message}`,
+              );
+            }
           }
         }),
       );
 
-      // Solo mostrar resumen final
       if (erroresEncontrados > 0) {
         console.log(
           `[ARCHIVOS] ⚠️ Eliminación completada con ${erroresEncontrados} errores de ${archivosAEliminar.length} archivos`,
@@ -3973,6 +3988,12 @@ export class TrabajadoresService {
             throw new Error('Error eliminando archivos.');
           }
         }
+
+        // Resultados clínicos no tienen archivo propio (pueden vincular DocumentoExterno,
+        // que ya se elimina arriba). Se borran siempre, incluso si no hay otros documentos.
+        await this.resultadoClinicoModel
+          .deleteMany({ idTrabajador: id })
+          .session(session);
 
         // 4️⃣ Eliminar el trabajador
         const result = await this.trabajadorModel
