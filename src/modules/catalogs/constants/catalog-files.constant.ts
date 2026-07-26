@@ -6,7 +6,7 @@ export const CATALOG_BACKUPS_DIR = 'catalogs/normalized/backups';
 export const CATALOG_FILES: Partial<Record<CatalogType, string>> = {
   [CatalogType.CIE10]: 'diagnosticos_sis.csv',
   [CatalogType.CLUES]: 'establecimiento_de_salud_sis.csv',
-  [CatalogType.ENTIDADES_FEDERATIVAS]: 'enitades_federativas.csv',
+  [CatalogType.ENTIDADES_FEDERATIVAS]: 'entidades_federativas.csv',
   [CatalogType.MUNICIPIOS]: 'municipios.csv',
   [CatalogType.LOCALIDADES]: 'localidades.csv',
   [CatalogType.CODIGOS_POSTALES]: 'codigos_postales.csv',
