@@ -8,6 +8,11 @@ import * as path from 'path';
 import { Response } from 'express';
 import { EXPEDIENTES_DIR } from 'src/utils/expedientes-dir';
 import { OrganizationalAccessService } from 'src/utils/organizational-access.service';
+import { AuditService } from '../audit/audit.service';
+import { AuditActionType } from '../audit/constants/audit-action-type';
+import { AuditEventClass } from '../audit/constants/audit-event-class';
+import { UsersService } from '../users/users.service';
+import { RegistrarDescargaArchivoClinicoDto } from './dto/registrar-descarga-archivo-clinico.dto';
 
 const ALLOWED_EXTENSIONS = new Set(['.pdf', '.png', '.jpg', '.jpeg']);
 
@@ -22,6 +27,8 @@ const MIME_BY_EXTENSION: Record<string, string> = {
 export class ClinicalFilesService {
   constructor(
     private readonly organizationalAccessService: OrganizationalAccessService,
+    private readonly auditService: AuditService,
+    private readonly usersService: UsersService,
   ) {}
 
   resolveSafePath(relativePath: string): string {
@@ -69,6 +76,38 @@ export class ClinicalFilesService {
       relativePath,
     );
     await this.sendClinicalFile(absolutePath, res);
+  }
+
+  async recordClinicalFileDownload(
+    userId: string,
+    dto: RegistrarDescargaArchivoClinicoDto,
+  ): Promise<void> {
+    await this.organizationalAccessService.assertUserCanAccessTrabajadorId(
+      userId,
+      dto.trabajadorId,
+    );
+
+    const user = await this.usersService.findById(userId, 'idProveedorSalud');
+    if (!user?.idProveedorSalud) {
+      return;
+    }
+
+    await this.auditService.record({
+      proveedorSaludId: String(user.idProveedorSalud),
+      actorId: userId,
+      actionType: AuditActionType.CLINICAL_FILE_DOWNLOAD,
+      resourceType: dto.documentType,
+      resourceId: dto.documentId,
+      payload: {
+        documentId: dto.documentId,
+        documentType: dto.documentType,
+        trabajadorId: dto.trabajadorId,
+        ...(dto.filename != null ? { filename: dto.filename } : {}),
+        ...(dto.mediaKind != null ? { mediaKind: dto.mediaKind } : {}),
+        ...(dto.origen != null ? { origen: dto.origen } : {}),
+      },
+      eventClass: AuditEventClass.CLASS_2_SOFT_FAIL,
+    });
   }
 
   async assertFileExists(absolutePath: string): Promise<void> {

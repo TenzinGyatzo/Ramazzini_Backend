@@ -171,6 +171,32 @@ export class OrganizationalAccessService {
     );
   }
 
+  /** Resuelve empresa/centro desde el trabajador y aplica el assert de acceso. */
+  async assertUserCanAccessTrabajadorId(
+    userId: string,
+    trabajadorId: string,
+  ): Promise<void> {
+    const trabajador = await this.trabajadorModel.findById(trabajadorId).exec();
+    if (!trabajador) {
+      throw new NotFoundException('Trabajador no encontrado');
+    }
+
+    const centro = await this.centroTrabajoModel
+      .findById(trabajador.idCentroTrabajo)
+      .exec();
+    if (!centro) {
+      throw new ForbiddenException(
+        'No tiene permiso para acceder a este recurso',
+      );
+    }
+
+    await this.assertUserCanAccessTrabajador(
+      userId,
+      String(centro.idEmpresa),
+      trabajadorId,
+    );
+  }
+
   async assertUserCanAccessClinicalPath(
     userId: string,
     relativePath: string,

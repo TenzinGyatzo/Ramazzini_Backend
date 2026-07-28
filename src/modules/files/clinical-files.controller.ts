@@ -1,12 +1,31 @@
-import { Controller, Get, Head, Req, Res } from '@nestjs/common';
+import { Controller, Get, Head, Post, Body, Req, Res } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { ClinicalFilesService } from './clinical-files.service';
+import { RegistrarDescargaArchivoClinicoDto } from './dto/registrar-descarga-archivo-clinico.dto';
 
 type AuthenticatedRequest = Request & { userId: string };
 
+@ApiTags('Expedientes médicos — archivos')
 @Controller('expedientes-medicos')
 export class ClinicalFilesController {
   constructor(private readonly clinicalFilesService: ClinicalFilesService) {}
+
+  @Post('registrar-descarga')
+  @ApiOperation({
+    summary:
+      'Registra en auditoría una descarga exitosa de archivo clínico o documento externo',
+  })
+  @ApiResponse({ status: 201, description: 'Evento de auditoría registrado' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({ status: 403, description: 'Sin acceso al trabajador' })
+  async registrarDescarga(
+    @Body() dto: RegistrarDescargaArchivoClinicoDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    await this.clinicalFilesService.recordClinicalFileDownload(req.userId, dto);
+    return { ok: true };
+  }
 
   @Get('*')
   async getClinicalFile(@Req() req: AuthenticatedRequest, @Res() res: Response) {

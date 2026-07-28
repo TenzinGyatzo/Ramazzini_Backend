@@ -127,6 +127,12 @@ describe('NOM-024 Audit Trail (04-06)', () => {
       expect(AuditActionType.AUDIT_EXPORT_DOWNLOAD).toBe(
         'AUDIT_EXPORT_DOWNLOAD',
       );
+      expect(AuditActionType.CLINICAL_FILE_DOWNLOAD).toBe(
+        'CLINICAL_FILE_DOWNLOAD',
+      );
+      expect(AuditActionType.CLINICAL_FILES_MERGED_DOWNLOAD).toBe(
+        'CLINICAL_FILES_MERGED_DOWNLOAD',
+      );
     });
 
     it('each audit event has single actor (actorId or SYSTEM)', async () => {

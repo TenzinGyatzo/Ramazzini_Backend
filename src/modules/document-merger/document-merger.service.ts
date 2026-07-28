@@ -6,12 +6,51 @@ import { PDFDocument } from 'pdf-lib';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ClinicalFilesService } from '../files/clinical-files.service';
+import { AuditService } from '../audit/audit.service';
+import { AuditActionType } from '../audit/constants/audit-action-type';
+import { AuditEventClass } from '../audit/constants/audit-event-class';
+import { UsersService } from '../users/users.service';
+import { OrganizationalAccessService } from 'src/utils/organizational-access.service';
+import { MergeDocumentItemDto } from './dto/merge-documents.dto';
 
 const MAX_FILES_PER_MERGE = 50;
 
 @Injectable()
 export class DocumentMergerService {
-  constructor(private readonly clinicalFilesService: ClinicalFilesService) {}
+  constructor(
+    private readonly clinicalFilesService: ClinicalFilesService,
+    private readonly auditService: AuditService,
+    private readonly usersService: UsersService,
+    private readonly organizationalAccessService: OrganizationalAccessService,
+  ) {}
+
+  async mergeDocuments(
+    userId: string,
+    trabajadorId: string,
+    documents: MergeDocumentItemDto[],
+  ): Promise<Buffer> {
+    if (!Array.isArray(documents) || documents.length === 0) {
+      throw new BadRequestException('Se requiere al menos un archivo para fusionar');
+    }
+
+    if (documents.length > MAX_FILES_PER_MERGE) {
+      throw new BadRequestException(
+        `No se pueden fusionar más de ${MAX_FILES_PER_MERGE} archivos a la vez`,
+      );
+    }
+
+    await this.organizationalAccessService.assertUserCanAccessTrabajadorId(
+      userId,
+      trabajadorId,
+    );
+
+    const filePaths = documents.map((d) => d.filePath);
+    const buffer = await this.mergeFiles(userId, filePaths);
+
+    await this.recordMergedDownload(userId, trabajadorId, documents);
+
+    return buffer;
+  }
 
   async mergeFiles(userId: string, filePaths: string[]): Promise<Buffer> {
     if (!Array.isArray(filePaths) || filePaths.length === 0) {
@@ -84,5 +123,33 @@ export class DocumentMergerService {
       }
       throw new BadRequestException('No se pudieron fusionar los archivos');
     }
+  }
+
+  private async recordMergedDownload(
+    userId: string,
+    trabajadorId: string,
+    documents: MergeDocumentItemDto[],
+  ): Promise<void> {
+    const user = await this.usersService.findById(userId, 'idProveedorSalud');
+    if (!user?.idProveedorSalud) {
+      return;
+    }
+
+    await this.auditService.record({
+      proveedorSaludId: String(user.idProveedorSalud),
+      actorId: userId,
+      actionType: AuditActionType.CLINICAL_FILES_MERGED_DOWNLOAD,
+      resourceType: 'Trabajador',
+      resourceId: trabajadorId,
+      payload: {
+        trabajadorId,
+        count: documents.length,
+        documents: documents.map(({ documentId, documentType }) => ({
+          documentId,
+          documentType,
+        })),
+      },
+      eventClass: AuditEventClass.CLASS_2_SOFT_FAIL,
+    });
   }
 }

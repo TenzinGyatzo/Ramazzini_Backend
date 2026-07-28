@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { FilesService } from './files.service';
 import { ClinicalFilesService } from './clinical-files.service';
@@ -6,6 +6,8 @@ import { ClinicalFilesController } from './clinical-files.controller';
 import { BrandingAssetsService } from './branding-assets.service';
 import { BrandingAssetsController } from './branding-assets.controller';
 import { OrganizationalAccessModule } from 'src/utils/organizational-access.module';
+import { AuditModule } from '../audit/audit.module';
+import { UsersModule } from '../users/users.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import {
   MedicoFirmante,
@@ -27,6 +29,8 @@ import {
 @Module({
   imports: [
     OrganizationalAccessModule,
+    forwardRef(() => AuditModule),
+    forwardRef(() => UsersModule),
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: MedicoFirmante.name, schema: MedicoFirmanteSchema },

@@ -54,6 +54,9 @@ export const ACTION_TYPE_TO_CLASS: Record<
   [AuditActionType.WORKERS_EXPORT_EXCEL]: AuditEventClass.CLASS_2_SOFT_FAIL,
   [AuditActionType.DASHBOARD_REPORT_EXPORTED]:
     AuditEventClass.CLASS_2_SOFT_FAIL,
+  [AuditActionType.CLINICAL_FILE_DOWNLOAD]: AuditEventClass.CLASS_2_SOFT_FAIL,
+  [AuditActionType.CLINICAL_FILES_MERGED_DOWNLOAD]:
+    AuditEventClass.CLASS_2_SOFT_FAIL,
   [AuditActionType.EMPRESA_UPDATED]: AuditEventClass.CLASS_2_SOFT_FAIL,
   [AuditActionType.EMPRESA_DELETED]: AuditEventClass.CLASS_1_HARD_FAIL,
   [AuditActionType.EMPRESA_DELETE_DENIED]: AuditEventClass.CLASS_2_SOFT_FAIL,
