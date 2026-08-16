@@ -10,7 +10,7 @@ import { Model, Types } from 'mongoose';
 import { Trabajador } from './entities/trabajador.entity';
 import { CreateTrabajadorDto } from './dto/create-trabajador.dto';
 import { UpdateTrabajadorDto } from './dto/update-trabajador.dto';
-import { normalizeTrabajadorData, applyTrabajadorPersonNames } from 'src/utils/normalization';
+import { normalizeTrabajadorData, applyTrabajadorPersonNames, collapsePersonNameWhitespace } from 'src/utils/normalization';
 import moment from 'moment';
 import * as xlsx from 'xlsx';
 import { format } from 'date-fns';
@@ -24,13 +24,17 @@ import {
   validateOptionalCurpSinRegimen,
 } from 'src/utils/curp-sires-validation.util';
 import { NOM024ComplianceUtil } from 'src/utils/nom024-compliance.util';
-import { validateTrabajadorNames } from 'src/utils/name-validator.util';
+import { validateTrabajadorNames, validatePersonNameFields, assertValidPersonNameFields } from 'src/utils/name-validator.util';
 import { RegulatoryPolicyService } from 'src/utils/regulatory-policy.service';
 import type { RegulatoryPolicy } from 'src/utils/regulatory-policy.service';
 import { validateWorkerIdentificationImmutable } from 'src/utils/worker-identification-immutability.util';
 import { createRegulatoryError } from 'src/utils/regulatory-error-helper';
 import { RegulatoryErrorCode } from 'src/utils/regulatory-error-codes';
-import { validateFechaNacimiento } from '../expedientes/validators/date-validators';
+import {
+  AGE_MAX_YEARS,
+  AGE_MIN_YEARS,
+  validateFechaNacimiento,
+} from '../expedientes/validators/date-validators';
 import { CatalogsService } from '../catalogs/catalogs.service';
 import { GeographyValidator } from '../catalogs/validators/geography.validator';
 import {
@@ -39,6 +43,7 @@ import {
   MUNICIPIOS_RESIDENCIA_ESPECIALES,
   validateResidenciaGeoGiisCoherence,
 } from 'src/utils/giis-residencia-geo.util';
+import { validatePaisEntidadCoherence } from 'src/utils/geo-selector-rules.util';
 import { Antidoping } from '../expedientes/schemas/antidoping.schema';
 import { AptitudPuesto } from '../expedientes/schemas/aptitud-puesto.schema';
 import { Audiometria } from '../expedientes/schemas/audiometria.schema';
@@ -64,10 +69,8 @@ import { CuestionarioProdromalBreve } from '../expedientes/schemas/cuestionario-
 import { TrastornoLimitePersonalidad } from '../expedientes/schemas/trastorno-limite-personalidad.schema';
 import { generateFolioFromWorkerData } from 'src/utils/folio-generator.util';
 import { WorkerFusionService } from './worker-fusion.service';
-import {
-  CreateTrabajadorResult,
-  TransferirTrabajadorResult,
-} from './interfaces/duplicate-match.interface';
+import { normalizeSexoCurpInput } from 'src/utils/sexo-curp.util';
+import { isTrabajadorSexoCurp } from './constants/trabajador-sexo-curp.constants';
 import { AuditService } from '../audit/audit.service';
 import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
@@ -78,6 +81,10 @@ import {
   ResultadoGlobal,
   TipoEstudio,
 } from '../resultados-clinicos/schemas/resultado-clinico.schema';
+import type {
+  CreateTrabajadorResult,
+  TransferirTrabajadorResult,
+} from './interfaces/duplicate-match.interface';
 
 @Injectable()
 export class TrabajadoresService {
@@ -253,15 +260,15 @@ export class TrabajadoresService {
       });
     } else {
       const entidadNac = dto.entidadNacimiento.trim().toUpperCase();
-      // Allow edge case codes: NE (Extranjero), 00 (No disponible)
-      if (entidadNac !== 'NE' && entidadNac !== '00') {
+      // Centinelas GIIS (00, 88, 99, NE) + estatales INEGI 01-32
+      if (!isEntidadResidenciaEspecial(entidadNac)) {
         const isValid = await this.catalogsService.validateINEGI(
           'estado',
           entidadNac,
         );
         if (!isValid) {
           errors.push(
-            `Entidad de nacimiento inválida: ${entidadNac}. Debe ser código INEGI válido (01-32, NE, o 00)`,
+            `Entidad de nacimiento inválida: ${entidadNac}. Debe ser código INEGI/GIIS válido (01-32, 00, 88 o 99)`,
           );
         }
       }
@@ -395,13 +402,43 @@ export class TrabajadoresService {
       }
     }
 
+    // 7. sexoCURP (requerido SIRES — sexo RENAPO para CURP, independiente de sexo biológico)
+    if (dto.sexoCURP == null || !isTrabajadorSexoCurp(Number(dto.sexoCURP))) {
+      throw createRegulatoryError({
+        errorCode: RegulatoryErrorCode.REGIMEN_FIELD_REQUIRED,
+        details: { fieldName: 'sexoCURP' },
+        regime: policy.regime,
+      });
+    }
+
     errors.push(
-      ...validateResidenciaGeoGiisCoherence({
-        paisResidencia: dto.paisResidencia,
-        entidadResidencia: dto.entidadResidencia?.trim().toUpperCase(),
-        municipioResidencia: dto.municipioResidencia?.trim(),
-        localidadResidencia: dto.localidadResidencia?.trim(),
-      }),
+      ...validatePaisEntidadCoherence(
+        Number(dto.paisNacimiento),
+        dto.entidadNacimiento.trim().toUpperCase(),
+        'trabajador',
+        'nacimiento',
+      ),
+    );
+
+    errors.push(
+      ...validatePaisEntidadCoherence(
+        Number(dto.paisResidencia),
+        dto.entidadResidencia?.trim().toUpperCase() ?? '',
+        'trabajador',
+        'residencia',
+      ),
+    );
+
+    errors.push(
+      ...validateResidenciaGeoGiisCoherence(
+        {
+          paisResidencia: dto.paisResidencia,
+          entidadResidencia: dto.entidadResidencia?.trim().toUpperCase(),
+          municipioResidencia: dto.municipioResidencia?.trim(),
+          localidadResidencia: dto.localidadResidencia?.trim(),
+        },
+        'trabajador',
+      ),
     );
 
     if (errors.length > 0) {
@@ -418,6 +455,7 @@ export class TrabajadoresService {
     trabajadorData?: {
       fechaNacimiento?: Date;
       sexo?: string;
+      sexoCURP?: number;
       entidadNacimiento?: string;
       nombre?: string;
       primerApellido?: string;
@@ -446,7 +484,7 @@ export class TrabajadoresService {
         true,
         {
           fechaNacimiento: trabajadorData?.fechaNacimiento,
-          sexo: trabajadorData?.sexo,
+          sexoCURP: normalizeSexoCurpInput(trabajadorData?.sexoCURP) ?? undefined,
           entidadNacimiento: trabajadorData?.entidadNacimiento,
           nombre: trabajadorData?.nombre,
           primerApellido: trabajadorData?.primerApellido,
@@ -547,10 +585,16 @@ export class TrabajadoresService {
     const policy =
       await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
     applyTrabajadorPersonNames(normalizedDto, policy?.regime);
+    assertValidPersonNameFields(
+      normalizedDto.nombre,
+      normalizedDto.primerApellido,
+      normalizedDto.segundoApellido,
+      policy?.regime,
+    );
     await this.validateNOM024PersonFields(normalizedDto, proveedorSaludId);
     await this.validateCURPForMX(normalizedDto.curp, proveedorSaludId, {
       fechaNacimiento: normalizedDto.fechaNacimiento,
-      sexo: normalizedDto.sexo,
+      sexoCURP: normalizeSexoCurpInput(normalizedDto.sexoCURP) ?? undefined,
       entidadNacimiento: normalizedDto.entidadNacimiento,
       nombre: normalizedDto.nombre,
       primerApellido: normalizedDto.primerApellido,
@@ -1880,6 +1924,13 @@ export class TrabajadoresService {
       ...normalizedDto,
     } as CreateTrabajadorDto;
 
+    assertValidPersonNameFields(
+      mergedDto.nombre,
+      mergedDto.primerApellido,
+      mergedDto.segundoApellido,
+      policy?.regime,
+    );
+
     await this.validateNOM024PersonFields(mergedDto, proveedorSaludId);
 
     // Use updated CURP if provided, otherwise use current CURP for validation
@@ -1889,7 +1940,7 @@ export class TrabajadoresService {
         : trabajadorActual.curp;
     await this.validateCURPForMX(curpToValidate, proveedorSaludId, {
       fechaNacimiento: mergedDto.fechaNacimiento,
-      sexo: mergedDto.sexo,
+      sexoCURP: normalizeSexoCurpInput(mergedDto.sexoCURP) ?? undefined,
       entidadNacimiento: mergedDto.entidadNacimiento,
       nombre: mergedDto.nombre,
       primerApellido: mergedDto.primerApellido,
@@ -2362,6 +2413,7 @@ export class TrabajadoresService {
       nombre: worker.nombre ? String(worker.nombre).trim() : '',
       fechaNacimiento: this.parseDate(worker.fechaNacimiento),
       sexo: worker.sexo ? String(worker.sexo).trim() : '',
+      sexoCURP: normalizeSexoCurpInput(worker.sexoCURP) ?? undefined,
       escolaridad: worker.escolaridad ? String(worker.escolaridad).trim() : '',
       puesto: worker.puesto ? String(worker.puesto).trim() : '',
       fechaIngreso: this.parseDate(worker.fechaIngreso),
@@ -2862,6 +2914,7 @@ export class TrabajadoresService {
   private mapExcelGeoFields(worker: Record<string, unknown>): void {
     const aliasMap: Record<string, string[]> = {
       curp: ['curp', 'CURP'],
+      sexoCURP: ['sexoCURP', 'Sexo CURP', 'sexo curp'],
       entidadNacimiento: [
         'entidadNacimiento',
         'Entidad Nacimiento',
@@ -2955,10 +3008,15 @@ export class TrabajadoresService {
 
     // Limpiar strings eliminando espacios y convirtiendo a string
     if (cleaned.primerApellido)
-      cleaned.primerApellido = String(cleaned.primerApellido).trim();
+      cleaned.primerApellido = collapsePersonNameWhitespace(
+        String(cleaned.primerApellido),
+      );
     if (cleaned.segundoApellido)
-      cleaned.segundoApellido = String(cleaned.segundoApellido).trim();
-    if (cleaned.nombre) cleaned.nombre = String(cleaned.nombre).trim();
+      cleaned.segundoApellido = collapsePersonNameWhitespace(
+        String(cleaned.segundoApellido),
+      );
+    if (cleaned.nombre)
+      cleaned.nombre = collapsePersonNameWhitespace(String(cleaned.nombre));
     if (cleaned.sexo) cleaned.sexo = String(cleaned.sexo).trim();
     if (cleaned.escolaridad)
       cleaned.escolaridad = String(cleaned.escolaridad).trim();
@@ -3010,6 +3068,13 @@ export class TrabajadoresService {
           `[NORMALIZACIÓN] Sexo: "${originalSexo}" -> "${normalizedSexo}"`,
         );
       }
+    }
+
+    const normalizedSexoCurp = normalizeSexoCurpInput(
+      cleaned.sexoCURP ?? cleaned['Sexo CURP'] ?? cleaned['sexo curp'],
+    );
+    if (normalizedSexoCurp != null) {
+      cleaned.sexoCURP = normalizedSexoCurp;
     }
 
     const nivelesEscolaridad = [
@@ -3181,21 +3246,31 @@ export class TrabajadoresService {
    * Método para validar y limpiar datos antes de procesarlos
    * Ayuda a identificar problemas temprano en la importación
    */
-  private validateAndCleanWorkerData(worker: any): {
+  private validateAndCleanWorkerData(
+    worker: any,
+    regime?: string | null,
+  ): {
     isValid: boolean;
     errors: string[];
     cleanedData: any;
   } {
     const errors: string[] = [];
     const cleanedData = this.cleanWorkerData(worker);
+    applyTrabajadorPersonNames(cleanedData, regime);
 
     // Validar campos requeridos
-    if (!worker.primerApellido || String(worker.primerApellido).trim() === '') {
-      errors.push('El primer apellido es requerido');
-    }
-
     if (!worker.nombre || String(worker.nombre).trim() === '') {
       errors.push('El nombre es requerido');
+    }
+
+    const nameLengthValidation = validatePersonNameFields(
+      cleanedData.nombre,
+      cleanedData.primerApellido,
+      cleanedData.segundoApellido,
+      regime,
+    );
+    if (!nameLengthValidation.isValid) {
+      errors.push(...nameLengthValidation.errors);
     }
 
     if (!worker.fechaNacimiento) {
@@ -3205,40 +3280,19 @@ export class TrabajadoresService {
       if (!parsedDate) {
         errors.push(`Fecha de nacimiento inválida: ${worker.fechaNacimiento}`);
       } else {
-        // Validar edad permitida para registro: 18-70 años
-        const fechaNacimiento = new Date(parsedDate);
-        const hoy = new Date();
-        const edad = hoy.getFullYear() - fechaNacimiento.getFullYear();
-        const mesActual = hoy.getMonth();
-        const mesNacimiento = fechaNacimiento.getMonth();
-        const diaActual = hoy.getDate();
-        const diaNacimiento = fechaNacimiento.getDate();
-
-        // Ajustar edad si no ha cumplido años este año
-        const edadReal =
-          mesActual < mesNacimiento ||
-          (mesActual === mesNacimiento && diaActual < diaNacimiento)
-            ? edad - 1
-            : edad;
-
-        if (edadReal < 18) {
-          errors.push(
-            `Según el registro, el trabajador tiene ${edadReal} años. La edad mínima para registrar es 18 años.`,
-          );
+        try {
+          validateFechaNacimiento(parsedDate);
+          cleanedData.fechaNacimiento = parsedDate;
+        } catch (error) {
+          const message =
+            error instanceof BadRequestException &&
+            typeof error.getResponse() === 'object' &&
+            error.getResponse() !== null &&
+            'message' in (error.getResponse() as object)
+              ? String((error.getResponse() as { message: string }).message)
+              : `Edad fuera de rango (${AGE_MIN_YEARS} a ${AGE_MAX_YEARS} años, incluyendo meses y días)`;
+          errors.push(message);
         }
-
-        if (edadReal > 70) {
-          errors.push(
-            `Según el registro, el trabajador tiene ${edadReal} años. La edad máxima para registrar es 70 años.`,
-          );
-        }
-
-        // Validar que la fecha de nacimiento no sea en el futuro
-        if (fechaNacimiento > hoy) {
-          errors.push('La fecha de nacimiento no puede ser en el futuro');
-        }
-
-        cleanedData.fechaNacimiento = parsedDate;
       }
     }
 
@@ -3452,7 +3506,7 @@ export class TrabajadoresService {
     try {
       await this.validateCURPForMX(cleanedData.curp, proveedorSaludId, {
         fechaNacimiento: cleanedData.fechaNacimiento,
-        sexo: cleanedData.sexo,
+        sexoCURP: normalizeSexoCurpInput(cleanedData.sexoCURP) ?? undefined,
         entidadNacimiento: cleanedData.entidadNacimiento,
         nombre: cleanedData.nombre,
         primerApellido: cleanedData.primerApellido,
@@ -3484,12 +3538,15 @@ export class TrabajadoresService {
     for (const worker of data) {
       try {
         // Primero validar y limpiar los datos
-        const validation = this.validateAndCleanWorkerData({
-          ...worker,
-          idCentroTrabajo,
-          createdBy,
-          updatedBy: createdBy,
-        });
+        const validation = this.validateAndCleanWorkerData(
+          {
+            ...worker,
+            idCentroTrabajo,
+            createdBy,
+            updatedBy: createdBy,
+          },
+          policy.regime,
+        );
 
         const policyErrors =
           validation.isValid

@@ -70,6 +70,17 @@ import {
   TecnicoFirmanteInforme,
 } from './types/firmante-informe.types';
 import { ProveedorInformeResolver } from './helpers/proveedor-informe.resolver';
+import {
+  FichaSnapshot,
+} from '../expedientes/schemas/ficha-snapshot.schema';
+import {
+  hasFirmantesSnapshot,
+  pickFirmanteActivoSnapshot,
+  pickNombreEmpresa,
+  pickTrabajadorForInforme,
+  mapFirmanteSnapshotToRoles,
+  resolveFooterFromSnapshot,
+} from './helpers/ficha-snapshot-informe.helper';
 
 @Injectable()
 export class InformesService {
@@ -237,6 +248,7 @@ export class InformesService {
         firma:
           (enfermera.firma as { data: string; contentType: string }) || null,
         sexo: enfermera.sexo || '',
+        sexoCURP: enfermera.sexoCURP,
         tipo: 'enfermera',
       };
     }
@@ -253,6 +265,7 @@ export class InformesService {
         numeroCredencialAdicional: tecnico.numeroCredencialAdicional || '',
         firma: (tecnico.firma as { data: string; contentType: string }) || null,
         sexo: tecnico.sexo || '',
+        sexoCURP: tecnico.sexoCURP,
         tipo: 'tecnico',
       };
     }
@@ -769,8 +782,130 @@ export class InformesService {
         'fechaEventoSeguimientoCardiometabolico',
       informeLongitudinalCardiometabolico:
         'fechaInformeLongitudinalCardiometabolico',
+      entrevistaPsicologica: 'fechaEntrevistaPsicologica',
+      trastornosEstadoAnimo: 'fechaTrastornosEstadoAnimo',
+      cuestionarioProdromalBreve: 'fechaCuestionarioProdromalBreve',
+      trastornoLimitePersonalidad: 'fechaTrastornoLimitePersonalidad',
     };
     return dateFields[tipoNormalizado] || 'fecha';
+  }
+
+  private buildDatosTrabajador(
+    trabajador: {
+      primerApellido: string;
+      segundoApellido: string;
+      nombre: string;
+      fechaNacimiento: Date;
+      escolaridad: string;
+      puesto: string;
+      sexo: string;
+      fechaIngreso?: Date | null;
+      telefono: string;
+      estadoCivil: string;
+      numeroEmpleado?: string;
+      nss?: string;
+      curp?: string;
+    },
+    fechaReferencia?: Date | string,
+  ) {
+    const fechaNacStr = convertirFechaAAAAAMMDD(trabajador.fechaNacimiento);
+    return {
+      primerApellido: trabajador.primerApellido,
+      segundoApellido: trabajador.segundoApellido,
+      nombre: trabajador.nombre,
+      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
+      escolaridad: trabajador.escolaridad,
+      edad: `${calcularEdad(fechaNacStr, fechaReferencia)} años`,
+      puesto: trabajador.puesto,
+      sexo: trabajador.sexo,
+      antiguedad: trabajador.fechaIngreso
+        ? calcularAntiguedad(
+            convertirFechaAAAAAMMDD(trabajador.fechaIngreso),
+            fechaReferencia,
+          )
+        : '-',
+      telefono: trabajador.telefono,
+      estadoCivil: trabajador.estadoCivil,
+      numeroEmpleado: trabajador.numeroEmpleado,
+      nss: trabajador.nss,
+      curp: trabajador.curp,
+    };
+  }
+
+  private resolveFichaParaInforme(
+    documento: { fichaSnapshot?: FichaSnapshot | null },
+    trabajadorLive: {
+      primerApellido: string;
+      segundoApellido: string;
+      nombre: string;
+      fechaNacimiento: Date;
+      escolaridad: string;
+      puesto: string;
+      sexo: string;
+      fechaIngreso?: Date | null;
+      telefono: string;
+      estadoCivil: string;
+      numeroEmpleado?: string;
+      nss?: string;
+      curp?: string;
+      contactoEmergenciaNombre?: string;
+      contactoEmergenciaTelefono?: string;
+    },
+    empresaLive: { nombreComercial?: string },
+    fechaReferencia?: Date | string,
+  ) {
+    const fuente = pickTrabajadorForInforme(
+      documento?.fichaSnapshot,
+      trabajadorLive,
+    );
+    return {
+      datosTrabajador: {
+        ...this.buildDatosTrabajador(fuente as typeof trabajadorLive, fechaReferencia),
+        contactoEmergenciaNombre:
+          (fuente as typeof trabajadorLive).contactoEmergenciaNombre ?? '',
+        contactoEmergenciaTelefono:
+          (fuente as typeof trabajadorLive).contactoEmergenciaTelefono ?? '',
+      },
+      nombreEmpresa: pickNombreEmpresa(
+        documento?.fichaSnapshot,
+        empresaLive?.nombreComercial || '',
+      ),
+    };
+  }
+
+  private applyFirmantesSnapshot(
+    documento: { fichaSnapshot?: FichaSnapshot | null; estado?: string },
+    live: {
+      datosMedicoFirmante: MedicoFirmanteInforme;
+      datosEnfermeraFirmante?: EnfermeraFirmanteInforme;
+      datosTecnicoFirmante?: TecnicoFirmanteInforme;
+      footerData?: FooterFirmantesData;
+    },
+  ): {
+    datosMedicoFirmante: MedicoFirmanteInforme;
+    datosEnfermeraFirmante?: EnfermeraFirmanteInforme;
+    datosTecnicoFirmante?: TecnicoFirmanteInforme;
+    footerData?: FooterFirmantesData;
+  } {
+    const snapshot = documento?.fichaSnapshot;
+    if (!hasFirmantesSnapshot(snapshot)) {
+      return live;
+    }
+
+    const activo = pickFirmanteActivoSnapshot(snapshot, documento.estado);
+    const roles = mapFirmanteSnapshotToRoles(activo);
+    return {
+      datosMedicoFirmante: roles.datosMedicoFirmante,
+      datosEnfermeraFirmante:
+        live.datosEnfermeraFirmante !== undefined
+          ? roles.datosEnfermeraFirmante
+          : undefined,
+      datosTecnicoFirmante:
+        live.datosTecnicoFirmante !== undefined
+          ? roles.datosTecnicoFirmante
+          : undefined,
+      footerData: resolveFooterFromSnapshot(snapshot, documento.estado),
+    };
   }
 
   /**
@@ -806,31 +941,17 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('antidoping', antidopingId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
 
     const antidoping = await this.expedientesService.findDocumentLean(
       'antidoping',
       antidopingId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      antidoping,
+      trabajador,
+      empresa,
+      antidoping.fechaAntidoping,
     );
     const datosAntidoping = {
       fechaAntidoping: antidoping.fechaAntidoping,
@@ -924,6 +1045,7 @@ export class InformesService {
         primerApellido: enfermeraFirmante.primerApellido || "",
         segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
+        sexoCURP: enfermeraFirmante.sexoCURP,
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
@@ -950,6 +1072,7 @@ export class InformesService {
         primerApellido: tecnicoFirmante.primerApellido || "",
         segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
+        sexoCURP: tecnicoFirmante.sexoCURP,
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
@@ -987,15 +1110,22 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(antidoping, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = antidopingInforme(
       nombreEmpresa,
       datosTrabajador,
       datosAntidoping,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosTecnicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
@@ -1055,31 +1185,17 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('aptitud', aptitudId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
 
     const aptitud = await this.expedientesService.findDocumentLean(
       'aptitud',
       aptitudId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      aptitud,
+      trabajador,
+      empresa,
+      aptitud.fechaAptitudPuesto,
     );
 
     const datosAptitud = {
@@ -1467,6 +1583,11 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(aptitud, {
+      datosMedicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = aptitudPuestoInforme(
       nombreEmpresa,
       datosTrabajador,
@@ -1481,12 +1602,12 @@ export class InformesService {
       datosResultadoClinicoEspirometria,
       datosResultadoClinicoRayosX,
       datosResultadoClinicoAnalisisLaboratorio,
-      datosMedicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
       {
         ...datosProveedorSalud,
         semaforizacionActivada: datosProveedorSalud.semaforizacionActivada ?? false,
       },
-      footerData,
+      firmantesInforme.footerData,
       filasTamizajePsicologia,
     );
 
@@ -1506,31 +1627,17 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('constanciaAptitud', constanciaAptitudId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
 
     const constanciaAptitud = await this.expedientesService.findDocumentLean(
       'constanciaAptitud',
       constanciaAptitudId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      constanciaAptitud,
+      trabajador,
+      empresa,
+      constanciaAptitud.fechaConstanciaAptitud,
     );
     const datosConstanciaAptitud = {
       fechaConstanciaAptitud: constanciaAptitud.fechaConstanciaAptitud,
@@ -1632,16 +1739,21 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(constanciaAptitud, {
+      datosMedicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = constanciaAptitudInforme(
       nombreEmpresa,
       datosTrabajador,
       datosConstanciaAptitud,
-      datosMedicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
       {
         ...datosProveedorSalud,
         semaforizacionActivada: datosProveedorSalud.semaforizacionActivada ?? false,
       },
-      footerData,
+      firmantesInforme.footerData,
     );
 
     // Generar y guardar el PDF
@@ -1662,31 +1774,17 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('audiometria', audiometriaId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
 
     const audiometria = await this.expedientesService.findDocumentLean(
       'audiometria',
       audiometriaId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      audiometria,
+      trabajador,
+      empresa,
+      audiometria.fechaAudiometria,
     );
     const datosAudiometria = {
       fechaAudiometria: audiometria.fechaAudiometria,
@@ -1799,6 +1897,7 @@ export class InformesService {
         primerApellido: enfermeraFirmante.primerApellido || "",
         segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
+        sexoCURP: enfermeraFirmante.sexoCURP,
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
@@ -1825,6 +1924,7 @@ export class InformesService {
         primerApellido: tecnicoFirmante.primerApellido || "",
         segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
+        sexoCURP: tecnicoFirmante.sexoCURP,
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
@@ -1865,15 +1965,22 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(audiometria, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = audiometriaInforme(
       nombreEmpresa,
       datosTrabajador,
       datosAudiometria,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosTecnicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
 
     // Generar y guardar el PDF
@@ -1893,31 +2000,17 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('certificado', certificadoId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
 
     const certificado = await this.expedientesService.findDocumentLean(
       'certificado',
       certificadoId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      certificado,
+      trabajador,
+      empresa,
+      certificado.fechaCertificado,
     );
     const datosCertificado = {
       fechaCertificado: certificado.fechaCertificado,
@@ -2149,15 +2242,20 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(certificado, {
+      datosMedicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = certificadoInforme(
       nombreEmpresa,
       datosTrabajador,
       datosCertificado,
       datosExploracionFisica,
       datosExamenVista,
-      datosMedicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
 
@@ -2175,31 +2273,17 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('certificadoExpedito', certificadoExpeditoId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
 
     const certificadoExpedito = await this.expedientesService.findDocumentLean(
       'certificadoExpedito',
       certificadoExpeditoId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      certificadoExpedito,
+      trabajador,
+      empresa,
+      certificadoExpedito.fechaCertificadoExpedito,
     );
     const datosCertificadoExpedito = {
       fechaCertificadoExpedito: certificadoExpedito.fechaCertificadoExpedito,
@@ -2298,13 +2382,18 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(certificadoExpedito, {
+      datosMedicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = certificadoExpeditoInforme(
       nombreEmpresa,
       datosTrabajador,
       datosCertificadoExpedito,
-      datosMedicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
 
@@ -2322,31 +2411,17 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('examenVista', examenVistaId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
 
     const examenVista = await this.expedientesService.findDocumentLean(
       'examenVista',
       examenVistaId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      examenVista,
+      trabajador,
+      empresa,
+      examenVista.fechaExamenVista,
     );
     const datosExamenVistaDoc = {
       fechaExamenVista: examenVista.fechaExamenVista,
@@ -2456,6 +2531,7 @@ export class InformesService {
           primerApellido: enfermeraFirmante.primerApellido || '',
           segundoApellido: enfermeraFirmante.segundoApellido || '',
           sexo: enfermeraFirmante.sexo || '',
+          sexoCURP: enfermeraFirmante.sexoCURP,
           tituloProfesional: enfermeraFirmante.tituloProfesional || '',
           numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || '',
           nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || '',
@@ -2484,6 +2560,7 @@ export class InformesService {
           primerApellido: tecnicoFirmante.primerApellido || '',
           segundoApellido: tecnicoFirmante.segundoApellido || '',
           sexo: tecnicoFirmante.sexo || '',
+          sexoCURP: tecnicoFirmante.sexoCURP,
           tituloProfesional: tecnicoFirmante.tituloProfesional || '',
           numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || '',
           nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || '',
@@ -2523,15 +2600,22 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(examenVista, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = examenVistaInforme(
       nombreEmpresa,
       datosTrabajador,
       datosExamenVistaDoc,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosTecnicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
 
@@ -2548,33 +2632,18 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('exploracionFisica', exploracionFisicaId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
 
     const exploracionFisica = await this.expedientesService.findDocumentLean(
       'exploracionFisica',
       exploracionFisicaId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      exploracionFisica,
+      trabajador,
+      empresa,
+      exploracionFisica.fechaExploracionFisica,
     );
 
     const datosExploracionFisica = {
@@ -2715,6 +2784,7 @@ export class InformesService {
         primerApellido: enfermeraFirmante.primerApellido || "",
         segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
+        sexoCURP: enfermeraFirmante.sexoCURP,
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
@@ -2741,6 +2811,7 @@ export class InformesService {
         primerApellido: tecnicoFirmante.primerApellido || "",
         segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
+        sexoCURP: tecnicoFirmante.sexoCURP,
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
@@ -2780,15 +2851,22 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(exploracionFisica, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = exploracionFisicaInforme(
       nombreEmpresa,
       datosTrabajador,
       datosExploracionFisica,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosTecnicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
@@ -2807,35 +2885,17 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('historiaClinica', historiaClinicaId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
-
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-      contactoEmergenciaNombre: trabajador.contactoEmergenciaNombre ?? '',
-      contactoEmergenciaTelefono: trabajador.contactoEmergenciaTelefono ?? '',
-    };
 
     const historiaClinica = await this.expedientesService.findDocumentLean(
       'historiaClinica',
       historiaClinicaId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      historiaClinica,
+      trabajador,
+      empresa,
+      historiaClinica.fechaHistoriaClinica,
     );
 
     const datosHistoriaClinica = {
@@ -3020,6 +3080,7 @@ export class InformesService {
         primerApellido: enfermeraFirmante.primerApellido || "",
         segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
+        sexoCURP: enfermeraFirmante.sexoCURP,
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
@@ -3046,6 +3107,7 @@ export class InformesService {
         primerApellido: tecnicoFirmante.primerApellido || "",
         segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
+        sexoCURP: tecnicoFirmante.sexoCURP,
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
@@ -3083,15 +3145,22 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(historiaClinica, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData: footerFirmantesData,
+    });
+
     const docDefinition = historiaClinicaInforme(
       nombreEmpresa,
       datosTrabajador,
       datosHistoriaClinica,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosTecnicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
       datosProveedorSalud,
-      footerFirmantesData,
+      firmantesInforme.footerData,
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
@@ -3110,29 +3179,16 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('notaMedica', notaMedicaId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-    const nombreEmpresa = empresa.nombreComercial;
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
     const notaMedica = await this.expedientesService.findDocumentLean(
       'notaMedica',
       notaMedicaId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      notaMedica,
+      trabajador,
+      empresa,
+      notaMedica.fechaNotaMedica,
     );
     const datosNotaMedica = {
       tipoNota: notaMedica.tipoNota,
@@ -3166,6 +3222,7 @@ export class InformesService {
       diagnostico: notaMedica.diagnostico, // Legacy field, opcional
       // NOM-024: CIE-10 Diagnosis Codes
       codigoCIE10Principal: notaMedica.codigoCIE10Principal,
+      diagnosticoTextoPrincipal: notaMedica.diagnosticoTextoPrincipal,
       codigosCIE10Complementarios: notaMedica.codigosCIE10Complementarios,
       relacionTemporal: notaMedica.relacionTemporal,
       primeraVezDiagnostico2: notaMedica.primeraVezDiagnostico2,
@@ -3175,6 +3232,7 @@ export class InformesService {
       codigoCIEDiagnostico3: notaMedica.codigoCIEDiagnostico3,
       confirmacionDiagnostica3: notaMedica.confirmacionDiagnostica3,
       diagnosticoTexto: notaMedica.diagnosticoTexto,
+      diagnosticoTexto3: notaMedica.diagnosticoTexto3,
       confirmacionDiagnostica: notaMedica.confirmacionDiagnostica,
       muestraConfirmacionDiagnostica1: false,
       muestraConfirmacionDiagnostica2: false,
@@ -3284,6 +3342,7 @@ export class InformesService {
           primerApellido: enfermeraFirmante.primerApellido || '',
           segundoApellido: enfermeraFirmante.segundoApellido || '',
           sexo: enfermeraFirmante.sexo || '',
+          sexoCURP: enfermeraFirmante.sexoCURP,
           tituloProfesional: enfermeraFirmante.tituloProfesional || '',
           numeroCedulaProfesional:
             enfermeraFirmante.numeroCedulaProfesional || '',
@@ -3335,14 +3394,20 @@ export class InformesService {
     }
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+    const firmantesInforme = this.applyFirmantesSnapshot(notaMedica, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = notaMedicaInforme(
       nombreEmpresa,
       datosTrabajador,
       datosNotaMedica,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
       afiliacionLabelByCode,
     );
 
@@ -3361,29 +3426,16 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('notaAclaratoria', notaAclaratoriaId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-    const nombreEmpresa = empresa.nombreComercial;
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
     const notaAclaratoria = await this.expedientesService.findDocumentLean(
       'notaAclaratoria',
       notaAclaratoriaId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      notaAclaratoria,
+      trabajador,
+      empresa,
+      notaAclaratoria.fechaNotaAclaratoria,
     );
 
     // Obtener documento origen completo
@@ -3547,6 +3599,7 @@ export class InformesService {
           primerApellido: enfermeraFirmante.primerApellido || '',
           segundoApellido: enfermeraFirmante.segundoApellido || '',
           sexo: enfermeraFirmante.sexo || '',
+          sexoCURP: enfermeraFirmante.sexoCURP,
           tituloProfesional: enfermeraFirmante.tituloProfesional || '',
           numeroCedulaProfesional:
             enfermeraFirmante.numeroCedulaProfesional || '',
@@ -3613,15 +3666,21 @@ export class InformesService {
     }
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+    const firmantesInforme = this.applyFirmantesSnapshot(notaAclaratoria, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = notaAclaratoriaInforme(
       nombreEmpresa,
       datosTrabajador,
       datosNotaAclaratoria,
       datosDocumentoOrigen,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
@@ -3639,29 +3698,16 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('controlPrenatal', controlPrenatalId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-    const nombreEmpresa = empresa.nombreComercial;
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
     const controlPrenatal = await this.expedientesService.findDocumentLean(
       'controlPrenatal',
       controlPrenatalId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      controlPrenatal,
+      trabajador,
+      empresa,
+      controlPrenatal.fechaInicioControlPrenatal,
     );
     const datosControlPrenatal = {
       fechaInicioControlPrenatal: controlPrenatal.fechaInicioControlPrenatal,
@@ -3853,6 +3899,7 @@ export class InformesService {
         primerApellido: enfermeraFirmante.primerApellido || "",
         segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
+        sexoCURP: enfermeraFirmante.sexoCURP,
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
@@ -3879,6 +3926,7 @@ export class InformesService {
         primerApellido: tecnicoFirmante.primerApellido || "",
         segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
+        sexoCURP: tecnicoFirmante.sexoCURP,
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
@@ -3916,15 +3964,22 @@ export class InformesService {
     }
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+    const firmantesInforme = this.applyFirmantesSnapshot(controlPrenatal, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = controlPrenatalInforme(
       nombreEmpresa,
       datosTrabajador,
       datosControlPrenatal,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosTecnicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
@@ -3942,29 +3997,16 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('historiaOtologica', historiaOtologicaId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-    const nombreEmpresa = empresa.nombreComercial;
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
     const historiaOtologica = await this.expedientesService.findDocumentLean(
       'historiaOtologica',
       historiaOtologicaId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      historiaOtologica,
+      trabajador,
+      empresa,
+      historiaOtologica.fechaHistoriaOtologica,
     );
     const datosHistoriaOtologica = {
       fechaHistoriaOtologica: historiaOtologica.fechaHistoriaOtologica,
@@ -4087,6 +4129,7 @@ export class InformesService {
         primerApellido: enfermeraFirmante.primerApellido || "",
         segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
+        sexoCURP: enfermeraFirmante.sexoCURP,
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
@@ -4113,6 +4156,7 @@ export class InformesService {
         primerApellido: tecnicoFirmante.primerApellido || "",
         segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
+        sexoCURP: tecnicoFirmante.sexoCURP,
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
@@ -4150,15 +4194,22 @@ export class InformesService {
     }
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+    const firmantesInforme = this.applyFirmantesSnapshot(historiaOtologica, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = historiaOtologicaInforme(
       nombreEmpresa,
       datosTrabajador,
       datosHistoriaOtologica,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosTecnicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
@@ -4176,29 +4227,16 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('previoEspirometria', previoEspirometriaId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-    const nombreEmpresa = empresa.nombreComercial;
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
     const previoEspirometria = await this.expedientesService.findDocumentLean(
       'previoEspirometria',
       previoEspirometriaId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      previoEspirometria,
+      trabajador,
+      empresa,
+      previoEspirometria.fechaPrevioEspirometria,
     );
     const datosPrevioEspirometria = {
       fechaPrevioEspirometria: previoEspirometria.fechaPrevioEspirometria,
@@ -4327,6 +4365,7 @@ export class InformesService {
         primerApellido: enfermeraFirmante.primerApellido || "",
         segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
+        sexoCURP: enfermeraFirmante.sexoCURP,
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
@@ -4353,6 +4392,7 @@ export class InformesService {
         primerApellido: tecnicoFirmante.primerApellido || "",
         segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
+        sexoCURP: tecnicoFirmante.sexoCURP,
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
@@ -4390,15 +4430,22 @@ export class InformesService {
     }
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+    const firmantesInforme = this.applyFirmantesSnapshot(previoEspirometria, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = previoEspirometriaInforme(
       nombreEmpresa,
       datosTrabajador,
       datosPrevioEspirometria,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosTecnicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
       datosProveedorSalud,
-      footerFirmantesData,
+      firmantesInforme.footerData,
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
@@ -4416,29 +4463,16 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('receta', recetaId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-    const nombreEmpresa = empresa.nombreComercial;
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
     const receta = await this.expedientesService.findDocumentLean(
       'receta',
       recetaId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      receta,
+      trabajador,
+      empresa,
+      receta.fechaReceta,
     );
     const datosReceta = {
       fechaReceta: receta.fechaReceta,
@@ -4487,6 +4521,7 @@ export class InformesService {
         primerApellido: enfermeraFirmante.primerApellido || "",
         segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
+        sexoCURP: enfermeraFirmante.sexoCURP,
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
@@ -4522,14 +4557,20 @@ export class InformesService {
     }
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+    const firmantesInforme = this.applyFirmantesSnapshot(receta, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      footerData: footerFirmantesData,
+    });
+
     const docDefinition = recetaInforme(
       nombreEmpresa,
       datosTrabajador,
       datosReceta,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
       datosProveedorSalud,
-      footerFirmantesData,
+      firmantesInforme.footerData,
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
@@ -4547,33 +4588,18 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('entrevistaPsicologica', entrevistaPsicologicaId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
 
     const entrevistaPsicologica = await this.expedientesService.findDocumentLean(
       'entrevistaPsicologica',
       entrevistaPsicologicaId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      entrevistaPsicologica,
+      trabajador,
+      empresa,
+      entrevistaPsicologica.fechaEntrevistaPsicologica,
     );
 
     const datosEntrevistaPsicologica = {
@@ -4702,6 +4728,7 @@ export class InformesService {
         primerApellido: enfermeraFirmante.primerApellido || "",
         segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
+        sexoCURP: enfermeraFirmante.sexoCURP,
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
@@ -4728,6 +4755,7 @@ export class InformesService {
         primerApellido: tecnicoFirmante.primerApellido || "",
         segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
+        sexoCURP: tecnicoFirmante.sexoCURP,
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
@@ -4767,15 +4795,22 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(entrevistaPsicologica, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = entrevistaPsicologicaInforme(
       nombreEmpresa,
       datosTrabajador,
       datosEntrevistaPsicologica,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosTecnicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
@@ -4794,33 +4829,18 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('trastornosEstadoAnimo', trastornosEstadoAnimoId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
 
     const trastornosEstadoAnimo = await this.expedientesService.findDocumentLean(
       'trastornosEstadoAnimo',
       trastornosEstadoAnimoId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      trastornosEstadoAnimo,
+      trabajador,
+      empresa,
+      trastornosEstadoAnimo.fechaTrastornosEstadoAnimo,
     );
 
     const datosTrastornosEstadoAnimo = {
@@ -4937,6 +4957,7 @@ export class InformesService {
         primerApellido: enfermeraFirmante.primerApellido || "",
         segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
+        sexoCURP: enfermeraFirmante.sexoCURP,
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
@@ -4963,6 +4984,7 @@ export class InformesService {
         primerApellido: tecnicoFirmante.primerApellido || "",
         segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
+        sexoCURP: tecnicoFirmante.sexoCURP,
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
@@ -5002,15 +5024,22 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(trastornosEstadoAnimo, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = trastornosEstadoAnimoInforme(
       nombreEmpresa,
       datosTrabajador,
       datosTrastornosEstadoAnimo,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosTecnicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
@@ -5029,35 +5058,20 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('cuestionarioProdromalBreve', cuestionarioProdromalBreveId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
 
     const cuestionarioProdromalBreve =
       await this.expedientesService.findDocumentLean(
         'cuestionarioProdromalBreve',
         cuestionarioProdromalBreveId,
       );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      cuestionarioProdromalBreve,
+      trabajador,
+      empresa,
+      cuestionarioProdromalBreve.fechaCuestionarioProdromalBreve,
+    );
 
     const datosCuestionarioProdromalBreve = {
       fechaCuestionarioProdromalBreve:
@@ -5210,6 +5224,7 @@ export class InformesService {
         primerApellido: enfermeraFirmante.primerApellido || "",
         segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
+        sexoCURP: enfermeraFirmante.sexoCURP,
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
@@ -5236,6 +5251,7 @@ export class InformesService {
         primerApellido: tecnicoFirmante.primerApellido || "",
         segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
+        sexoCURP: tecnicoFirmante.sexoCURP,
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
@@ -5275,15 +5291,22 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(cuestionarioProdromalBreve, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = cuestionarioProdromalBreveInforme(
       nombreEmpresa,
       datosTrabajador,
       datosCuestionarioProdromalBreve,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosTecnicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
@@ -5302,35 +5325,20 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('trastornoLimitePersonalidad', trastornoLimitePersonalidadId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
 
     const trastornoLimitePersonalidad =
       await this.expedientesService.findDocumentLean(
         'trastornoLimitePersonalidad',
         trastornoLimitePersonalidadId,
       );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      trastornoLimitePersonalidad,
+      trabajador,
+      empresa,
+      trastornoLimitePersonalidad.fechaTrastornoLimitePersonalidad,
+    );
 
     const datosTrastornoLimitePersonalidad = {
       fechaTrastornoLimitePersonalidad:
@@ -5438,6 +5446,7 @@ export class InformesService {
         primerApellido: enfermeraFirmante.primerApellido || "",
         segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
+        sexoCURP: enfermeraFirmante.sexoCURP,
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
@@ -5464,6 +5473,7 @@ export class InformesService {
         primerApellido: tecnicoFirmante.primerApellido || "",
         segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
+        sexoCURP: tecnicoFirmante.sexoCURP,
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
@@ -5503,15 +5513,22 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(trastornoLimitePersonalidad, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = trastornoLimitePersonalidadInforme(
       nombreEmpresa,
       datosTrabajador,
       datosTrastornoLimitePersonalidad,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosTecnicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
 
     await this.printer.createPdf(docDefinition, rutaCompleta);
@@ -5529,6 +5546,7 @@ export class InformesService {
     const empresa = await this.empresasService.findOne(empresaId);
     const nombreEmpresa = empresa.nombreComercial;
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
+
     const datosTrabajador = {
       primerApellido: trabajador.primerApellido,
       segundoApellido: trabajador.segundoApellido,
@@ -5601,35 +5619,20 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('eventoSeguimientoCardiometabolico', eventoSeguimientoCardiometabolicoId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
 
     const eventoSeguimientoCardiometabolico =
       await this.expedientesService.findDocumentLean(
         'eventoSeguimientoCardiometabolico',
         eventoSeguimientoCardiometabolicoId,
       );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      eventoSeguimientoCardiometabolico,
+      trabajador,
+      empresa,
+      eventoSeguimientoCardiometabolico.fechaEventoSeguimientoCardiometabolico,
+    );
 
     let footerData: FooterFirmantesData | undefined = footerFirmantesData;
 
@@ -5728,6 +5731,7 @@ export class InformesService {
         primerApellido: enfermeraFirmante.primerApellido || "",
         segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
+        sexoCURP: enfermeraFirmante.sexoCURP,
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
@@ -5754,6 +5758,7 @@ export class InformesService {
         primerApellido: tecnicoFirmante.primerApellido || "",
         segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
+        sexoCURP: tecnicoFirmante.sexoCURP,
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
@@ -5795,15 +5800,22 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(eventoSeguimientoCardiometabolico, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = eventoSeguimientoCardiometabolicoInforme(
       nombreEmpresa,
       datosTrabajador,
       datosEventoSeguimientoCardiometabolico,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosTecnicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
 
@@ -5827,35 +5839,20 @@ export class InformesService {
   ): Promise<string> {
     return this.withPdfGenerationStatus('informeLongitudinalCardiometabolico', informeLongitudinalCardiometabolicoId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
-
-    const nombreEmpresa = empresa.nombreComercial;
-
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
-    const datosTrabajador = {
-      primerApellido: trabajador.primerApellido,
-      segundoApellido: trabajador.segundoApellido,
-      nombre: trabajador.nombre,
-      nacimiento: convertirFechaADDMMAAAA(trabajador.fechaNacimiento),
-      escolaridad: trabajador.escolaridad,
-      edad: `${calcularEdad(convertirFechaAAAAAMMDD(trabajador.fechaNacimiento))} años`,
-      puesto: trabajador.puesto,
-      sexo: trabajador.sexo,
-      antiguedad: trabajador.fechaIngreso
-        ? calcularAntiguedad(convertirFechaAAAAAMMDD(trabajador.fechaIngreso))
-        : '-',
-      telefono: trabajador.telefono,
-      estadoCivil: trabajador.estadoCivil,
-      numeroEmpleado: trabajador.numeroEmpleado,
-      nss: trabajador.nss,
-      curp: trabajador.curp,
-    };
 
     const informeLongitudinalCardiometabolico =
       await this.expedientesService.findDocumentLean(
         'informeLongitudinalCardiometabolico',
         informeLongitudinalCardiometabolicoId,
       );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      informeLongitudinalCardiometabolico,
+      trabajador,
+      empresa,
+      informeLongitudinalCardiometabolico.fechaInformeLongitudinalCardiometabolico,
+    );
 
     let footerData: FooterFirmantesData | undefined = footerFirmantesData;
 
@@ -5994,6 +5991,7 @@ export class InformesService {
         primerApellido: enfermeraFirmante.primerApellido || "",
         segundoApellido: enfermeraFirmante.segundoApellido || "",
         sexo: enfermeraFirmante.sexo || "",
+        sexoCURP: enfermeraFirmante.sexoCURP,
         tituloProfesional: enfermeraFirmante.tituloProfesional || "",
         numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || "",
@@ -6020,6 +6018,7 @@ export class InformesService {
         primerApellido: tecnicoFirmante.primerApellido || "",
         segundoApellido: tecnicoFirmante.segundoApellido || "",
         sexo: tecnicoFirmante.sexo || "",
+        sexoCURP: tecnicoFirmante.sexoCURP,
         tituloProfesional: tecnicoFirmante.tituloProfesional || "",
         numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || "",
         nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || "",
@@ -6061,15 +6060,22 @@ export class InformesService {
 
     const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
 
+    const firmantesInforme = this.applyFirmantesSnapshot(informeLongitudinalCardiometabolico, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData: footerData,
+    });
+
     const docDefinition = informeLongitudinalCardiometabolicoInforme(
       nombreEmpresa,
       datosTrabajador,
       datosInformeLongitudinalCardiometabolico,
-      datosMedicoFirmante,
-      datosEnfermeraFirmante,
-      datosTecnicoFirmante,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
       datosProveedorSalud,
-      footerData,
+      firmantesInforme.footerData,
     );
     await this.printer.createPdf(docDefinition, rutaCompleta);
 

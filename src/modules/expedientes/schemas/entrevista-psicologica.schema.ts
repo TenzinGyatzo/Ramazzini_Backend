@@ -4,6 +4,7 @@ import { Trabajador } from 'src/modules/trabajadores/entities/trabajador.entity'
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 /** I. Observación general (conductual) */
 const aparienciaOpciones = [
@@ -249,3 +250,4 @@ export class EntrevistaPsicologica extends Document {
 export const EntrevistaPsicologicaSchema = SchemaFactory.createForClass(
   EntrevistaPsicologica,
 ).set('timestamps', true);
+EntrevistaPsicologicaSchema.plugin(fichaSnapshotPlugin);

@@ -7,6 +7,7 @@ export class EnfermeraFirmante extends Document {
   primerApellido?: string;
   segundoApellido?: string;
   sexo?: string;
+  sexoCURP?: number;
   tituloProfesional?: string;
   numeroCedulaProfesional?: string;
   nombreCredencialAdicional?: string;

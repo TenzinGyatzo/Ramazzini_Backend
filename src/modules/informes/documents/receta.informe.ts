@@ -201,6 +201,7 @@ interface Receta {
 interface ProveedorSalud {
   nombre: string;
   pais: string;
+  regimenRegulatorio?: string;
   perfilProveedorSalud: string;
   logotipoEmpresa: {
     data: string;
@@ -398,7 +399,7 @@ export const recetaInforme = (
             firma,
             {
               text:
-                firmanteActivo ? formatearTituloYNombreFirmante(firmanteActivo) : '',
+                firmanteActivo ? formatearTituloYNombreFirmante(firmanteActivo, proveedorSalud.regimenRegulatorio) : '',
               fontSize: 12,
               bold: true,
               alignment: 'center' as const,

@@ -7,6 +7,7 @@ import { FooterFirmantesData } from '../interfaces/firmante-data.interface';
 import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
 import { EnfermeraFirmanteInforme, MedicoFirmanteInforme, TecnicoFirmanteInforme } from '../types/firmante-informe.types';
 import { firmanteTieneLineaNombre, resolverFirmanteActivo } from '../helpers/firmante-informe.helpers';
+import { buildEnfermeraPiePaginaPdfBlock, buildTecnicoPiePaginaPdfBlock } from '../../../utils/firmante-pie-pagina.util';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -284,6 +285,7 @@ interface PrevioEspirometria {
 interface ProveedorSalud {
   nombre: string;
   pais: string;
+  regimenRegulatorio?: string;
   perfilProveedorSalud: string;
   logotipoEmpresa: {
     data: string;
@@ -1094,7 +1096,7 @@ export const previoEspirometriaInforme = (
                 // Nombre y título profesional
                 firmanteTieneLineaNombre(firmanteActivo)
                   ? {
-                      text: `${formatearTituloYNombreFirmante(firmanteActivo)}\n`,
+                      text: `${formatearTituloYNombreFirmante(firmanteActivo, proveedorSalud.regimenRegulatorio)}\n`,
                       bold: true,
                     }
                   : null,
@@ -1133,25 +1135,13 @@ export const previoEspirometriaInforme = (
                   : null,
 
                 // Texto específico para enfermeras
-                usarEnfermera && enfermeraFirmante?.sexo
-                  ? {
-                      text:
-                        enfermeraFirmante.sexo === 'Femenino'
-                          ? 'Enfermera responsable del cuestionario\n'
-                          : 'Enfermero responsable del cuestionario\n',
-                      bold: false,
-                    }
+                usarEnfermera
+                  ? buildEnfermeraPiePaginaPdfBlock(enfermeraFirmante, 'del cuestionario')
                   : null,
 
                 // Texto específico para técnicos
-                usarTecnico && tecnicoFirmante?.sexo
-                  ? {
-                      text:
-                        tecnicoFirmante.sexo === 'Femenino'
-                          ? 'Responsable de la evaluación\n'
-                          : 'Responsable de la evaluación\n',
-                      bold: false,
-                    }
+                usarTecnico
+                  ? buildTecnicoPiePaginaPdfBlock(tecnicoFirmante)
                   : null,
               ].filter((item) => item !== null), // Filtrar los nulos para que no aparezcan en el informe
               fontSize: 8,

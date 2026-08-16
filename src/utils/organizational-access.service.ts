@@ -201,7 +201,14 @@ export class OrganizationalAccessService {
     userId: string,
     relativePath: string,
   ): Promise<void> {
-    const trabajadorId = this.extractTrabajadorIdFromClinicalPath(relativePath);
+    let trabajadorId = this.extractTrabajadorIdFromClinicalPath(relativePath);
+
+    if (!trabajadorId) {
+      trabajadorId = await this.resolveTrabajadorIdFromLegacyClinicalPath(
+        relativePath,
+      );
+    }
+
     if (!trabajadorId) {
       throw new ForbiddenException('Ruta de expediente no autorizada');
     }
@@ -239,10 +246,7 @@ export class OrganizationalAccessService {
   }
 
   extractTrabajadorIdFromClinicalPath(relativePath: string): string | null {
-    const normalized = relativePath
-      .replace(/^\/+/, '')
-      .replace(/^expedientes-medicos\/?/, '');
-    const segments = normalized.split('/').filter(Boolean);
+    const segments = this.normalizeClinicalPathSegments(relativePath);
     if (segments.length < 2) {
       return null;
     }
@@ -250,6 +254,58 @@ export class OrganizationalAccessService {
     const workerFolder = segments[segments.length - 2];
     const match = workerFolder.match(TRABAJADOR_ID_FROM_FOLDER);
     return match?.[1] ?? null;
+  }
+
+  private normalizeClinicalPathSegments(relativePath: string): string[] {
+    const normalized = relativePath
+      .replace(/^\/+/, '')
+      .replace(/^expedientes-medicos\/?/, '');
+    return normalized.split('/').filter(Boolean);
+  }
+
+  /** Rutas pre-v1.0.1: carpeta del trabajador solo con `nombre`, sin `_ObjectId`. */
+  private async resolveTrabajadorIdFromLegacyClinicalPath(
+    relativePath: string,
+  ): Promise<string | null> {
+    const segments = this.normalizeClinicalPathSegments(relativePath);
+    if (segments.length < 3) {
+      return null;
+    }
+
+    const workerFolder = segments[segments.length - 2];
+    if (TRABAJADOR_ID_FROM_FOLDER.test(workerFolder)) {
+      return null;
+    }
+
+    const empresaNombre = segments[0];
+    const centroNombre = segments[1];
+    const workerNombre = workerFolder;
+
+    const empresa = await this.empresaModel
+      .findOne({ nombreComercial: empresaNombre })
+      .select('_id')
+      .lean()
+      .exec();
+    if (!empresa) {
+      return null;
+    }
+
+    const centro = await this.centroTrabajoModel
+      .findOne({ idEmpresa: empresa._id, nombreCentro: centroNombre })
+      .select('_id')
+      .lean()
+      .exec();
+    if (!centro) {
+      return null;
+    }
+
+    const trabajador = await this.trabajadorModel
+      .findOne({ idCentroTrabajo: centro._id, nombre: workerNombre })
+      .select('_id')
+      .lean()
+      .exec();
+
+    return trabajador ? String(trabajador._id) : null;
   }
 
   private async assertDelegatedClinicalPathAccess(

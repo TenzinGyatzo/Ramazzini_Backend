@@ -1,3 +1,5 @@
+import { calculateAge } from './age-calculator.util';
+
 function convertirFechaAAAAAMMDD(fecha: Date): string {
   if (isNaN(fecha.getTime())) {
     throw new Error('La fecha proporcionada no es válida.');
@@ -54,47 +56,81 @@ function convertirFechaISOaYYYYMMDD(dateString: string): string {
   return `${año}-${mes}-${dia}`;
 }
 
-function calcularEdad(dateString: string): number {
+function calcularEdad(
+  dateString: string,
+  fechaReferencia?: Date | string,
+): number {
   const fechaNacimiento = new Date(dateString);
   if (isNaN(fechaNacimiento.getTime())) {
     throw new Error('La fecha proporcionada no es válida.');
   }
 
-  const hoy = new Date().getTime();
-  const edad = Math.floor(
-    (hoy - fechaNacimiento.getTime()) / (1000 * 60 * 60 * 24 * 365),
-  );
-  return edad;
+  const referencia = fechaReferencia
+    ? new Date(fechaReferencia)
+    : new Date();
+
+  if (isNaN(referencia.getTime())) {
+    throw new Error('La fecha de referencia no es válida.');
+  }
+
+  return calculateAge(fechaNacimiento, referencia);
 }
 
-function calcularAntiguedad(dateString: string): string {
-  // Si no hay fecha de ingreso, retornar guión
+function calcularAntiguedad(
+  dateString: string,
+  fechaReferencia?: Date | string,
+): string {
   if (!dateString || dateString === '' || dateString === 'No recuerda') {
     return '-';
   }
 
   const fechaIngreso = new Date(dateString);
 
-  // Validar que la fecha sea válida
   if (isNaN(fechaIngreso.getTime())) {
     return 'Fecha inválida';
   }
 
-  const fechaIngresoMilisegundos = fechaIngreso.getTime();
-  const hoy = new Date();
-  const hoyMilisegundos = new Date().getTime();
-  const milisecondsPerWeek = 1000 * 60 * 60 * 24 * 7;
-  const antiguedadEnMilisegundos = hoyMilisegundos - fechaIngresoMilisegundos;
-  if (antiguedadEnMilisegundos <= milisecondsPerWeek) {
+  const referencia = fechaReferencia
+    ? new Date(fechaReferencia)
+    : new Date();
+
+  if (isNaN(referencia.getTime())) {
+    return 'Fecha inválida';
+  }
+
+  const antiguedadEnMilisegundos =
+    referencia.getTime() - fechaIngreso.getTime();
+  const dias = Math.floor(antiguedadEnMilisegundos / (1000 * 60 * 60 * 24));
+
+  if (dias < 7) {
     return 'Nuevo Ingreso';
   }
+
+  if (dias <= 28) {
+    const semanas = Math.floor(dias / 7);
+    return `${semanas} ${semanas === 1 ? 'semana' : 'semanas'}`;
+  }
+
   const totalMonths =
-    (hoy.getFullYear() - fechaIngreso.getFullYear()) * 12 +
-    hoy.getMonth() -
+    (referencia.getFullYear() - fechaIngreso.getFullYear()) * 12 +
+    referencia.getMonth() -
     fechaIngreso.getMonth();
   const years = Math.floor(totalMonths / 12);
   const months = totalMonths % 12;
-  return `${years} años, ${months} meses`;
+
+  if (years < 1) {
+    const mesText = months === 1 ? 'mes' : 'meses';
+    return `${months} ${mesText}`;
+  }
+
+  const mesText = months === 1 ? 'mes' : 'meses';
+  const yearText = years === 1 ? 'año' : 'años';
+
+  if (months === 0) {
+    return `${years} ${yearText}`;
+  }
+
+  return `${years} ${yearText}, ${months} ${mesText}`;
 }
 
 export {

@@ -4,6 +4,7 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 const tipoNota = ['Inicial', 'Seguimiento', 'Alta'];
 
@@ -135,7 +136,13 @@ export class NotaMedica extends Document {
   confirmacionDiagnostica3?: boolean; // Flag para crónicos/cáncer <18 (diagnóstico 3)
 
   @Prop({ required: false })
+  diagnosticoTextoPrincipal?: string; // Texto libre complementario al diagnóstico principal
+
+  @Prop({ required: false })
   diagnosticoTexto?: string; // Texto libre complementario al diagnóstico 2
+
+  @Prop({ required: false })
+  diagnosticoTexto3?: string; // Texto libre complementario al diagnóstico 3
 
   @Prop({ type: [String] })
   tratamiento: string[];
@@ -205,5 +212,6 @@ export const NotaMedicaSchema = SchemaFactory.createForClass(NotaMedica).set(
   'timestamps',
   true,
 );
+NotaMedicaSchema.plugin(fichaSnapshotPlugin);
 NotaMedicaSchema.index({ idTrabajador: 1, fechaNotaMedica: -1 });
 NotaMedicaSchema.index({ createdBy: 1, createdAt: -1 });

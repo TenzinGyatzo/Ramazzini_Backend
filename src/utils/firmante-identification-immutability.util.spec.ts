@@ -21,7 +21,10 @@ const siresPolicy: RegulatoryPolicy = {
     notaAclaratoriaEnabled: true,
     cluesFieldVisible: true,
     dailyConsentEnabled: true,
+    confidentialityAgreementEnabled: true,
     workerIdentificationImmutable: true,
+    auditTrailEnabled: true,
+    controlPrenatalEnabled: false,
   },
   validation: {
     curpFirmantes: 'required',
@@ -42,7 +45,10 @@ const sinRegimenPolicy: RegulatoryPolicy = {
     notaAclaratoriaEnabled: false,
     cluesFieldVisible: false,
     dailyConsentEnabled: false,
+    confidentialityAgreementEnabled: false,
     workerIdentificationImmutable: false,
+    auditTrailEnabled: false,
+    controlPrenatalEnabled: true,
   },
   validation: {
     curpFirmantes: 'optional',
@@ -123,6 +129,16 @@ describe('Firmante Identification Immutability (SIRES_NOM024)', () => {
         expect(response.details?.subject).toBe('firmante');
         expect(response.details?.immutableFields).toContain('primerApellido');
       }
+    });
+
+    it('should reject changes to sexoCURP in SIRES', () => {
+      expect(() =>
+        validateFirmanteIdentificationImmutable(
+          { sexoCURP: 3 },
+          makeFirmante({ sexoCURP: 1 }),
+          siresPolicy,
+        ),
+      ).toThrow(ForbiddenException);
     });
 
     it('should allow CURP conformation updates when stored CURP is generic', () => {

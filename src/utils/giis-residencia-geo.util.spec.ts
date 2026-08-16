@@ -1,5 +1,6 @@
 import {
   validateResidenciaGeoGiisCoherence,
+  requiresGenericCurpForEntidadNacimiento,
   GIIS_ENTIDAD_NO_APLICA,
   GIIS_ENTIDAD_SE_IGNORA,
   GIIS_ENTIDAD_NO_ESPECIFICADO,
@@ -12,6 +13,15 @@ import {
   PAIS_RESIDENCIA_MEXICO,
   PAIS_RESIDENCIA_NO_ESPECIFICADO,
 } from './giis-residencia-geo.util';
+
+describe('requiresGenericCurpForEntidadNacimiento', () => {
+  it('es true solo para 00 y 99', () => {
+    expect(requiresGenericCurpForEntidadNacimiento('00')).toBe(true);
+    expect(requiresGenericCurpForEntidadNacimiento('99')).toBe(true);
+    expect(requiresGenericCurpForEntidadNacimiento('09')).toBe(false);
+    expect(requiresGenericCurpForEntidadNacimiento('88')).toBe(false);
+  });
+});
 
 describe('validateResidenciaGeoGiisCoherence', () => {
   it('exige 997/9997 cuando entidad es 88', () => {

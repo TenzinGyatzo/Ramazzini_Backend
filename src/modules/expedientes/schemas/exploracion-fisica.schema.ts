@@ -10,6 +10,7 @@ import {
   CATEGORIAS_IMC_EXPLORACION_FISICA,
   CATEGORIAS_TENSION_EXPLORACION_FISICA,
 } from '../enums/clinical-categories.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 const categoriasIMC = CATEGORIAS_IMC_EXPLORACION_FISICA;
 
@@ -240,5 +241,6 @@ export class ExploracionFisica extends Document {
 export const ExploracionFisicaSchema = SchemaFactory.createForClass(
   ExploracionFisica,
 ).set('timestamps', true);
+ExploracionFisicaSchema.plugin(fichaSnapshotPlugin);
 ExploracionFisicaSchema.index({ idTrabajador: 1, fechaExploracionFisica: -1 });
 ExploracionFisicaSchema.index({ createdBy: 1, createdAt: -1 });

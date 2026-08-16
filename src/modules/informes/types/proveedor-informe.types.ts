@@ -1,6 +1,8 @@
 export interface DatosProveedorSaludInforme {
   nombre: string;
   pais: string;
+  /** Presentación de títulos de firmante en PDF; no altera schema de persistencia. */
+  regimenRegulatorio?: 'SIRES_NOM024' | 'SIN_REGIMEN' | string;
   perfilProveedorSalud: string;
   logotipoEmpresa: { data: string; contentType: string } | null;
   estado: string;
@@ -24,6 +26,7 @@ export interface ResolveProveedorInformeResult {
 export const EMPTY_DATOS_PROVEEDOR_SALUD_INFORME: DatosProveedorSaludInforme = {
   nombre: '',
   pais: '',
+  regimenRegulatorio: undefined,
   perfilProveedorSalud: '',
   logotipoEmpresa: null,
   estado: '',

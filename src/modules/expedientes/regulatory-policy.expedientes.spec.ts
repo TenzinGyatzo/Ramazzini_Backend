@@ -18,6 +18,7 @@ import { CatalogsService } from '../catalogs/catalogs.service';
 import { InformesService } from '../informes/informes.service';
 import { ProveedoresSaludService } from '../proveedores-salud/proveedores-salud.service';
 import { Cie10CatalogLookupService } from './services/cie10-catalog-lookup.service';
+import { FichaSnapshotService } from './services/ficha-snapshot.service';
 
 describe('ExpedientesService - Regulatory Policy Enforcement', () => {
   let service: ExpedientesService;
@@ -192,6 +193,10 @@ describe('ExpedientesService - Regulatory Policy Enforcement', () => {
         { provide: CatalogsService, useValue: mockCatalogsService },
         { provide: FilesService, useValue: mockFilesService },
         { provide: InformesService, useValue: mockInformesService },
+        {
+          provide: FichaSnapshotService,
+          useValue: { capturar: jest.fn().mockResolvedValue(null) },
+        },
         {
           provide: ProveedoresSaludService,
           useValue: mockProveedoresSaludService,

@@ -50,6 +50,7 @@ export interface CurpNameData {
 
 export interface CurpNameSegments {
   iniciales: string;
+  inicialesRaw: string;
   consonantes: string;
 }
 
@@ -131,8 +132,11 @@ export function deriveCurpNameSegments(data: CurpNameData): CurpNameSegments {
     pos16 = getCurpFirstInternalConsonant(nombreConsonantWord);
   }
 
+  const inicialesRaw = `${pos1}${pos2}${pos3}${pos4}`;
+
   return {
-    iniciales: applyInconvenientWordFilter(`${pos1}${pos2}${pos3}${pos4}`),
+    iniciales: applyInconvenientWordFilter(inicialesRaw),
+    inicialesRaw,
     consonantes: `${pos14}${pos15}${pos16}`,
   };
 }

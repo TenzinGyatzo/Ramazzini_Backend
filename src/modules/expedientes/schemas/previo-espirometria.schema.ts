@@ -4,6 +4,7 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 const siONo = ['SI', 'NO'];
 
@@ -180,3 +181,4 @@ export class PrevioEspirometria extends Document {
 export const PrevioEspirometriaSchema = SchemaFactory.createForClass(
   PrevioEspirometria,
 ).set('timestamps', true);
+PrevioEspirometriaSchema.plugin(fichaSnapshotPlugin);

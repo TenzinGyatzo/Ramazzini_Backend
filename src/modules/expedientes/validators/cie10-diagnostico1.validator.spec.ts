@@ -1,6 +1,11 @@
 import { validateCodigoCIEDiagnostico1 } from './cie10-diagnostico1.validator';
 import { DiagnosisRule } from '../services/cie10-catalog-lookup.service';
 
+const fechaNacimiento30 = new Date(1994, 0, 1);
+const fechaNota30 = new Date(2024, 0, 1);
+const fechaNacimiento5 = new Date(2019, 0, 1);
+const fechaNacimiento10 = new Date(2014, 0, 1);
+
 describe('validateCodigoCIEDiagnostico1', () => {
   const c530Rule: DiagnosisRule = {
     key: 'C530',
@@ -37,7 +42,8 @@ describe('validateCodigoCIEDiagnostico1', () => {
       codigoCIE10Principal: 'C53',
       relacionTemporal: 0,
       sexoBiologico: 2,
-      edad: 30,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 2,
       lookup,
       catalogExists,
@@ -50,7 +56,8 @@ describe('validateCodigoCIEDiagnostico1', () => {
       codigoCIE10Principal: 'C530',
       relacionTemporal: 0,
       sexoBiologico: 1,
-      edad: 30,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 2,
       lookup,
       catalogExists,
@@ -63,7 +70,8 @@ describe('validateCodigoCIEDiagnostico1', () => {
       codigoCIE10Principal: 'C530',
       relacionTemporal: 0,
       sexoBiologico: 3,
-      edad: 5,
+      fechaNacimiento: fechaNacimiento5,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 2,
       lookup,
       catalogExists,
@@ -77,7 +85,8 @@ describe('validateCodigoCIEDiagnostico1', () => {
       codigoCIE10Principal: 'CP01',
       relacionTemporal: 0,
       sexoBiologico: 1,
-      edad: 10,
+      fechaNacimiento: fechaNacimiento10,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 4,
       lookup,
       catalogExists,
@@ -91,7 +100,8 @@ describe('validateCodigoCIEDiagnostico1', () => {
       codigoCIE10Principal: 'C530',
       relacionTemporal: 0,
       sexoBiologico: 2,
-      edad: 30,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 99,
       lookup,
       catalogExists,
@@ -99,5 +109,28 @@ describe('validateCodigoCIEDiagnostico1', () => {
     expect(issues.some((i) => i.reason === 'tipo_personal_no_permitido')).toBe(
       true,
     );
+  });
+
+  it('blocks when TIPO_PERSONAL_1VEZ_CE is empty', async () => {
+    const emptyTpLookup = jest.fn(async (code: string) => {
+      if (code === 'C530') {
+        return { ...c530Rule, tipoPersonal1VezCe: [], tipoPersonalSubsecCe: [1] };
+      }
+      return lookup(code);
+    });
+    const issues = await validateCodigoCIEDiagnostico1({
+      codigoCIE10Principal: 'C530',
+      relacionTemporal: 0,
+      sexoBiologico: 2,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
+      tipoPersonal: 2,
+      lookup: emptyTpLookup,
+      catalogExists,
+    });
+    expect(issues.some((i) => i.reason === 'tipo_personal_no_permitido')).toBe(
+      true,
+    );
+    expect(issues[0]?.message).toMatch(/no autoriza ningún tipo de personal/i);
   });
 });

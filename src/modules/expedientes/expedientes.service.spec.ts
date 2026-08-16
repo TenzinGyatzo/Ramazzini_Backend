@@ -11,6 +11,7 @@ import { NOM024ComplianceUtil } from '../../utils/nom024-compliance.util';
 import { FilesService } from '../files/files.service';
 import { CatalogsService } from '../catalogs/catalogs.service';
 import { InformesService } from '../informes/informes.service';
+import { FichaSnapshotService } from './services/ficha-snapshot.service';
 import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
 
 describe('ExpedientesService - Document Immutability Enforcement', () => {
@@ -133,6 +134,10 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         { provide: CatalogsService, useValue: mockCatalogsService },
         { provide: FilesService, useValue: mockFilesService },
         { provide: InformesService, useValue: mockInformesService },
+        {
+          provide: FichaSnapshotService,
+          useValue: { capturar: jest.fn().mockResolvedValue(null) },
+        },
       ],
     }).compile();
 

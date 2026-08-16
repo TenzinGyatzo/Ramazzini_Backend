@@ -1,0 +1,86 @@
+[
+  {
+    "id": "ok-garcia-lopez-juan",
+    "curp": "GALJ900515HDFRPN08",
+    "demographics": {
+      "fechaNacimiento": "1990-05-15",
+      "sexo": "Masculino",
+      "entidadNacimiento": "09",
+      "nombre": "JUAN",
+      "primerApellido": "GARCIA",
+      "segundoApellido": "LOPEZ"
+    },
+    "expectCrossValid": true,
+    "expectCodes": []
+  },
+  {
+    "id": "ok-cxge-edgar",
+    "curp": "CXGE941130HJCRND07",
+    "demographics": {
+      "fechaNacimiento": "1994-11-30",
+      "sexo": "Masculino",
+      "entidadNacimiento": "JALISCO",
+      "nombre": "EDGAR OMAR",
+      "primerApellido": "CORONEL",
+      "segundoApellido": "GONZALEZ"
+    },
+    "expectCrossValid": true,
+    "expectCodes": []
+  },
+  {
+    "id": "ok-iniciales-coge",
+    "curp": "COGE941130HJCRND07",
+    "demographics": {
+      "fechaNacimiento": "1994-11-30",
+      "sexo": "Masculino",
+      "entidadNacimiento": "JALISCO",
+      "nombre": "EDGAR OMAR",
+      "primerApellido": "CORONEL",
+      "segundoApellido": "GONZALEZ"
+    },
+    "expectCrossValid": true,
+    "expectCodes": []
+  },
+  {
+    "id": "fail-fecha",
+    "curp": "GALJ900515HDFRPN08",
+    "demographics": {
+      "fechaNacimiento": "1991-05-15",
+      "sexo": "Masculino",
+      "entidadNacimiento": "09",
+      "nombre": "JUAN",
+      "primerApellido": "GARCIA",
+      "segundoApellido": "LOPEZ"
+    },
+    "expectCrossValid": false,
+    "expectCodes": ["CURP_CROSS_FECHA"]
+  },
+  {
+    "id": "fail-sexo",
+    "curp": "GALJ900515HDFRPN08",
+    "demographics": {
+      "fechaNacimiento": "1990-05-15",
+      "sexo": "Femenino",
+      "entidadNacimiento": "09",
+      "nombre": "JUAN",
+      "primerApellido": "GARCIA",
+      "segundoApellido": "LOPEZ"
+    },
+    "expectCrossValid": false,
+    "expectCodes": ["CURP_CROSS_SEXO"]
+  },
+  {
+    "id": "generic-ok",
+    "curp": "XXXX999999XXXXXX99",
+    "demographics": {
+      "fechaNacimiento": "1990-05-15",
+      "sexo": "Masculino",
+      "entidadNacimiento": "09",
+      "nombre": "JUAN",
+      "primerApellido": "GARCIA",
+      "segundoApellido": "LOPEZ"
+    },
+    "expectCrossValid": true,
+    "expectCodes": []
+  }
+]

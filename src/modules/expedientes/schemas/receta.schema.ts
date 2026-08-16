@@ -4,6 +4,7 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 @Schema()
 export class Receta extends Document {
@@ -78,3 +79,4 @@ export const RecetaSchema = SchemaFactory.createForClass(Receta).set(
   'timestamps',
   true,
 );
+RecetaSchema.plugin(fichaSnapshotPlugin);

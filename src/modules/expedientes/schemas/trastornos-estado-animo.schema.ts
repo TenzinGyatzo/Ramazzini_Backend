@@ -4,6 +4,7 @@ import { Trabajador } from 'src/modules/trabajadores/entities/trabajador.entity'
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 const siNoOpciones = ['No', 'Sí'] as const;
 
@@ -132,3 +133,4 @@ export class TrastornosEstadoAnimo extends Document {
 
 export const TrastornosEstadoAnimoSchema =
   SchemaFactory.createForClass(TrastornosEstadoAnimo).set('timestamps', true);
+TrastornosEstadoAnimoSchema.plugin(fichaSnapshotPlugin);

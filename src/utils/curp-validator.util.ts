@@ -9,7 +9,13 @@ import {
   deriveCurpNameSegments,
   getExpectedHomoclavePattern,
 } from './curp-name-segments.util';
+import { curpInicialesMatchExpected } from './curp-inconvenient-words.util';
 import { mapSexoToGiisBiologico } from './sexo-mapper.util';
+import {
+  isTrabajadorSexoCurp,
+  type TrabajadorSexoCurp,
+} from '../modules/trabajadores/constants/trabajador-sexo-curp.constants';
+import { normalizeSexoCurpToCurpCode } from './sexo-curp.util';
 
 /**
  * Discrepancy information for CURP cross-check validation
@@ -222,6 +228,7 @@ export function validateCURP(curp: string): {
  */
 const ENTIDAD_MAP: Record<string, string> = {
   '00': 'NE', // NO ESPECIFICADO
+  '88': 'NE', // NO APLICA (nacimiento extranjero GIIS) → RENAPO NE
   '01': 'AS', // AGUASCALIENTES
   '02': 'BC', // BAJA CALIFORNIA
   '03': 'BS', // BAJA CALIFORNIA SUR
@@ -261,6 +268,7 @@ const ENTIDAD_MAP: Record<string, string> = {
  */
 const ENTIDAD_NAME_MAP: Record<string, string> = {
   'NO ESPECIFICADO': 'NE',
+  'NO APLICA': 'NE',
   AGUASCALIENTES: 'AS',
   'BAJA CALIFORNIA': 'BC',
   'BAJA CALIFORNIA SUR': 'BS',
@@ -438,7 +446,8 @@ export function validateCURPCrossCheck(
   curp: string,
   data: {
     fechaNacimiento: Date | string;
-    sexo: string;
+    sexo?: string;
+    sexoCURP?: TrabajadorSexoCurp;
     entidadNacimiento?: string;
     nombre?: string;
     primerApellido?: string;
@@ -493,52 +502,61 @@ export function validateCURPCrossCheck(
     });
   }
 
-  // 2. Validación BLOQUEANTE: Sexo (omitir si trabajador es Intersexual: CURP puede ser H/M/X)
-  const omitirCruceSexo = mapSexoToGiisBiologico(data.sexo) === 3;
-  if (!omitirCruceSexo) {
-    const sexoEsperado = normalizeSexoToCURPCode(data.sexo);
-    if (sexoEsperado && curpSexo !== sexoEsperado) {
+  // 2. Validación BLOQUEANTE: Sexo (posición 11)
+  if (isTrabajadorSexoCurp(data.sexoCURP)) {
+    const sexoEsperado = normalizeSexoCurpToCurpCode(data.sexoCURP);
+    if (curpSexo !== sexoEsperado) {
       discrepancies.push({
         field: 'sexo',
         expected: sexoEsperado,
         gotFromCurp: curpSexo,
       });
     }
+  } else if (data.sexo) {
+    const omitirCruceSexo = mapSexoToGiisBiologico(data.sexo) === 3;
+    if (!omitirCruceSexo) {
+      const sexoEsperado = normalizeSexoToCURPCode(data.sexo);
+      if (sexoEsperado && curpSexo !== sexoEsperado) {
+        discrepancies.push({
+          field: 'sexo',
+          expected: sexoEsperado,
+          gotFromCurp: curpSexo,
+        });
+      }
+    }
   }
 
   // 3. Validación BLOQUEANTE: Entidad de nacimiento (solo si está presente)
+  // Incluye NE (extranjero / 88 / 00): posiciones 12-13 deben coincidir.
   if (data.entidadNacimiento && data.entidadNacimiento.trim() !== '') {
     const entidadNormalizada = normalizeEntidadToCURPCode(
       data.entidadNacimiento,
     );
 
-    // Si es código especial (NE, 00), no validar contra CURP
-    if (
-      entidadNormalizada &&
-      entidadNormalizada !== 'NE' &&
-      entidadNormalizada !== '00'
-    ) {
-      if (curpEntidad !== entidadNormalizada) {
-        discrepancies.push({
-          field: 'entidadNacimiento',
-          expected: entidadNormalizada,
-          gotFromCurp: curpEntidad,
-        });
-      }
+    if (entidadNormalizada && curpEntidad !== entidadNormalizada) {
+      discrepancies.push({
+        field: 'entidadNacimiento',
+        expected: entidadNormalizada,
+        gotFromCurp: curpEntidad,
+      });
     }
   }
 
   // 4. Validación BLOQUEANTE: Iniciales y consonantes internas (posiciones 1-4 y 14-16)
   // Reglas canónicas RENAPO + palabras inconvenientes (pos 1-4) en deriveCurpNameSegments;
   // otros casos especiales (partículas, nombres compuestos, etc.) pendientes — ver curp-name-segments.util.ts
-  if (data.primerApellido?.trim() && data.nombre?.trim()) {
+  // Cruce con nombre si hay primer apellido, o sin ambos (sinApellidos). Segundo sin primero = inválido, no cruzar.
+  const hasNombre = !!data.nombre?.trim();
+  const hasPrimerApellido = !!data.primerApellido?.trim();
+  const hasSegundoApellido = !!data.segundoApellido?.trim();
+  if (hasNombre && (hasPrimerApellido || !hasSegundoApellido)) {
     const expectedSegments = deriveCurpNameSegments({
       nombre: data.nombre,
       primerApellido: data.primerApellido,
       segundoApellido: data.segundoApellido,
     });
 
-    if (curpIniciales !== expectedSegments.iniciales) {
+    if (!curpInicialesMatchExpected(curpIniciales, expectedSegments.inicialesRaw)) {
       discrepancies.push({
         field: 'iniciales',
         expected: expectedSegments.iniciales,

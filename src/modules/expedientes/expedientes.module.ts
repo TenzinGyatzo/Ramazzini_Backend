@@ -1,6 +1,8 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { ExpedientesService } from './expedientes.service';
 import { ExpedientesController } from './expedientes.controller';
+import { NotasMedicasBorradoresController } from './notas-medicas-borradores.controller';
+import { NotasMedicasBorradoresService } from './notas-medicas-borradores.service';
 import { SeguimientoProgramadoCardiometabolicoController } from './seguimiento-programado-cardiometabolico.controller';
 import { SeguimientoProgramadoCardiometabolicoService } from './seguimiento-programado-cardiometabolico.service';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -105,22 +107,31 @@ import { AuditModule } from '../audit/audit.module';
 import { UsersModule } from '../users/users.module';
 import { TrabajadoresModule } from '../trabajadores/trabajadores.module';
 import { FirmanteHelperModule } from './firmante-helper.module';
+import { OrganizationalAccessModule } from '../../utils/organizational-access.module';
 import {
   ResultadoClinico,
   ResultadoClinicoSchema,
 } from '../resultados-clinicos/schemas/resultado-clinico.schema';
+import { EmpresasModule } from '../empresas/empresas.module';
+import { MedicosFirmantesModule } from '../medicos-firmantes/medicos-firmantes.module';
+import { EnfermerasFirmantesModule } from '../enfermeras-firmantes/enfermeras-firmantes.module';
+import { TecnicosFirmantesModule } from '../tecnicos-firmantes/tecnicos-firmantes.module';
+import { FichaSnapshotService } from './services/ficha-snapshot.service';
 
 @Module({
   controllers: [
     ExpedientesController,
+    NotasMedicasBorradoresController,
     SeguimientoProgramadoCardiometabolicoController,
   ],
   providers: [
     ExpedientesService,
+    NotasMedicasBorradoresService,
     PdfCleanerService,
     SeguimientoProgramadoCardiometabolicoService,
     Cie10CatalogLookupService,
     TreatmentConsentGuard,
+    FichaSnapshotService,
   ],
   imports: [
     MongooseModule.forFeature([
@@ -179,6 +190,11 @@ import {
     UsersModule,
     TrabajadoresModule,
     FirmanteHelperModule,
+    OrganizationalAccessModule,
+    EmpresasModule,
+    MedicosFirmantesModule,
+    EnfermerasFirmantesModule,
+    TecnicosFirmantesModule,
   ],
   exports: [ExpedientesService],
 })

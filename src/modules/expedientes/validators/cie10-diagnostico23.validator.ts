@@ -3,7 +3,7 @@
  */
 
 import {
-  isAgeAllowedForLimits,
+  isAgeAllowedForLinfLsup,
   isPrimeraVezComorbilidadActiva,
   isR69XFamily,
   isSexAllowedForLsex,
@@ -35,6 +35,7 @@ export interface Diagnostico23ValidationIssue {
     | 'sexo_no_permitido'
     | 'edad_fuera_rango'
     | 'tipo_personal_no_permitido'
+    | 'diag1_requerido'
     | 'diag2_requerido'
     | 'fuera_alcance_ramazzini';
   message: string;
@@ -50,7 +51,8 @@ export interface ValidateDiagnostico23Params {
   /** Solo para diag3: requiere comorbilidad 2 registrada */
   primeraVezDiagnostico2?: number | null;
   sexoBiologico: SexoBiologicoGiis | null;
-  edad: number | null;
+  fechaNacimiento?: Date | null;
+  fechaNotaMedica?: Date | null;
   tipoPersonal: number | null;
   tipoPersonalMedicoGeneral: number;
   tipoPersonalMedicoEspecialista: number;
@@ -104,6 +106,20 @@ export async function validateCodigoCIEDiagnostico23(
     }
 
     if (
+      field === 'codigoCIEDiagnostico2' &&
+      !extractCIE10Code(params.codigoCIEDiagnostico1 || '')
+    ) {
+      issues.push({
+        field,
+        code: extractCIE10Code(raw) || raw,
+        reason: 'diag1_requerido',
+        message:
+          'No puede registrar el diagnóstico 2 sin haber registrado antes el diagnóstico principal.',
+      });
+      return issues;
+    }
+
+    if (
       field === 'codigoCIEDiagnostico3' &&
       !tieneComorbilidadDiagRegistrada(
         params.primeraVezDiagnostico2,
@@ -128,6 +144,21 @@ export async function validateCodigoCIEDiagnostico23(
         message: `Si el diagnóstico ${label} no aplica (primeraVez = -1), el código CIE-10 debe estar vacío.`,
       });
     }
+    return issues;
+  }
+
+  if (
+    requirePrimeraVez &&
+    field === 'codigoCIEDiagnostico2' &&
+    !extractCIE10Code(params.codigoCIEDiagnostico1 || '')
+  ) {
+    issues.push({
+      field,
+      code: extractCIE10Code(raw) || raw,
+      reason: 'diag1_requerido',
+      message:
+        'No puede registrar el diagnóstico 2 sin haber registrado antes el diagnóstico principal.',
+    });
     return issues;
   }
 
@@ -234,8 +265,12 @@ export async function validateCodigoCIEDiagnostico23(
   }
 
   if (
-    params.edad != null &&
-    !isAgeAllowedForLimits(rule.linf, rule.lsup, params.edad)
+    !isAgeAllowedForLinfLsup(
+      rule.linf,
+      rule.lsup,
+      params.fechaNacimiento,
+      params.fechaNotaMedica,
+    )
   ) {
     issues.push({
       field,

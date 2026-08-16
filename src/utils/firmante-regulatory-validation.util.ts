@@ -11,12 +11,23 @@ import {
 import { validateCurpByPolicy } from './curp-policy-validator.util';
 import { buildCurpDemographicsForFirmante } from './curp-firmante-demographics.util';
 import { validateCurpPersonNameCapture } from './curp-name-capture-validation.util';
+import { validatePersonNameFields } from './name-validator.util';
+import {
+  isTrabajadorSexoCurp,
+} from '../modules/trabajadores/constants/trabajador-sexo-curp.constants';
+import { normalizeSexoCurpInput } from './sexo-curp.util';
 import {
   isEntidadResidenciaEspecial,
   LOCALIDADES_RESIDENCIA_ESPECIALES,
   MUNICIPIOS_RESIDENCIA_ESPECIALES,
   validateResidenciaGeoGiisCoherence,
 } from './giis-residencia-geo.util';
+import {
+  getExcludedPaisCodes,
+  isEntidadNacimientoEspecialForFirmante,
+  isMexicoPais,
+  validatePaisEntidadCoherence,
+} from './geo-selector-rules.util';
 
 export interface FirmanteRegulatoryData extends CurpDemographicData {
   paisNacimiento?: number;
@@ -41,6 +52,7 @@ export function buildFirmanteRegulatoryPayload(
     curp: data.curp as string | undefined,
     fechaNacimiento: data.fechaNacimiento as Date | undefined,
     sexo: data.sexo as string | undefined,
+    sexoCURP: normalizeSexoCurpInput(data.sexoCURP) ?? undefined,
     nombre: data.nombre as string | undefined,
     primerApellido: data.primerApellido as string | undefined,
     segundoApellido: data.segundoApellido as string | undefined,
@@ -60,6 +72,16 @@ export async function validateFirmanteRegulatoryFields(
   const geoRequired = policy.validation.geoFields === 'required';
   const curpRequired = policy.validation.curpFirmantes === 'required';
   const errors: string[] = [];
+
+  const nameLengthValidation = validatePersonNameFields(
+    data.nombre,
+    data.primerApellido,
+    data.segundoApellido,
+    policy.regime,
+  );
+  if (!nameLengthValidation.isValid) {
+    throw new BadRequestException(nameLengthValidation.errors.join('. '));
+  }
 
   // Regla A3: validar jerarquía de residencia si viene algún campo
   if (
@@ -101,11 +123,28 @@ export async function validateFirmanteRegulatoryFields(
     }
 
     const entidadNac = data.entidadNacimiento.trim().toUpperCase();
-    if (entidadNac !== 'NE' && entidadNac !== '00') {
+    if (!isEntidadNacimientoEspecialForFirmante(entidadNac)) {
       const isValid = await catalogsService.validateINEGI('estado', entidadNac);
       if (!isValid) {
         throw new BadRequestException(
-          `Entidad de nacimiento inválida: ${entidadNac}. Debe ser código INEGI válido (01-32, NE, o 00)`,
+          `Entidad de nacimiento inválida: ${entidadNac}. Debe ser código INEGI válido (01-32) o 88 (NO APLICA)`,
+        );
+      }
+    }
+
+    if (data.paisNacimiento != null && !Number.isNaN(Number(data.paisNacimiento))) {
+      errors.push(
+        ...validatePaisEntidadCoherence(
+          Number(data.paisNacimiento),
+          entidadNac,
+          'firmante',
+          'nacimiento',
+        ),
+      );
+      const excludedPais = getExcludedPaisCodes('firmante');
+      if (excludedPais.includes(String(data.paisNacimiento))) {
+        errors.push(
+          `País de nacimiento ${data.paisNacimiento} no está permitido para firmantes`,
         );
       }
     }
@@ -200,25 +239,44 @@ export async function validateFirmanteRegulatoryFields(
     const paisResResult = catalogsService.validateGIISPais(data.paisResidencia);
     if (paisResResult.catalogLoaded && !paisResResult.valid) {
       errors.push(
-        `País de residencia inválido: ${data.paisResidencia}. Debe ser CATALOG_KEY válido de cat_pais (ej: 142=México, 248=NO ESPECIFICADO)`,
+        `País de residencia inválido: ${data.paisResidencia}. Debe ser CATALOG_KEY válido de cat_pais (ej: 142=México)`,
+      );
+    }
+
+    const excludedPaisRes = getExcludedPaisCodes('firmante');
+    if (excludedPaisRes.includes(String(data.paisResidencia))) {
+      errors.push(
+        `País de residencia ${data.paisResidencia} no está permitido para firmantes`,
       );
     }
 
     errors.push(
-      ...validateResidenciaGeoGiisCoherence({
-        paisResidencia: data.paisResidencia,
-        entidadResidencia: entidadRes,
-        municipioResidencia: municipioRes,
-        localidadResidencia: localidadRes,
-      }),
+      ...validatePaisEntidadCoherence(
+        Number(data.paisResidencia),
+        entidadRes,
+        'firmante',
+        'residencia',
+      ),
+    );
+
+    errors.push(
+      ...validateResidenciaGeoGiisCoherence(
+        {
+          paisResidencia: data.paisResidencia,
+          entidadResidencia: entidadRes,
+          municipioResidencia: municipioRes,
+          localidadResidencia: localidadRes,
+        },
+        'firmante',
+      ),
     );
   } else if (data.entidadNacimiento && data.entidadNacimiento.trim() !== '') {
     const entidadNac = data.entidadNacimiento.trim().toUpperCase();
-    if (entidadNac !== 'NE' && entidadNac !== '00') {
+    if (!isEntidadNacimientoEspecialForFirmante(entidadNac)) {
       const isValid = await catalogsService.validateINEGI('estado', entidadNac);
       if (!isValid) {
         throw new BadRequestException(
-          `Entidad de nacimiento inválida: ${entidadNac}. Debe ser código INEGI válido (01-32, NE, o 00)`,
+          `Entidad de nacimiento inválida: ${entidadNac}. Debe ser código INEGI válido (01-32) o 88 (NO APLICA)`,
         );
       }
     }
@@ -229,7 +287,16 @@ export async function validateFirmanteRegulatoryFields(
   }
 
   if (curpRequired) {
-    if (!data.sexo || data.sexo.trim() === '') {
+    if (isSires) {
+      const sexoCURP = normalizeSexoCurpInput(data.sexoCURP);
+      if (!isTrabajadorSexoCurp(sexoCURP)) {
+        throw createRegulatoryError({
+          errorCode: RegulatoryErrorCode.REGIMEN_FIELD_REQUIRED,
+          details: { fieldName: 'sexoCURP' },
+          regime: policy.regime,
+        });
+      }
+    } else if (!data.sexo || data.sexo.trim() === '') {
       throw createRegulatoryError({
         errorCode: RegulatoryErrorCode.REGIMEN_FIELD_REQUIRED,
         details: { fieldName: 'sexo' },
@@ -246,10 +313,12 @@ export async function validateFirmanteRegulatoryFields(
       throw new BadRequestException(nameCapture.errors.join('. '));
     }
 
-    const curpDemographics = buildCurpDemographicsForFirmante(data);
+    const curpDemographics = buildCurpDemographicsForFirmante(data, {
+      useSexoCurpForValidation: isSires,
+    });
 
     validateCurpForSires(data.curp, true, curpDemographics, {
-      allowGenericCurp: false,
+      allowGenericCurp: !isMexicoPais(data.paisNacimiento),
       subjectLabel: 'firmante',
       regime: policy.regime,
     });

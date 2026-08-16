@@ -4,6 +4,7 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 const metodoAudiometriaOpciones = ['AMA', 'LFT'];
 
@@ -159,5 +160,6 @@ export const AudiometriaSchema = SchemaFactory.createForClass(Audiometria).set(
   'timestamps',
   true,
 );
+AudiometriaSchema.plugin(fichaSnapshotPlugin);
 AudiometriaSchema.index({ idTrabajador: 1, fechaAudiometria: -1 });
 AudiometriaSchema.index({ createdBy: 1, createdAt: -1 });

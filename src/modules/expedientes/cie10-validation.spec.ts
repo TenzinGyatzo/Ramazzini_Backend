@@ -10,6 +10,7 @@ import { Empresa } from '../empresas/schemas/empresa.schema';
 import { CatalogsService } from '../catalogs/catalogs.service';
 import { NOM024ComplianceUtil } from '../../utils/nom024-compliance.util';
 import { FilesService } from '../files/files.service';
+import { FichaSnapshotService } from './services/ficha-snapshot.service';
 
 describe('CIE-10 Validation - MX vs Non-MX Providers', () => {
   let service: ExpedientesService;
@@ -117,6 +118,10 @@ describe('CIE-10 Validation - MX vs Non-MX Providers', () => {
         { provide: CatalogsService, useValue: mockCatalogsService },
         { provide: NOM024ComplianceUtil, useValue: mockNom024Util },
         { provide: FilesService, useValue: mockFilesService },
+        {
+          provide: FichaSnapshotService,
+          useValue: { capturar: jest.fn().mockResolvedValue(null) },
+        },
       ],
     }).compile();
 

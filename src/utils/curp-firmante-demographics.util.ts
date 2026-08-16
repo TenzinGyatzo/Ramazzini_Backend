@@ -1,4 +1,9 @@
 import { CurpDemographicData } from './curp-sires-validation.util';
+import {
+  isTrabajadorSexoCurp,
+  type TrabajadorSexoCurp,
+} from '../modules/trabajadores/constants/trabajador-sexo-curp.constants';
+import { normalizeSexoCurpInput } from './sexo-curp.util';
 
 export interface FirmanteNombreInput {
   nombre?: string;
@@ -6,7 +11,13 @@ export interface FirmanteNombreInput {
   segundoApellido?: string;
   fechaNacimiento?: Date | string;
   sexo?: string;
+  sexoCURP?: TrabajadorSexoCurp | number;
   entidadNacimiento?: string;
+}
+
+export interface BuildCurpDemographicsForFirmanteOptions {
+  /** true en SIRES_NOM024: pos. 11 usa sexoCURP */
+  useSexoCurpForValidation?: boolean;
 }
 
 /**
@@ -15,12 +26,22 @@ export interface FirmanteNombreInput {
  */
 export function buildCurpDemographicsForFirmante(
   data: FirmanteNombreInput,
+  options?: BuildCurpDemographicsForFirmanteOptions,
 ): CurpDemographicData {
-  const base: CurpDemographicData = {
-    fechaNacimiento: data.fechaNacimiento,
-    sexo: data.sexo,
-    entidadNacimiento: data.entidadNacimiento,
-  };
+  const useSexoCurp = options?.useSexoCurpForValidation === true;
+  const sexoCURP = normalizeSexoCurpInput(data.sexoCURP) ?? undefined;
+
+  const base: CurpDemographicData = useSexoCurp
+    ? {
+        fechaNacimiento: data.fechaNacimiento,
+        sexoCURP,
+        entidadNacimiento: data.entidadNacimiento,
+      }
+    : {
+        fechaNacimiento: data.fechaNacimiento,
+        sexo: data.sexo,
+        entidadNacimiento: data.entidadNacimiento,
+      };
 
   const nombre = data.nombre?.trim();
   const primerApellido = data.primerApellido?.trim();
@@ -42,4 +63,14 @@ export function buildCurpDemographicsForFirmante(
   }
 
   return base;
+}
+
+export function firmanteHasSexoForCurp(
+  data: FirmanteNombreInput,
+  useSexoCurpForValidation: boolean,
+): boolean {
+  if (useSexoCurpForValidation) {
+    return isTrabajadorSexoCurp(normalizeSexoCurpInput(data.sexoCURP));
+  }
+  return Boolean(data.sexo?.trim());
 }

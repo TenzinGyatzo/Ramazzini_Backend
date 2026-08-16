@@ -4,6 +4,7 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 const siONo = ['Si', 'No'];
 
@@ -199,5 +200,6 @@ export const ExamenVistaSchema = SchemaFactory.createForClass(ExamenVista).set(
   'timestamps',
   true,
 );
+ExamenVistaSchema.plugin(fichaSnapshotPlugin);
 ExamenVistaSchema.index({ idTrabajador: 1, fechaExamenVista: -1 });
 ExamenVistaSchema.index({ createdBy: 1, createdAt: -1 });

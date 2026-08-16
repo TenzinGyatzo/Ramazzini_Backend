@@ -288,6 +288,15 @@ export class EmailsService {
   private readonly METRICS_FILE =
     process.env.METRICS_FILE || path.join(__dirname, 'server_metrics.json');
 
+  private readonly STATS_HISTORY_FILE = path.resolve(
+    process.cwd(),
+    'storage',
+    'server_stats_history.csv',
+  );
+
+  private readonly STATS_HISTORY_HEADER =
+    'fecha,disco_usado_gb,disco_total_gb,disco_pct,pdfs_creados,pdfs_mb,externos,externos_mb,eliminados,eliminados_mb';
+
   async saveMetric() {
     const timestamp = new Date().toISOString();
     const totalMemory = os.totalmem();
@@ -434,6 +443,80 @@ export class EmailsService {
       }
     } catch {
       return '⚠️ No se pudo obtener información del disco.';
+    }
+  }
+
+  private async getDiskUsageNumbers(): Promise<{
+    device: string;
+    usedGb: number;
+    totalGb: number;
+    pct: number;
+  } | null> {
+    try {
+      const partitions: {
+        device: string;
+        usedGb: number;
+        totalGb: number;
+        pct: number;
+      }[] = [];
+
+      if (os.platform() === 'win32') {
+        const output = execSync(
+          'wmic logicaldisk get deviceid, freespace, size',
+        )
+          .toString()
+          .trim();
+        const lines = output.split('\n').slice(1);
+
+        for (const line of lines) {
+          const values = line.trim().split(/\s+/);
+          if (values.length !== 3) continue;
+          const free = parseInt(values[1], 10);
+          const size = parseInt(values[2], 10);
+          if (!Number.isFinite(free) || !Number.isFinite(size) || size <= 0) {
+            continue;
+          }
+          const used = size - free;
+          partitions.push({
+            device: values[0].replace(':', ''),
+            usedGb: used / 1e9,
+            totalGb: size / 1e9,
+            pct: (used / size) * 100,
+          });
+        }
+      } else {
+        execSync('which df');
+        const output = execSync(
+          'df -k --output=source,used,size,pcent | tail -n +2',
+        )
+          .toString()
+          .trim()
+          .split('\n');
+
+        for (const line of output) {
+          const parts = line.trim().split(/\s+/);
+          if (!parts[0]?.startsWith('/dev/')) continue;
+          const usedKb = parseInt(parts[1], 10);
+          const sizeKb = parseInt(parts[2], 10);
+          const pct = parseFloat(String(parts[3]).replace('%', ''));
+          if (!Number.isFinite(usedKb) || !Number.isFinite(sizeKb) || sizeKb <= 0) {
+            continue;
+          }
+          partitions.push({
+            device: parts[0].replace('/dev/', ''),
+            usedGb: (usedKb * 1024) / 1e9,
+            totalGb: (sizeKb * 1024) / 1e9,
+            pct: Number.isFinite(pct) ? pct : (usedKb / sizeKb) * 100,
+          });
+        }
+      }
+
+      if (partitions.length === 0) return null;
+      return (
+        partitions.find((p) => p.device === 'sda2') ?? partitions[0]
+      );
+    } catch {
+      return null;
     }
   }
 
@@ -585,7 +668,17 @@ export class EmailsService {
     return '🔴 Alto';
   }
 
-  private async getCreatedPdfsSummary(): Promise<string> {
+  private formatearFechaIsoHoy(): string {
+    const hoy = new Date();
+    const dia = String(hoy.getDate()).padStart(2, '0');
+    const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+    return `${hoy.getFullYear()}-${mes}-${dia}`;
+  }
+
+  private async getCreatedPdfsStats(): Promise<{
+    count: number;
+    mb: number;
+  } | null> {
     const basePath = EXPEDIENTES_DIR;
     const tiposValidos = [
       'Antidoping',
@@ -600,15 +693,7 @@ export class EmailsService {
       'Nota Medica',
     ];
 
-    const hoy = new Date();
-    const hoyFormateado = hoy
-      .toLocaleDateString('es-MX', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      })
-      .replace(/\//g, '-'); // "DD-MM-YYYY"
-
+    const hoyFormateado = this.formatearFechaHoy();
     let totalArchivos = 0;
     let totalMB = 0;
 
@@ -626,7 +711,6 @@ export class EmailsService {
           tiposValidos.some((tipo) => el.name.startsWith(tipo + ' '))
         ) {
           const stat = await fs.promises.stat(fullPath);
-
           const createdDate = stat.mtime
             .toLocaleDateString('es-MX', {
               day: '2-digit',
@@ -645,18 +729,27 @@ export class EmailsService {
 
     try {
       await recorrer(basePath);
+      return { count: totalArchivos, mb: totalMB };
     } catch {
-      return '⚠️ No se pudo calcular la cantidad de PDFs creados.';
+      return null;
     }
-
-    if (totalArchivos === 0) {
-      return '📁 No se generaron informes PDF hoy.';
-    }
-
-    return `📄 Creados: ${totalArchivos} archivos — ${totalMB.toFixed(2)} MB usados`;
   }
 
-  private async getUploadedExternalDocsSummary(): Promise<string> {
+  private async getCreatedPdfsSummary(): Promise<string> {
+    const stats = await this.getCreatedPdfsStats();
+    if (stats === null) {
+      return '⚠️ No se pudo calcular la cantidad de PDFs creados.';
+    }
+    if (stats.count === 0) {
+      return '📁 No se generaron informes PDF hoy.';
+    }
+    return `📄 Creados: ${stats.count} archivos — ${stats.mb.toFixed(2)} MB usados`;
+  }
+
+  private async getUploadedExternalDocsStats(): Promise<{
+    count: number;
+    mb: number;
+  } | null> {
     const basePath = EXPEDIENTES_DIR;
     const tiposInternos = [
       'Antidoping',
@@ -672,16 +765,7 @@ export class EmailsService {
     ];
 
     const extensionesExternas = ['.pdf', '.jpg', '.jpeg', '.png'];
-
-    const hoy = new Date();
-    const hoyFormateado = hoy
-      .toLocaleDateString('es-MX', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      })
-      .replace(/\//g, '-'); // "DD-MM-YYYY"
-
+    const hoyFormateado = this.formatearFechaHoy();
     let totalArchivos = 0;
     let totalMB = 0;
 
@@ -702,7 +786,6 @@ export class EmailsService {
 
           if (esExtensionValida && !esGeneradoInternamente) {
             const stat = await fs.promises.stat(fullPath);
-
             const createdDate = stat.mtime
               .toLocaleDateString('es-MX', {
                 day: '2-digit',
@@ -722,15 +805,21 @@ export class EmailsService {
 
     try {
       await recorrer(basePath);
+      return { count: totalArchivos, mb: totalMB };
     } catch {
+      return null;
+    }
+  }
+
+  private async getUploadedExternalDocsSummary(): Promise<string> {
+    const stats = await this.getUploadedExternalDocsStats();
+    if (stats === null) {
       return '⚠️ No se pudo calcular los documentos externos subidos.';
     }
-
-    if (totalArchivos === 0) {
+    if (stats.count === 0) {
       return '📁 No se subieron documentos externos hoy.';
     }
-
-    return `📎 Externos: ${totalArchivos} archivos — ${totalMB.toFixed(2)} MB usados`;
+    return `📎 Externos: ${stats.count} archivos — ${stats.mb.toFixed(2)} MB usados`;
   }
 
   private async getArchivoPdfCreadoMasAntiguo(): Promise<{ nombre: string; fullPath: string; fecha: Date } | null> {
@@ -867,6 +956,83 @@ export class EmailsService {
       .join('\n');
 
     return lineasConSangria;
+  }
+
+  private async getDeletedPdfsStats(): Promise<{ count: number; mb: number }> {
+    const logPath = path.resolve(
+      'logs',
+      `eliminados-${this.formatearFechaHoy()}.log`,
+    );
+
+    if (!fs.existsSync(logPath)) {
+      return { count: 0, mb: 0 };
+    }
+
+    try {
+      const contenido = await fs.promises.readFile(logPath, 'utf8');
+      const match = contenido.match(
+        /Eliminados:\s*(\d+)\s*archivos\s*—\s*([\d.]+)\s*MB/i,
+      );
+      if (!match) {
+        return { count: 0, mb: 0 };
+      }
+      return {
+        count: parseInt(match[1], 10) || 0,
+        mb: parseFloat(match[2]) || 0,
+      };
+    } catch {
+      return { count: 0, mb: 0 };
+    }
+  }
+
+  async appendDailyStatsHistory() {
+    try {
+      const fecha = this.formatearFechaIsoHoy();
+      const disk = await this.getDiskUsageNumbers();
+      const pdfs = (await this.getCreatedPdfsStats()) ?? { count: 0, mb: 0 };
+      const externos = (await this.getUploadedExternalDocsStats()) ?? {
+        count: 0,
+        mb: 0,
+      };
+      const eliminados = await this.getDeletedPdfsStats();
+
+      const row = [
+        fecha,
+        disk ? disk.usedGb.toFixed(2) : '0',
+        disk ? disk.totalGb.toFixed(2) : '0',
+        disk ? disk.pct.toFixed(2) : '0',
+        String(pdfs.count),
+        pdfs.mb.toFixed(2),
+        String(externos.count),
+        externos.mb.toFixed(2),
+        String(eliminados.count),
+        eliminados.mb.toFixed(2),
+      ].join(',');
+
+      const filePath = this.STATS_HISTORY_FILE;
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+
+      let lines: string[] = [];
+      if (fs.existsSync(filePath)) {
+        lines = fs
+          .readFileSync(filePath, 'utf8')
+          .split(/\r?\n/)
+          .filter((line) => line.trim() !== '');
+      }
+
+      const dataLines = lines
+        .filter((line) => line !== this.STATS_HISTORY_HEADER)
+        .filter((line) => !line.startsWith(`${fecha},`));
+
+      const next = [this.STATS_HISTORY_HEADER, ...dataLines, row];
+      fs.writeFileSync(filePath, `${next.join('\n')}\n`, 'utf8');
+      console.log(`Historial diario guardado en ${filePath}`);
+    } catch (err) {
+      console.error(
+        'No se pudo guardar el historial diario de estadísticas:',
+        err,
+      );
+    }
   }
 
   //// Generar el reporte de uso del servidor ////
@@ -1045,5 +1211,13 @@ export class EmailsService {
       `⏳ Enviando reporte diario a las ${new Date().toLocaleString()} (hora local)`,
     );
     await this.sendServerReport();
+  }
+
+  @Cron('1 19 * * *')
+  async handleDailyStatsHistoryCron() {
+    console.log(
+      `📁 Guardando historial diario de estadísticas a las ${new Date().toLocaleString()} (hora local)`,
+    );
+    await this.appendDailyStatsHistory();
   }
 }

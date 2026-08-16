@@ -10,7 +10,7 @@ import { mapSexoToGiisBiologico } from '../../../utils/sexo-mapper.util';
 
 import { calculateAge } from '../../../utils/age-calculator.util';
 import { extractCIE10Code } from '../../../utils/cie10.util';
-import { parseAgeLimit } from '../../../utils/cie10-age-parser.util';
+import { isAgeAllowedForLinfLsup } from '../../../utils/cie10-diagnostico-sis.util';
 import { DiagnosisRule } from '../services/cie10-catalog-lookup.service';
 
 /**
@@ -99,57 +99,14 @@ function validateSex(
   sexoTrabajador: 'HOMBRE' | 'MUJER',
 ): boolean {
   if (!lsex || lsex === 'NO') {
-    // No sex restriction
     return true;
   }
 
   const lsexUpper = lsex.trim().toUpperCase();
-
-  // Direct match
-  if (lsexUpper === sexoTrabajador) {
-    return true;
-  }
-
-  // Handle "SI" as typically meaning HOMBRE (masculine-only)
-  if (lsexUpper === 'SI' && sexoTrabajador === 'HOMBRE') {
-    return true;
-  }
-
-  // If LSEX specifies a sex and it doesn't match, invalid
   if (lsexUpper === 'MUJER' || lsexUpper === 'HOMBRE') {
     return lsexUpper === sexoTrabajador;
   }
-
-  // Unknown LSEX value, allow (conservative approach)
   return true;
-}
-
-/**
- * Validates age restrictions (LINF/LSUP)
- */
-function validateAge(
-  linf: string | null,
-  lsup: string | null,
-  edadTrabajador: number,
-): { valid: boolean; reason?: string } {
-  const edadMin = linf ? parseAgeLimit(linf) : null;
-  const edadMax = lsup ? parseAgeLimit(lsup) : null;
-
-  if (edadMin !== null && edadTrabajador < edadMin) {
-    return {
-      valid: false,
-      reason: `Edad mínima requerida: ${edadMin.toFixed(2)} años. Edad del trabajador: ${edadTrabajador} años`,
-    };
-  }
-
-  if (edadMax !== null && edadTrabajador > edadMax) {
-    return {
-      valid: false,
-      reason: `Edad máxima permitida: ${edadMax.toFixed(2)} años. Edad del trabajador: ${edadTrabajador} años`,
-    };
-  }
-
-  return { valid: true };
 }
 
 /**
@@ -160,6 +117,8 @@ async function validateSingleCIE10Code(
   field: string,
   sexoTrabajador: 'HOMBRE' | 'MUJER' | 'INTERSEXUAL',
   edadTrabajador: number,
+  fechaNacimiento: Date,
+  fechaNotaMedica: Date,
   lookup: (code: string) => Promise<DiagnosisRule | null>,
 ): Promise<CIE10CatalogValidationIssue | null> {
   // Extract normalized code
@@ -194,9 +153,14 @@ async function validateSingleCIE10Code(
     }
   }
 
-  // Validate age
-  const ageValidation = validateAge(rule.linf, rule.lsup, edadTrabajador);
-  if (!ageValidation.valid) {
+  if (
+    !isAgeAllowedForLinfLsup(
+      rule.linf,
+      rule.lsup,
+      fechaNacimiento,
+      fechaNotaMedica,
+    )
+  ) {
     return {
       field,
       cie10: normalizedCode,
@@ -280,6 +244,8 @@ export async function validateCie10SexAgeAgainstCatalog(
       field,
       sexoTrabajador,
       edadTrabajador,
+      trabajadorFechaNacimiento,
+      fechaReferencia,
       lookup,
     );
     if (issue) {

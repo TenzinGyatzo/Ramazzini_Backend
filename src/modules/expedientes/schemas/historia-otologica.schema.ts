@@ -4,6 +4,7 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 const siONo = ['SI', 'NO'];
 
@@ -176,3 +177,4 @@ export class HistoriaOtologica extends Document {
 export const HistoriaOtologicaSchema = SchemaFactory.createForClass(
   HistoriaOtologica,
 ).set('timestamps', true);
+HistoriaOtologicaSchema.plugin(fichaSnapshotPlugin);

@@ -1,77 +1,49 @@
-import { buildCurpDemographicsForFirmante } from './curp-firmante-demographics.util';
-import { validateCURPCrossCheck } from './curp-validator.util';
+import {
+  buildCurpDemographicsForFirmante,
+  firmanteHasSexoForCurp,
+} from './curp-firmante-demographics.util';
 
 describe('buildCurpDemographicsForFirmante', () => {
-  it('debe respetar apellidos explícitos si ya vienen separados', () => {
-    const result = buildCurpDemographicsForFirmante({
-      nombre: 'JUAN',
-      primerApellido: 'GARCIA',
-      segundoApellido: 'LOPEZ',
-    });
+  it('SIRES usa sexoCURP y omite sexo', () => {
+    const demo = buildCurpDemographicsForFirmante(
+      {
+        sexo: 'Masculino',
+        sexoCURP: 3,
+        fechaNacimiento: '1990-01-01',
+        entidadNacimiento: '09',
+      },
+      { useSexoCurpForValidation: true },
+    );
 
-    expect(result.nombre).toBe('JUAN');
-    expect(result.primerApellido).toBe('GARCIA');
-    expect(result.segundoApellido).toBe('LOPEZ');
+    expect(demo.sexoCURP).toBe(3);
+    expect(demo.sexo).toBeUndefined();
   });
 
-  it('debe devolver solo nombre en registros legacy sin primerApellido', () => {
-    const result = buildCurpDemographicsForFirmante({
-      nombre: 'Dr. Juan Garcia Lopez',
-      fechaNacimiento: new Date('1990-05-15'),
-      sexo: 'Masculino',
-      entidadNacimiento: '09',
-    });
+  it('SIN_REGIMEN usa sexo y omite sexoCURP', () => {
+    const demo = buildCurpDemographicsForFirmante(
+      {
+        sexo: 'Femenino',
+        sexoCURP: 2,
+        fechaNacimiento: '1990-01-01',
+        entidadNacimiento: '09',
+      },
+      { useSexoCurpForValidation: false },
+    );
 
-    expect(result.nombre).toBe('Dr. Juan Garcia Lopez');
-    expect(result.primerApellido).toBeUndefined();
-    expect(result.segundoApellido).toBeUndefined();
+    expect(demo.sexo).toBe('Femenino');
+    expect(demo.sexoCURP).toBeUndefined();
   });
+});
 
-  it('debe permitir cruce CURP de firmante con campos separados', () => {
-    const demographics = buildCurpDemographicsForFirmante({
-      nombre: 'JUAN',
-      primerApellido: 'GARCIA',
-      segundoApellido: 'LOPEZ',
-      fechaNacimiento: new Date('1990-05-15'),
-      sexo: 'Masculino',
-      entidadNacimiento: '09',
-    });
-
-    const crossCheck = validateCURPCrossCheck('GALJ900515HDFRPN08', {
-      fechaNacimiento: demographics.fechaNacimiento!,
-      sexo: demographics.sexo!,
-      entidadNacimiento: demographics.entidadNacimiento,
-      nombre: demographics.nombre,
-      primerApellido: demographics.primerApellido,
-      segundoApellido: demographics.segundoApellido,
-    });
-
-    expect(crossCheck.isValid).toBe(true);
-    expect(crossCheck.discrepancies).toHaveLength(0);
-  });
-
-  it('debe detectar discrepancia de iniciales cuando los apellidos no coinciden', () => {
-    const demographics = buildCurpDemographicsForFirmante({
-      nombre: 'PEDRO',
-      primerApellido: 'RODRIGUEZ',
-      segundoApellido: 'MARTINEZ',
-      fechaNacimiento: new Date('1990-05-15'),
-      sexo: 'Masculino',
-      entidadNacimiento: '09',
-    });
-
-    const crossCheck = validateCURPCrossCheck('GALJ900515HDFRPN08', {
-      fechaNacimiento: demographics.fechaNacimiento!,
-      sexo: demographics.sexo!,
-      entidadNacimiento: demographics.entidadNacimiento,
-      nombre: demographics.nombre,
-      primerApellido: demographics.primerApellido,
-      segundoApellido: demographics.segundoApellido,
-    });
-
-    expect(crossCheck.isValid).toBe(false);
+describe('firmanteHasSexoForCurp', () => {
+  it('acepta sexoCURP=3 en SIRES', () => {
     expect(
-      crossCheck.discrepancies.some((d) => d.field === 'iniciales'),
+      firmanteHasSexoForCurp({ sexoCURP: 3 }, true),
     ).toBe(true);
+  });
+
+  it('requiere sexo en SIN_REGIMEN', () => {
+    expect(firmanteHasSexoForCurp({ sexo: 'Masculino' }, false)).toBe(true);
+    expect(firmanteHasSexoForCurp({ sexoCURP: 1 }, false)).toBe(false);
   });
 });

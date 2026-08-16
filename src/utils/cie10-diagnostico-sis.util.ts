@@ -2,7 +2,10 @@
  * Utilidades DIAGNOSTICO_SIS para validación de códigos CIE-10 (CEX / nota médica).
  */
 
-import { parseAgeLimit } from './cie10-age-parser.util';
+import {
+  addCatalogAgeLimit,
+  parseCatalogAgeLimit,
+} from './cie10-age-parser.util';
 import { extractCIE10Code } from './cie10.util';
 
 /** Parsea lista de tipo personal desde columnas TIPO_PERSONAL_* del catálogo. */
@@ -46,8 +49,8 @@ export function normalizeCie10CatalogKey(
 export type SexoBiologicoGiis = 1 | 2 | 3;
 
 /**
- * Valida restricción LSEX.
- * Si sexoBiologico = 3 (intersexual), no aplica validación de sexo.
+ * Valida restricción LSEX (DIAGNOSTICO_SIS: HOMBRE | MUJER | NO).
+ * Si sexoBiologico = 3 (intersexual) o no es mapeable, no aplica.
  */
 export function isSexAllowedForLsex(
   lsex: string | null | undefined,
@@ -61,25 +64,45 @@ export function isSexAllowedForLsex(
   const sexoLabel =
     sexoBiologico === 1 ? 'HOMBRE' : sexoBiologico === 2 ? 'MUJER' : null;
   if (!sexoLabel) return true;
-
-  if (lsexUpper === sexoLabel) return true;
-  if (lsexUpper === 'SI' && sexoLabel === 'HOMBRE') return true;
-  if (lsexUpper === 'MUJER' || lsexUpper === 'HOMBRE') {
+  if (lsexUpper === 'HOMBRE' || lsexUpper === 'MUJER') {
     return lsexUpper === sexoLabel;
   }
   return true;
 }
 
-/** Valida edad contra LINF/LSUP (formato catálogo). */
-export function isAgeAllowedForLimits(
+function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/**
+ * Valida edad contra LINF/LSUP en la unidad del catálogo (D/M/A).
+ * Compara fechas de calendario: fechaNotaMedica vs nacimiento + límite.
+ * Intervalo cerrado: el día exacto del límite es válido.
+ */
+export function isAgeAllowedForLinfLsup(
   linf: string | null | undefined,
   lsup: string | null | undefined,
-  edad: number,
+  fechaNacimiento: Date | null | undefined,
+  fechaNotaMedica: Date | null | undefined,
 ): boolean {
-  const edadMin = linf ? parseAgeLimit(linf) : null;
-  const edadMax = lsup ? parseAgeLimit(lsup) : null;
-  if (edadMin !== null && edad < edadMin) return false;
-  if (edadMax !== null && edad > edadMax) return false;
+  if (!fechaNacimiento || !fechaNotaMedica) return true;
+  if (isNaN(fechaNacimiento.getTime()) || isNaN(fechaNotaMedica.getTime())) {
+    return true;
+  }
+
+  const birth = startOfDay(fechaNacimiento);
+  const ref = startOfDay(fechaNotaMedica);
+  const linfParsed = parseCatalogAgeLimit(linf);
+  const lsupParsed = parseCatalogAgeLimit(lsup);
+
+  if (linfParsed) {
+    const minDate = addCatalogAgeLimit(birth, linfParsed);
+    if (ref.getTime() < minDate.getTime()) return false;
+  }
+  if (lsupParsed) {
+    const maxDate = addCatalogAgeLimit(birth, lsupParsed);
+    if (ref.getTime() > maxDate.getTime()) return false;
+  }
   return true;
 }
 
@@ -118,20 +141,37 @@ export function isTipoPersonalAllowedForDiagnostico1(
   tipoPersonal: number | null | undefined,
   tipoPersonal1VezCe: number[],
   tipoPersonalSubsecCe: number[],
-): { allowed: boolean; requiresTipoPersonal: boolean } {
+): {
+  allowed: boolean;
+  requiresTipoPersonal: boolean;
+  emptyAuthorizedList: boolean;
+} {
   if (relacionTemporal !== 0 && relacionTemporal !== 1) {
-    return { allowed: true, requiresTipoPersonal: false };
+    return {
+      allowed: true,
+      requiresTipoPersonal: false,
+      emptyAuthorizedList: false,
+    };
   }
   const list =
     relacionTemporal === 0 ? tipoPersonal1VezCe : tipoPersonalSubsecCe;
   if (list.length === 0) {
-    return { allowed: true, requiresTipoPersonal: false };
+    return {
+      allowed: false,
+      requiresTipoPersonal: true,
+      emptyAuthorizedList: true,
+    };
   }
   if (tipoPersonal == null) {
-    return { allowed: false, requiresTipoPersonal: true };
+    return {
+      allowed: false,
+      requiresTipoPersonal: true,
+      emptyAuthorizedList: false,
+    };
   }
   return {
     allowed: list.includes(tipoPersonal),
     requiresTipoPersonal: true,
+    emptyAuthorizedList: false,
   };
 }

@@ -5,7 +5,7 @@
 import { CatalogsService } from '../../catalogs/catalogs.service';
 import { CatalogType, CIE10Entry } from '../../catalogs/interfaces/catalog-entry.interface';
 import {
-  isAgeAllowedForLimits,
+  isAgeAllowedForLinfLsup,
   isCIE10Exact4Chars,
   isSexAllowedForLsex,
   isTipoPersonalAllowedForDiagnostico1,
@@ -86,11 +86,12 @@ export async function validateCexCodigoCIEDiagnostico1Row(
   return null;
 }
 
-/** Valida edad en export cuando se conoce la edad del paciente (años). */
+/** Valida edad en export con fechas de nacimiento y consulta. */
 export function validateCexCodigoCIEDiagnostico1Age(
   catalogKey: string,
   entry: CIE10Entry,
-  edad: number,
+  fechaNacimiento: Date | null,
+  fechaNotaMedica: Date | null,
   sexoBiologico: SexoBiologicoGiis | null,
 ): string | null {
   if (
@@ -99,7 +100,14 @@ export function validateCexCodigoCIEDiagnostico1Age(
   ) {
     return `Código ${catalogKey}: restricción LSEX`;
   }
-  if (!isAgeAllowedForLimits(entry.linfRaw, entry.lsupRaw, edad)) {
+  if (
+    !isAgeAllowedForLinfLsup(
+      entry.linfRaw,
+      entry.lsupRaw,
+      fechaNacimiento,
+      fechaNotaMedica,
+    )
+  ) {
     return `Código ${catalogKey}: edad fuera de rango LINF/LSUP`;
   }
   return null;

@@ -599,6 +599,7 @@ interface MedicoFirmante {
 interface ProveedorSalud {
   nombre: string;
   pais: string;
+  regimenRegulatorio?: string;
   perfilProveedorSalud: string;
   logotipoEmpresa: {
     data: string;
@@ -1168,7 +1169,7 @@ export const aptitudPuestoInforme = (
                     // Nombre y título profesional
                     firmanteTieneLineaNombre(medicoFirmante)
                       ? {
-                          text: `${formatearTituloYNombreFirmante(medicoFirmante)}\n`,
+                          text: `${formatearTituloYNombreFirmante(medicoFirmante, proveedorSalud.regimenRegulatorio)}\n`,
                           bold: true,
                         }
                       : null,

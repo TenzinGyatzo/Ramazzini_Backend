@@ -12,6 +12,8 @@ import { CreateEnfermeraFirmanteDto } from 'src/modules/enfermeras-firmantes/dto
 import { UpdateEnfermeraFirmanteDto } from 'src/modules/enfermeras-firmantes/dto/update-enfermera-firmante.dto';
 import { CreateTecnicoFirmanteDto } from 'src/modules/tecnicos-firmantes/dto/create-tecnico-firmante.dto';
 import { UpdateTecnicoFirmanteDto } from 'src/modules/tecnicos-firmantes/dto/update-tecnico-firmante.dto';
+import { normalizeSexoCurpInput } from './sexo-curp.util';
+import { stripPersonNameAccents } from './person-name-accent.util';
 
 export function normalizeEmpresaData(dto: CreateEmpresaDto | UpdateEmpresaDto) {
   // Normalizar RFC: eliminar espacios y convertir a mayúsculas
@@ -55,17 +57,19 @@ export function normalizeTrabajadorPersonName(
   value: string | undefined | null,
   regime?: string | null,
 ): string | undefined {
-  if (value == null || String(value).trim() === '') {
-    return typeof value === 'string' ? value.trim() : undefined;
+  if (value == null || collapsePersonNameWhitespace(String(value)) === '') {
+    return typeof value === 'string'
+      ? collapsePersonNameWhitespace(value)
+      : undefined;
   }
 
-  const trimmed = String(value).trim().replace(/\s+/g, ' ');
+  const trimmed = collapsePersonNameWhitespace(String(value));
 
   if (regime === 'SIN_REGIMEN') {
     return trimmed.replace(/\S+/g, (word) => word.charAt(0).toUpperCase() + word.slice(1));
   }
 
-  return trimmed.toUpperCase();
+  return stripPersonNameAccents(trimmed).toUpperCase();
 }
 
 export function applyTrabajadorPersonNames(
@@ -106,11 +110,16 @@ export function normalizeTrabajadorData(
 ) {
   const normalizedDto: Record<string, unknown> = {
     ...dto,
-    primerApellido: dto.primerApellido?.trim().replace(/\s+/g, ' '),
-    segundoApellido: dto.segundoApellido?.trim().replace(/\s+/g, ' '),
-    nombre: dto.nombre?.trim().replace(/\s+/g, ' '),
+    primerApellido: dto.primerApellido
+      ? collapsePersonNameWhitespace(dto.primerApellido)
+      : dto.primerApellido,
+    segundoApellido: dto.segundoApellido
+      ? collapsePersonNameWhitespace(dto.segundoApellido)
+      : dto.segundoApellido,
+    nombre: dto.nombre ? collapsePersonNameWhitespace(dto.nombre) : dto.nombre,
     fechaNacimiento: dto.fechaNacimiento,
     sexo: dto.sexo?.trim(),
+    sexoCURP: dto.sexoCURP,
     escolaridad: dto.escolaridad?.trim(),
     puesto: dto.puesto?.trim(),
     fechaIngreso: dto.fechaIngreso,
@@ -286,6 +295,16 @@ export function normalizeProveedorSaludData(
 
 // normalization.ts
 
+const FIRMANTE_PERSON_NAME_FIELDS = new Set([
+  'nombre',
+  'primerApellido',
+  'segundoApellido',
+]);
+
+export function collapsePersonNameWhitespace(value: string): string {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
 function applyTrimmedStringFieldIfPresent(
   target: Record<string, unknown>,
   dto: object,
@@ -298,6 +317,34 @@ function applyTrimmedStringFieldIfPresent(
   }
   const value = source[field];
   target[field] = typeof value === 'string' ? value.trim() : '';
+}
+
+function applyNormalizedPersonNameFieldIfPresent(
+  target: Record<string, unknown>,
+  dto: object,
+  field: string,
+): void {
+  const source = dto as Record<string, unknown>;
+  if (!(field in source)) {
+    delete target[field];
+    return;
+  }
+  const value = source[field];
+  target[field] =
+    typeof value === 'string' ? collapsePersonNameWhitespace(value) : '';
+}
+
+function applyStringFieldNormalization(
+  target: Record<string, unknown>,
+  dto: object,
+  field: string,
+): void {
+  if (FIRMANTE_PERSON_NAME_FIELDS.has(field)) {
+    applyNormalizedPersonNameFieldIfPresent(target, dto, field);
+    return;
+  }
+
+  applyTrimmedStringFieldIfPresent(target, dto, field);
 }
 
 export function normalizeMedicoFirmanteData(
@@ -321,7 +368,7 @@ export function normalizeMedicoFirmanteData(
   ];
 
   for (const field of stringFields) {
-    applyTrimmedStringFieldIfPresent(normalizedDto, dto, field);
+    applyStringFieldNormalization(normalizedDto, dto, field);
   }
 
   normalizedDto.firma =
@@ -350,6 +397,13 @@ export function normalizeMedicoFirmanteData(
 
   if ('sexo' in dto && typeof dto.sexo === 'string') {
     normalizedDto.sexo = dto.sexo.trim();
+  }
+
+  if ('sexoCURP' in dto) {
+    const normalizedSexoCurp = normalizeSexoCurpInput(dto.sexoCURP);
+    if (normalizedSexoCurp != null) {
+      normalizedDto.sexoCURP = normalizedSexoCurp;
+    }
   }
 
   if ('entidadNacimiento' in dto && typeof dto.entidadNacimiento === 'string') {
@@ -425,7 +479,7 @@ export function normalizeEnfermeraFirmanteData(
   ];
 
   for (const field of stringFields) {
-    applyTrimmedStringFieldIfPresent(normalizedDto, dto, field);
+    applyStringFieldNormalization(normalizedDto, dto, field);
   }
 
   normalizedDto.firma =
@@ -445,6 +499,13 @@ export function normalizeEnfermeraFirmanteData(
 
   if ('sexo' in dto && typeof dto.sexo === 'string') {
     normalizedDto.sexo = dto.sexo.trim();
+  }
+
+  if ('sexoCURP' in dto) {
+    const normalizedSexoCurp = normalizeSexoCurpInput(dto.sexoCURP);
+    if (normalizedSexoCurp != null) {
+      normalizedDto.sexoCURP = normalizedSexoCurp;
+    }
   }
 
   if ('entidadNacimiento' in dto && typeof dto.entidadNacimiento === 'string') {
@@ -520,7 +581,7 @@ export function normalizeTecnicoFirmanteData(
   ];
 
   for (const field of stringFields) {
-    applyTrimmedStringFieldIfPresent(normalizedDto, dto, field);
+    applyStringFieldNormalization(normalizedDto, dto, field);
   }
 
   normalizedDto.firma =
@@ -539,6 +600,13 @@ export function normalizeTecnicoFirmanteData(
 
   if ('sexo' in dto && typeof dto.sexo === 'string') {
     normalizedDto.sexo = dto.sexo.trim();
+  }
+
+  if ('sexoCURP' in dto) {
+    const normalizedSexoCurp = normalizeSexoCurpInput(dto.sexoCURP);
+    if (normalizedSexoCurp != null) {
+      normalizedDto.sexoCURP = normalizedSexoCurp;
+    }
   }
 
   if ('entidadNacimiento' in dto && typeof dto.entidadNacimiento === 'string') {

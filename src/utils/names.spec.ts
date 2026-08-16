@@ -67,6 +67,32 @@ describe('formatearTituloYNombreFirmante', () => {
       }),
     ).toBe('Juan Pérez');
   });
+
+  it('en SIRES_NOM024 muestra el título en mayúsculas sin alterar el resto de casing del nombre', () => {
+    expect(
+      formatearTituloYNombreFirmante(
+        {
+          tituloProfesional: 'Dr.',
+          nombre: 'JUAN',
+          primerApellido: 'PEREZ',
+        },
+        'SIRES_NOM024',
+      ),
+    ).toBe('DR. JUAN PEREZ');
+  });
+
+  it('en SIN_REGIMEN conserva el título canónico', () => {
+    expect(
+      formatearTituloYNombreFirmante(
+        {
+          tituloProfesional: 'Dra.',
+          nombre: 'Ana',
+          primerApellido: 'Lopez',
+        },
+        'SIN_REGIMEN',
+      ),
+    ).toBe('Dra. Ana Lopez');
+  });
 });
 
 describe('formatearTituloYNombreFirmanteConFallback', () => {
@@ -77,6 +103,16 @@ describe('formatearTituloYNombreFirmanteConFallback', () => {
         'Nombre del Emisor',
       ),
     ).toBe('Dr. Nombre del Emisor');
+  });
+
+  it('en SIRES_NOM024 uppercasing el título también con fallback', () => {
+    expect(
+      formatearTituloYNombreFirmanteConFallback(
+        { tituloProfesional: 'Lic. Enfermería.' },
+        'Nombre del Emisor',
+        'SIRES_NOM024',
+      ),
+    ).toBe('LIC. ENFERMERÍA. Nombre del Emisor');
   });
 
   it('formatea normalmente cuando hay nombre', () => {

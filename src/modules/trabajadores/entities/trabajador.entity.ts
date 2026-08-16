@@ -4,11 +4,12 @@ import { User } from 'src/modules/users/entities/user.entity';
 
 export class Trabajador extends Document {
   _id: string;
-  primerApellido: string;
-  segundoApellido: string;
+  primerApellido?: string;
+  segundoApellido?: string;
   nombre: string;
   fechaNacimiento: Date;
   sexo: string;
+  sexoCURP?: number;
   escolaridad: string;
   puesto: string;
   fechaIngreso?: Date;

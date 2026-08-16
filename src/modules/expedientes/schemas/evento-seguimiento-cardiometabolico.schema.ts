@@ -21,6 +21,7 @@ import {
   EstadoControlCondicion,
   GradoObesidad,
 } from '../enums/cardiometabolico.enums';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 const DIAGNOSTICOS_CARDIOMETABOLICOS = Object.values(DiagnosticoCardiometabolico);
 const ESTADOS_CONTROL = Object.values(EstadoControlCondicion);
@@ -272,5 +273,6 @@ export class EventoSeguimientoCardiometabolico extends Document {
 export const EventoSeguimientoCardiometabolicoSchema = SchemaFactory.createForClass(
   EventoSeguimientoCardiometabolico,
 ).set('timestamps', true);
+EventoSeguimientoCardiometabolicoSchema.plugin(fichaSnapshotPlugin);
 
 EventoSeguimientoCardiometabolicoSchema.index({ idTrabajador: 1, fechaEventoSeguimientoCardiometabolico: -1 });

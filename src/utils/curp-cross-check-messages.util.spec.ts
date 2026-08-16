@@ -4,114 +4,70 @@ import {
 } from './curp-cross-check-messages.util';
 import { Discrepancy } from './curp-validator.util';
 
-describe('curp-cross-check-messages.util', () => {
+describe('curp-cross-check-messages.util (granular)', () => {
   describe('formatCurpDiscrepancyUserMessage', () => {
-    it('debe formatear fecha de nacimiento como mensaje único', () => {
+    it('debe mensajear la primera posición distinta de fecha', () => {
       const message = formatCurpDiscrepancyUserMessage({
         field: 'fechaNacimiento',
         expected: '900515',
         gotFromCurp: '910515',
       });
 
-      expect(message).toBe(
-        'La CURP no coincide con la fecha de nacimiento. (posiciones 5 a 10).',
-      );
+      expect(message).toContain('Pos. 6');
+      expect(message).toContain('"0"');
+      expect(message).toContain('"1"');
       expect(message).not.toContain('fechaNacimiento');
     });
 
-    it('debe formatear sexo como mensaje único', () => {
+    it('debe mensajear sexo en posición 11', () => {
       const message = formatCurpDiscrepancyUserMessage({
         field: 'sexo',
         expected: 'M',
         gotFromCurp: 'H',
       });
 
-      expect(message).toBe('La CURP no coincide con el sexo (posición 11).');
+      expect(message).toContain('Pos. 11');
+      expect(message).toContain('"M"');
+      expect(message).toContain('"H"');
     });
   });
 
   describe('buildCurpCrossCheckErrorContent', () => {
-    it('debe devolver solo el mensaje de fecha cuando falla únicamente fecha', () => {
+    it('expande iniciales a solo las posiciones distintas', () => {
+      const result = buildCurpCrossCheckErrorContent([
+        { field: 'iniciales', expected: 'CXGE', gotFromCurp: 'COGE' },
+      ]);
+
+      expect(result.details).toHaveLength(1);
+      expect(result.details[0].positions).toEqual([2]);
+      expect(result.details[0].expected).toBe('X');
+      expect(result.details[0].gotFromCurp).toBe('O');
+      expect(result.message).toContain('Pos. 2');
+    });
+
+    it('expande varios caracteres distintos de fecha', () => {
       const discrepancies: Discrepancy[] = [
         {
           field: 'fechaNacimiento',
-          expected: '931130',
-          gotFromCurp: '941130',
+          expected: '900515',
+          gotFromCurp: '911616',
         },
       ];
 
       const result = buildCurpCrossCheckErrorContent(discrepancies);
-
-      expect(result.message).toBe(
-        'La CURP no coincide con la fecha de nacimiento. (posiciones 5 a 10).',
-      );
-      expect(result.summary).toBe(result.message);
-      expect(result.message).not.toContain('el sexo');
-      expect(result.message).not.toContain('entidad');
+      expect(result.details.length).toBeGreaterThan(1);
+      expect(result.details.every((d) => d.positions.length === 1)).toBe(true);
+      expect(result.summary).toContain('posiciones');
     });
 
-    it('debe devolver solo el mensaje de sexo cuando falla únicamente sexo', () => {
-      const result = buildCurpCrossCheckErrorContent([
-        { field: 'sexo', expected: 'M', gotFromCurp: 'H' },
-      ]);
-
-      expect(result.message).toBe(
-        'La CURP no coincide con el sexo (posición 11).',
-      );
-    });
-
-    it('debe devolver solo el mensaje de entidad cuando falla únicamente entidad', () => {
-      const result = buildCurpCrossCheckErrorContent([
-        {
-          field: 'entidadNacimiento',
-          expected: 'AS',
-          gotFromCurp: 'DF',
-        },
-      ]);
-
-      expect(result.message).toBe(
-        'La CURP no coincide con la entidad de nacimiento (posiciones 12 y 13).',
-      );
-    });
-
-    it('debe combinar campos demográficos en un solo mensaje', () => {
-      const discrepancies: Discrepancy[] = [
-        { field: 'fechaNacimiento', expected: '900515', gotFromCurp: '910515' },
-        { field: 'sexo', expected: 'M', gotFromCurp: 'H' },
-        {
-          field: 'entidadNacimiento',
-          expected: 'AS',
-          gotFromCurp: 'DF',
-        },
-      ];
-
-      const result = buildCurpCrossCheckErrorContent(discrepancies);
-
-      expect(result.message).toBe(
-        'La CURP no coincide en datos demográficos: fecha de nacimiento, sexo, entidad de nacimiento.',
-      );
-    });
-
-    it('debe devolver mensaje único para iniciales sin summary redundante', () => {
-      const result = buildCurpCrossCheckErrorContent([
-        { field: 'iniciales', expected: 'GALJ', gotFromCurp: 'GAXJ' },
-      ]);
-
-      expect(result.message).toBe(
-        'La CURP no coincide con las iniciales del nombre y apellidos (posiciones 1 a 4).',
-      );
-      expect(result.message).not.toContain('demográficos');
-    });
-
-    it('debe usar mensaje mixto cuando hay discrepancias de distintas categorías', () => {
+    it('mezcla categorías con details por posición', () => {
       const result = buildCurpCrossCheckErrorContent([
         { field: 'iniciales', expected: 'GALJ', gotFromCurp: 'GAXJ' },
         { field: 'sexo', expected: 'M', gotFromCurp: 'H' },
       ]);
 
-      expect(result.message).toBe(
-        'La CURP no coincide con varios datos capturados: iniciales, sexo.',
-      );
+      expect(result.details.map((d) => d.positions[0])).toEqual([3, 11]);
+      expect(result.userMessages).toHaveLength(2);
     });
   });
 });

@@ -4,6 +4,7 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 @Schema()
 export class Certificado extends Document {
@@ -72,3 +73,4 @@ export const CertificadoSchema = SchemaFactory.createForClass(Certificado).set(
   'timestamps',
   true,
 );
+CertificadoSchema.plugin(fichaSnapshotPlugin);

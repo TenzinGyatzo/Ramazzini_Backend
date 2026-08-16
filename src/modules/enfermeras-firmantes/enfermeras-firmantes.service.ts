@@ -4,7 +4,7 @@ import { UpdateEnfermeraFirmanteDto } from './dto/update-enfermera-firmante.dto'
 import { InjectModel } from '@nestjs/mongoose';
 import { EnfermeraFirmante } from './schemas/enfermera-firmante.schema';
 import { Model } from 'mongoose';
-import { normalizeEnfermeraFirmanteData } from 'src/utils/normalization';
+import { normalizeEnfermeraFirmanteData, applyTrabajadorPersonNames } from 'src/utils/normalization';
 import { User } from '../users/schemas/user.schema';
 import { ProveedorSalud } from '../proveedores-salud/schemas/proveedor-salud.schema';
 import { RegulatoryPolicyService } from 'src/utils/regulatory-policy.service';
@@ -16,6 +16,8 @@ import {
   validateFirmanteRegulatoryFields,
 } from 'src/utils/firmante-regulatory-validation.util';
 import { validateFirmanteIdentificationImmutable } from 'src/utils/firmante-identification-immutability.util';
+import { assertValidPersonNameFields } from 'src/utils/name-validator.util';
+import { generateFolioFromWorkerData } from 'src/utils/folio-generator.util';
 
 @Injectable()
 export class EnfermerasFirmantesService {
@@ -88,10 +90,32 @@ export class EnfermerasFirmantesService {
       true,
     );
 
+    const policy = await this.getPolicyForUser(createEnfermeraFirmanteDto.idUser);
+    applyTrabajadorPersonNames(
+      normalizedDto as Record<string, unknown>,
+      policy?.regime,
+    );
+
+    assertValidPersonNameFields(
+      (normalizedDto as any).nombre,
+      (normalizedDto as any).primerApellido,
+      (normalizedDto as any).segundoApellido,
+      policy?.regime,
+    );
+
     await this.validateFirmanteSiresFields(
       normalizedDto as Record<string, unknown>,
       createEnfermeraFirmanteDto.idUser,
     );
+
+    // NOM-024: Generar folio alfanumérico 18 caracteres (solo nuevos, no retroactivo)
+    (normalizedDto as any).folio = generateFolioFromWorkerData({
+      nombre: (normalizedDto as any).nombre,
+      primerApellido: (normalizedDto as any).primerApellido,
+      segundoApellido: (normalizedDto as any).segundoApellido,
+      fechaNacimiento: (normalizedDto as any).fechaNacimiento,
+      sexo: (normalizedDto as any).sexo,
+    });
 
     const createdConfiguracionInforme = new this.enfermeraFirmanteModel(
       normalizedDto,
@@ -157,10 +181,32 @@ export class EnfermerasFirmantesService {
             merged[key] = (normalizedDto as Record<string, unknown>)[key];
           }
         }
+        applyTrabajadorPersonNames(merged as Record<string, unknown>, policy?.regime);
+        assertValidPersonNameFields(
+          merged.nombre as string,
+          merged.primerApellido as string,
+          merged.segundoApellido as string,
+          policy?.regime,
+        );
+        applyTrabajadorPersonNames(
+          normalizedDto as Record<string, unknown>,
+          policy?.regime,
+        );
         await this.validateFirmanteSiresFields(
           merged as Record<string, unknown>,
           idUser,
         );
+
+        // Backfill: firmantes previos sin folio lo reciben en el primer update
+        if (!(existing as any).folio) {
+          (normalizedDto as any).folio = generateFolioFromWorkerData({
+            nombre: merged.nombre as string,
+            primerApellido: merged.primerApellido as string,
+            segundoApellido: merged.segundoApellido as string | undefined,
+            fechaNacimiento: (merged.fechaNacimiento as Date) || fechaNacimientoToValidate,
+            sexo: merged.sexo as string,
+          });
+        }
       }
     }
 

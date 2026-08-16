@@ -4,6 +4,7 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 const tipoAptitud = [
   'Apto Sin Restricciones',
@@ -142,5 +143,6 @@ export class AptitudPuesto extends Document {
 export const AptitudPuestoSchema = SchemaFactory.createForClass(
   AptitudPuesto,
 ).set('timestamps', true);
+AptitudPuestoSchema.plugin(fichaSnapshotPlugin);
 AptitudPuestoSchema.index({ idTrabajador: 1, fechaAptitudPuesto: -1 });
 AptitudPuestoSchema.index({ createdBy: 1, createdAt: -1 });

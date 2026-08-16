@@ -8,19 +8,23 @@ import {
   IsOptional,
   IsString,
   Matches,
-  Max,
-  Min,
   IsArray,
   IsBoolean,
   IsIn,
   Validate,
   ValidateIf,
 } from 'class-validator';
-import { SistolicaMayorIgualDiastolicaConstraint } from '../validators/nota-medica-signos-vitales.validator';
+import {
+  NotaMedicaCexFieldConstraint,
+  SistolicaMayorIgualDiastolicaConstraint,
+} from '../validators/nota-medica-signos-vitales.validator';
+import { NOTA_MEDICA_CEX_MESSAGES } from '../constants/nota-medica-cex.ranges';
 
 const tipoNota = ['Inicial', 'Seguimiento', 'Alta'];
 
 export class CreateNotaMedicaDto {
+  /** Constraint TA lee el objeto completo (args.object); va en campo siempre presente. */
+  @Validate(SistolicaMayorIgualDiastolicaConstraint)
   @IsNotEmpty({ message: 'El motivo del examen no puede estar vacío' })
   @IsEnum(tipoNota, {
     message:
@@ -45,56 +49,49 @@ export class CreateNotaMedicaDto {
   @IsString({ message: 'La exploración física debe ser un string' })
   exploracionFisica: string;
 
-  // Signos Vitales - CEX NOM-024: rangos ampliados, 0 = desconoce
+  // Signos Vitales - CEX GIIS-B015: 0 = se desconoce
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 0 })
   @ValidateIf(
     (o) =>
       o.tensionArterialSistolica != null && o.tensionArterialSistolica !== 0,
   )
-  @Min(50, { message: 'CEX: sistólica mínimo 50 mmHg' })
-  @Max(300, { message: 'CEX: sistólica máximo 300 mmHg' })
-  @Validate(SistolicaMayorIgualDiastolicaConstraint)
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @Validate(NotaMedicaCexFieldConstraint, ['tensionArterialSistolica'])
   tensionArterialSistolica?: number;
 
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 0 })
   @ValidateIf(
     (o) =>
       o.tensionArterialDiastolica != null && o.tensionArterialDiastolica !== 0,
   )
-  @Min(20, { message: 'CEX: diastólica mínimo 20 mmHg' })
-  @Max(200, { message: 'CEX: diastólica máximo 200 mmHg' })
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @Validate(NotaMedicaCexFieldConstraint, ['tensionArterialDiastolica'])
   tensionArterialDiastolica?: number;
 
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 0 })
   @ValidateIf((o) => o.frecuenciaCardiaca != null && o.frecuenciaCardiaca !== 0)
-  @Min(40)
-  @Max(220)
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @Validate(NotaMedicaCexFieldConstraint, ['frecuenciaCardiaca'])
   frecuenciaCardiaca?: number;
 
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 0 })
   @ValidateIf(
     (o) => o.frecuenciaRespiratoria != null && o.frecuenciaRespiratoria !== 0,
   )
-  @Min(10)
-  @Max(99)
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @Validate(NotaMedicaCexFieldConstraint, ['frecuenciaRespiratoria'])
   frecuenciaRespiratoria?: number;
 
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 1 })
   @ValidateIf((o) => o.temperatura != null && o.temperatura !== 0)
-  @Min(30)
-  @Max(44)
+  @IsNumber({ maxDecimalPlaces: 1 })
+  @Validate(NotaMedicaCexFieldConstraint, ['temperatura'])
   temperatura?: number;
 
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 0 })
   @ValidateIf((o) => o.saturacionOxigeno != null && o.saturacionOxigeno !== 0)
-  @Min(1)
-  @Max(100)
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @Validate(NotaMedicaCexFieldConstraint, ['saturacionOxigeno'])
   saturacionOxigeno?: number;
 
   // CEX: Datos demográficos
@@ -112,28 +109,25 @@ export class CreateNotaMedicaDto {
   })
   derechohabiencia?: string;
 
-  // CEX: Somatometría
+  // CEX: Somatometría (peso/talla desconoce = 999; cintura = 0)
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 3 })
   @ValidateIf((o) => o.peso != null && o.peso !== 999)
-  @Min(1, { message: 'CEX: peso mínimo 1 kg' })
-  @Max(400, { message: 'CEX: peso máximo 400 kg' })
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Validate(NotaMedicaCexFieldConstraint, ['peso'])
   peso?: number;
 
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 0 })
   @ValidateIf((o) => o.talla != null && o.talla !== 999)
-  @Min(30, { message: 'CEX: talla mínima 30 cm' })
-  @Max(220, { message: 'CEX: talla máxima 220 cm' })
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @Validate(NotaMedicaCexFieldConstraint, ['talla'])
   talla?: number;
 
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 0 })
   @ValidateIf(
     (o) => o.circunferenciaCintura != null && o.circunferenciaCintura !== 0,
   )
-  @Min(20, { message: 'CEX: circunferencia cintura mínima 20 cm' })
-  @Max(300, { message: 'CEX: circunferencia cintura máxima 300 cm' })
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @Validate(NotaMedicaCexFieldConstraint, ['circunferenciaCintura'])
   circunferenciaCintura?: number;
 
   @IsOptional()
@@ -148,25 +142,24 @@ export class CreateNotaMedicaDto {
   @IsString()
   categoriaCircunferenciaCintura?: string;
 
-  // CEX: Glucemia
+  // CEX: Glucemia (0 = se desconoce)
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 0 })
   @ValidateIf((o) => o.glucemia != null && o.glucemia !== 0)
-  @Min(20, { message: 'CEX: glucemia mínima 20 mg/dl' })
-  @Max(999, { message: 'CEX: glucemia máxima 999 mg/dl' })
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @Validate(NotaMedicaCexFieldConstraint, ['glucemia'])
   glucemia?: number;
 
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 0 })
   @ValidateIf((o) => o.glucemia != null && o.glucemia !== 0)
-  @IsIn([0, 1], { message: 'tipoMedicion: 0=No ayunas, 1=Ayunas' })
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @IsIn([0, 1], { message: NOTA_MEDICA_CEX_MESSAGES.tipoMedicion })
   tipoMedicion?: number;
 
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 0 })
   @ValidateIf((o) => o.glucemia != null && o.glucemia !== 0)
+  @IsNumber({ maxDecimalPlaces: 0 })
   @IsIn([1, 2], {
-    message: 'resultadoObtenidoaTravesde: 1=Laboratorio, 2=Tira glucosa',
+    message: NOTA_MEDICA_CEX_MESSAGES.resultadoObtenidoaTravesde,
   })
   resultadoObtenidoaTravesde?: number;
 
@@ -251,8 +244,16 @@ export class CreateNotaMedicaDto {
   confirmacionDiagnostica3?: boolean; // Flag para crónicos/cáncer <18 (diagnóstico 3)
 
   @IsOptional()
+  @IsString({ message: 'La descripción complementaria del diagnóstico principal debe ser un string' })
+  diagnosticoTextoPrincipal?: string;
+
+  @IsOptional()
   @IsString({ message: 'La descripción complementaria debe ser un string' })
   diagnosticoTexto?: string; // Texto libre complementario al diagnóstico 2
+
+  @IsOptional()
+  @IsString({ message: 'La descripción complementaria del diagnóstico 3 debe ser un string' })
+  diagnosticoTexto3?: string;
 
   @IsOptional()
   @IsBoolean({ message: 'confirmacionDiagnostica debe ser un booleano' })

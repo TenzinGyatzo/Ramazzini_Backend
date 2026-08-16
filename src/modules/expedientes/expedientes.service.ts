@@ -46,10 +46,14 @@ import { CatalogsService } from '../catalogs/catalogs.service';
 import {
   validateVitalSigns,
   extractVitalSignsFromDTO,
+  validateBloodPressureConsistency,
 } from '../../utils/vital-signs-validator.util';
+import {
+  normalizeNotaMedicaCexSentinels,
+  validateNotaMedicaCexQuantities,
+} from './constants/nota-medica-cex.ranges';
 import { InformesService } from '../informes/informes.service';
 import { mapSexoToGiisBiologico } from '../../utils/sexo-mapper.util';
-import { calculateAge } from '../../utils/age-calculator.util';
 import {
   CIE10Entry,
   CatalogType,
@@ -91,6 +95,8 @@ import { ResultadoClinico } from '../resultados-clinicos/schemas/resultado-clini
 import { resolveTrabajadorProveedorChain } from '../../utils/helpers/treatment-consent.helper';
 import type { TreatmentConsentRequestContext } from '../../utils/helpers/treatment-consent-request.context';
 import { getDocumentoListSelect } from './constants/documento-list-projection';
+import { FichaSnapshotService } from './services/ficha-snapshot.service';
+import { FichaSnapshot } from './schemas/ficha-snapshot.schema';
 import {
   APTITUD_INFORME_VECINO_TYPES,
   getAptitudInformeVecinoSelect,
@@ -171,6 +177,7 @@ export class ExpedientesService {
     private readonly workerFusionService: WorkerFusionService,
     private readonly firmanteHelper: FirmanteHelper,
     private readonly cexCatalogResolver: CexCatalogResolver,
+    private readonly fichaSnapshotService: FichaSnapshotService,
     @InjectConnection() private readonly connection: Connection,
   ) {
     this.models = {
@@ -336,15 +343,12 @@ export class ExpedientesService {
       throw new BadRequestException('Trabajador no encontrado');
     }
 
-    // 2. Calcular edad (fechaNotaMedica - fechaNacimiento)
-    let edad: number | null = null;
-    if (trabajador.fechaNacimiento && dto.fechaNotaMedica) {
-      try {
-        edad = calculateAge(trabajador.fechaNacimiento, dto.fechaNotaMedica);
-      } catch (error) {
-        console.warn('Error calculating age:', error);
-      }
-    }
+    const fechaNacimiento = trabajador.fechaNacimiento
+      ? new Date(trabajador.fechaNacimiento)
+      : null;
+    const fechaNotaMedica = dto.fechaNotaMedica
+      ? new Date(dto.fechaNotaMedica)
+      : null;
 
     // 3. Mapear sexo a numérico GIIS (1/2/3)
     const sexoBiologico = mapSexoToGiisBiologico(trabajador.sexo);
@@ -453,7 +457,8 @@ export class ExpedientesService {
           codigoCIE10Principal: codigoPrincipalFull,
           relacionTemporal: dto.relacionTemporal,
           sexoBiologico,
-          edad,
+          fechaNacimiento,
+          fechaNotaMedica,
           tipoPersonal,
           lookup: this.cie10CatalogLookupService.findDiagnosisRule.bind(
             this.cie10CatalogLookupService,
@@ -568,7 +573,8 @@ export class ExpedientesService {
           primeraVez: dto.primeraVezDiagnostico2,
           codigoCIEDiagnostico1: codigoPrincipalFull,
           sexoBiologico,
-          edad,
+          fechaNacimiento,
+          fechaNotaMedica,
           tipoPersonal,
           tipoPersonalMedicoGeneral: cexTp.medicoGeneral,
           tipoPersonalMedicoEspecialista: cexTp.medicoEspecialista,
@@ -584,7 +590,8 @@ export class ExpedientesService {
           codigoCIEDiagnostico1: codigoPrincipalFull,
           codigoCIEDiagnostico2: dto.codigoCIEDiagnostico2,
           sexoBiologico,
-          edad,
+          fechaNacimiento,
+          fechaNotaMedica,
           tipoPersonal,
           tipoPersonalMedicoGeneral: cexTp.medicoGeneral,
           tipoPersonalMedicoEspecialista: cexTp.medicoEspecialista,
@@ -655,6 +662,34 @@ export class ExpedientesService {
     }
   }
 
+  private supportsFichaSnapshot(documentType: string): boolean {
+    return documentType !== 'documentoExterno' && !!this.models[documentType];
+  }
+
+  private async tryCapturarFichaSnapshot(args: {
+    documentType: string;
+    trabajadorId?: string | null;
+    creadorId?: string | null;
+    finalizadorId?: string | null;
+  }): Promise<FichaSnapshot | null> {
+    if (!this.supportsFichaSnapshot(args.documentType) || !args.trabajadorId) {
+      return null;
+    }
+    try {
+      return await this.fichaSnapshotService.capturar({
+        trabajadorId: String(args.trabajadorId),
+        creadorId: args.creadorId,
+        finalizadorId: args.finalizadorId,
+      });
+    } catch (error) {
+      console.warn(
+        `[fichaSnapshot] No se pudo capturar (${args.documentType}):`,
+        (error as Error)?.message || error,
+      );
+      return null;
+    }
+  }
+
   async createDocument(
     documentType: string,
     createDto: any,
@@ -712,6 +747,7 @@ export class ExpedientesService {
             createDto,
             createDto.idTrabajador,
             regimeCtx,
+            documentType,
           ),
       );
 
@@ -785,25 +821,21 @@ export class ExpedientesService {
       }
     }
 
-    // notaMedica: omitir campos vitales con null ("Se desconoce") para no guardarlos en BD
+    // notaMedica: null/undefined CEX → sentinels GIIS (0 / 999) para persistencia e intercambio
     const createPayload =
       documentType === 'notaMedica'
-        ? (() => {
-            const VITAL_SIGNS = [
-              'tensionArterialSistolica',
-              'tensionArterialDiastolica',
-              'frecuenciaCardiaca',
-              'frecuenciaRespiratoria',
-              'temperatura',
-              'saturacionOxigeno',
-            ];
-            const payload = { ...createDto };
-            for (const field of VITAL_SIGNS) {
-              if (payload[field] === null) delete payload[field];
-            }
-            return payload;
-          })()
-        : createDto;
+        ? normalizeNotaMedicaCexSentinels(createDto)
+        : { ...createDto };
+    delete createPayload.fichaSnapshot;
+
+    const fichaSnapshot = await this.tryCapturarFichaSnapshot({
+      documentType,
+      trabajadorId: createPayload.idTrabajador,
+      creadorId: createPayload.createdBy,
+    });
+    if (fichaSnapshot) {
+      createPayload.fichaSnapshot = fichaSnapshot;
+    }
 
     const createdDocument = new model(createPayload);
     const savedDocument = await createdDocument.save();
@@ -1244,7 +1276,78 @@ export class ExpedientesService {
     dto: any,
     trabajadorId: string,
     regimeCtx?: DocumentRegimeContext | null,
+    documentType?: string,
   ): Promise<void> {
+    // Nota Médica: contrato GIIS/CEX (no VITAL_SIGNS_RANGES genérico)
+    if (documentType === 'notaMedica') {
+      const cexError = validateNotaMedicaCexQuantities(dto, {
+        includeSomatometriaGlucemia: true,
+      });
+      if (!cexError) return;
+
+      const proveedorSaludId =
+        regimeCtx?.proveedorSaludId ??
+        (await this.getProveedorSaludIdFromTrabajador(trabajadorId));
+
+      if (!proveedorSaludId) {
+        console.warn(`NOM-024 NotaMedica CEX (provider unknown): ${cexError}`);
+        return;
+      }
+
+      const requiresCompliance =
+        await this.nom024Util.requiresNOM024Compliance(proveedorSaludId);
+
+      if (requiresCompliance) {
+        throw new BadRequestException(`NOM-024: ${cexError}`);
+      }
+      console.warn(`NOM-024 NotaMedica CEX (non-MX provider): ${cexError}`);
+      return;
+    }
+
+    // Exploración Física y Certificado Expedito: el DTO es la fuente de verdad
+    // de rangos. No revalidar con VITAL_SIGNS_RANGES (más estrecho).
+    if (
+      documentType === 'exploracionFisica' ||
+      documentType === 'certificadoExpedito'
+    ) {
+      const bpValidation = validateBloodPressureConsistency(
+        dto.tensionArterialSistolica,
+        dto.tensionArterialDiastolica,
+      );
+      if (bpValidation.warnings.length > 0) {
+        console.warn(
+          `NOM-024 Vital Signs Warnings: ${bpValidation.warnings.join('; ')}`,
+        );
+      }
+      if (bpValidation.isValid) {
+        return;
+      }
+
+      const proveedorSaludIdEfCe =
+        regimeCtx?.proveedorSaludId ??
+        (await this.getProveedorSaludIdFromTrabajador(trabajadorId));
+
+      if (!proveedorSaludIdEfCe) {
+        console.warn(
+          `NOM-024 Vital Signs Issues (provider unknown): ${bpValidation.errors.join('; ')}`,
+        );
+        return;
+      }
+
+      const requiresComplianceEfCe =
+        await this.nom024Util.requiresNOM024Compliance(proveedorSaludIdEfCe);
+
+      if (requiresComplianceEfCe) {
+        throw new BadRequestException(
+          `NOM-024: ${bpValidation.errors.join('. ')}`,
+        );
+      }
+      console.warn(
+        `NOM-024 Vital Signs Issues (non-MX provider): ${bpValidation.errors.join('; ')}`,
+      );
+      return;
+    }
+
     // Extract vital signs from DTO
     const vitalSigns = extractVitalSignsFromDTO(dto);
 
@@ -1385,7 +1488,12 @@ export class ExpedientesService {
     // Validaciones independientes en paralelo (prioridad = orden previo secuencial)
     const updateValidationTasks: Array<() => Promise<void>> = [
       () =>
-        this.validateVitalSignsForNOM024(updateDto, trabajadorId, regimeCtx),
+        this.validateVitalSignsForNOM024(
+          updateDto,
+          trabajadorId,
+          regimeCtx,
+          documentType,
+        ),
     ];
 
     if (documentType === 'notaMedica') {
@@ -1478,6 +1586,21 @@ export class ExpedientesService {
 
     let result;
     const dateChanged = newFecha.toISOString() !== oldFecha.toISOString();
+    delete updateDto.fichaSnapshot;
+    const snapshotTrabajadorId =
+      (updateDto.idTrabajador ?? existingDocument.idTrabajador)?.toString?.() ??
+      null;
+    const fichaSnapshot = await this.tryCapturarFichaSnapshot({
+      documentType,
+      trabajadorId: snapshotTrabajadorId,
+      creadorId:
+        updateDto.createdBy ?? existingDocument.createdBy?.toString?.() ??
+        existingDocument.createdBy,
+      finalizadorId: existingDocument.finalizadoPor
+        ? existingDocument.finalizadoPor.toString?.() ??
+          existingDocument.finalizadoPor
+        : undefined,
+    });
     if (dateChanged) {
       const existingPlain =
         typeof existingDocument.toObject === 'function'
@@ -1510,6 +1633,11 @@ export class ExpedientesService {
       }
       if (!newDocumentData.createdBy && updateDto.updatedBy) {
         newDocumentData.createdBy = updateDto.updatedBy;
+      }
+      if (fichaSnapshot) {
+        newDocumentData.fichaSnapshot = fichaSnapshot;
+      } else {
+        delete newDocumentData.fichaSnapshot;
       }
 
       const newDocument = new model(newDocumentData);
@@ -1556,30 +1684,15 @@ export class ExpedientesService {
         }
       }
 
-      // notaMedica: $unset campos vitales con null ("Se desconoce")
-      const VITAL_SIGNS_FIELDS = [
-        'tensionArterialSistolica',
-        'tensionArterialDiastolica',
-        'frecuenciaCardiaca',
-        'frecuenciaRespiratoria',
-        'temperatura',
-        'saturacionOxigeno',
-      ];
-      let updatePayload: any = { ...updateDto };
+      let updatePayload: any =
+        documentType === 'notaMedica'
+          ? normalizeNotaMedicaCexSentinels(updateDto)
+          : { ...updateDto };
       if (updatePayload.createdBy == null) {
         delete updatePayload.createdBy;
       }
-      if (documentType === 'notaMedica') {
-        const unsetVitals: Record<string, 1> = {};
-        for (const field of VITAL_SIGNS_FIELDS) {
-          if (updateDto[field] === null) {
-            delete updatePayload[field];
-            unsetVitals[field] = 1;
-          }
-        }
-        if (Object.keys(unsetVitals).length > 0) {
-          updatePayload = { ...updatePayload, $unset: unsetVitals };
-        }
+      if (fichaSnapshot) {
+        updatePayload.fichaSnapshot = fichaSnapshot;
       }
 
       result = await model
@@ -1693,6 +1806,16 @@ export class ExpedientesService {
     document.estado = DocumentoEstado.FINALIZADO;
     document.fechaFinalizacion = new Date();
     document.finalizadoPor = finalizadorId;
+
+    const fichaSnapshot = await this.tryCapturarFichaSnapshot({
+      documentType,
+      trabajadorId: idTrabajador,
+      creadorId,
+      finalizadorId,
+    });
+    if (fichaSnapshot) {
+      document.fichaSnapshot = fichaSnapshot;
+    }
 
     if (!reutilizarPdfPostSave) {
       document.pdfStatus = PdfStatus.GENERATING;

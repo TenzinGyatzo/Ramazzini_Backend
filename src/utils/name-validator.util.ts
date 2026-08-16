@@ -1,7 +1,20 @@
+import { BadRequestException } from '@nestjs/common';
 import {
   validateCurpNameCaptureField,
   validateCurpPersonNameCapture,
 } from './curp-name-capture-validation.util';
+import {
+  validatePersonNameCharacters,
+} from './person-name-character-validation.util';
+import {
+  PERSON_NAME_MAX_LENGTH,
+  PERSON_NAME_MIN_LENGTH,
+  personNameLengthMessage,
+} from './constants/person-name.constants';
+import {
+  collapsePersonNameWhitespace,
+  normalizeTrabajadorPersonName,
+} from './normalization';
 
 /**
  * NOM-024 Name Validator Utility
@@ -156,10 +169,67 @@ function escapeRegex(str: string): string {
  * @param maxLength - Maximum allowed length (default 50)
  * @returns NameValidationResult with validation status and normalized value
  */
+export function validatePersonNameFields(
+  nombre: string | undefined | null,
+  primerApellido: string | undefined | null,
+  segundoApellido?: string | undefined | null,
+  regime?: string | null,
+): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  const checkLength = (
+    value: string | undefined | null,
+    fieldLabel: string,
+    required: boolean,
+  ) => {
+    const trimmed = value == null ? '' : String(value).trim();
+    if (trimmed === '') {
+      if (required) {
+        errors.push(`${fieldLabel} es requerido`);
+      }
+      return;
+    }
+
+    if (
+      trimmed.length < PERSON_NAME_MIN_LENGTH ||
+      trimmed.length > PERSON_NAME_MAX_LENGTH
+    ) {
+      errors.push(personNameLengthMessage(fieldLabel));
+    }
+  };
+
+  checkLength(nombre, 'Nombre', true);
+  checkLength(primerApellido, 'Primer apellido', false);
+  checkLength(segundoApellido, 'Segundo apellido', false);
+
+  const primerTrimmed =
+    primerApellido == null ? '' : String(primerApellido).trim();
+  const segundoTrimmed =
+    segundoApellido == null ? '' : String(segundoApellido).trim();
+  if (segundoTrimmed !== '' && primerTrimmed === '') {
+    errors.push(
+      'No puede registrar segundo apellido sin primer apellido',
+    );
+  }
+
+  const characterResults = [
+    validatePersonNameCharacters(nombre, 'Nombre', regime),
+    validatePersonNameCharacters(primerApellido, 'Primer apellido', regime),
+    validatePersonNameCharacters(segundoApellido, 'Segundo apellido', regime),
+  ];
+  errors.push(...characterResults.flatMap((result) => result.errors));
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+}
+
 export function validateNameField(
   name: string | undefined | null,
   fieldName: string,
-  maxLength: number = 50,
+  maxLength: number = PERSON_NAME_MAX_LENGTH,
+  regime?: string | null,
 ): NameValidationResult {
   const result: NameValidationResult = {
     isValid: true,
@@ -174,16 +244,20 @@ export function validateNameField(
     return result; // Empty is handled separately (required vs optional)
   }
 
-  // Normalize: trim and uppercase
-  const normalizedName = name.trim().toUpperCase();
+  const normalizedName =
+    normalizeTrabajadorPersonName(name, regime) ??
+    collapsePersonNameWhitespace(name);
   result.normalizedValue = normalizedName;
+
+  if (normalizedName.length < PERSON_NAME_MIN_LENGTH) {
+    result.isValid = false;
+    result.errors.push(personNameLengthMessage(fieldName));
+  }
 
   // Check max length
   if (normalizedName.length > maxLength) {
     result.isValid = false;
-    result.errors.push(
-      `${fieldName} excede el límite de ${maxLength} caracteres (tiene ${normalizedName.length})`,
-    );
+    result.errors.push(personNameLengthMessage(fieldName));
   }
 
   // Check for abbreviations
@@ -207,8 +281,11 @@ export function validateNameField(
     result.normalizedValue = normalizedName.replace(/\.+$/, '').trim();
   }
 
-  // Validación CURP: caracteres permitidos en captura (instructivo RENAPO)
-  const curpCapture = validateCurpNameCaptureField(normalizedName, fieldName);
+  const curpCapture = validateCurpNameCaptureField(
+    normalizedName,
+    fieldName,
+    regime,
+  );
   if (!curpCapture.isValid) {
     result.isValid = false;
     result.errors.push(...curpCapture.errors);
@@ -229,6 +306,7 @@ export function validateTrabajadorNames(
   nombre: string | undefined | null,
   primerApellido: string | undefined | null,
   segundoApellido: string | undefined | null,
+  regime?: string | null,
 ): {
   isValid: boolean;
   errors: string[];
@@ -239,14 +317,18 @@ export function validateTrabajadorNames(
     segundoApellido: string;
   };
 } {
-  const nombreResult = validateNameField(nombre, 'Nombre');
+  const nombreResult = validateNameField(nombre, 'Nombre', PERSON_NAME_MAX_LENGTH, regime);
   const primerApellidoResult = validateNameField(
     primerApellido,
     'Primer apellido',
+    PERSON_NAME_MAX_LENGTH,
+    regime,
   );
   const segundoApellidoResult = validateNameField(
     segundoApellido,
     'Segundo apellido',
+    PERSON_NAME_MAX_LENGTH,
+    regime,
   );
 
   return {
@@ -270,4 +352,22 @@ export function validateTrabajadorNames(
       segundoApellido: segundoApellidoResult.normalizedValue,
     },
   };
+}
+
+export function assertValidPersonNameFields(
+  nombre: string | undefined | null,
+  primerApellido: string | undefined | null,
+  segundoApellido?: string | undefined | null,
+  regime?: string | null,
+): void {
+  const validation = validatePersonNameFields(
+    nombre,
+    primerApellido,
+    segundoApellido,
+    regime,
+  );
+
+  if (!validation.isValid) {
+    throw new BadRequestException(validation.errors.join('. '));
+  }
 }

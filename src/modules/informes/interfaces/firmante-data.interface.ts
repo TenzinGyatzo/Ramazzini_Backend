@@ -10,6 +10,7 @@ export interface FirmanteData {
   numeroCredencialAdicional?: string;
   firma?: { data: string; contentType: string } | null;
   sexo?: string;
+  sexoCURP?: number;
   tipo: 'medico' | 'enfermera' | 'tecnico';
 }
 

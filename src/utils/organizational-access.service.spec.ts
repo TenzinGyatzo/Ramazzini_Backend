@@ -4,9 +4,9 @@ import { OrganizationalAccessService } from './organizational-access.service';
 describe('OrganizationalAccessService', () => {
   let service: OrganizationalAccessService;
   let userModel: { findById: jest.Mock };
-  let centroTrabajoModel: { findById: jest.Mock };
-  let empresaModel: { findById: jest.Mock };
-  let trabajadorModel: { findById: jest.Mock };
+  let centroTrabajoModel: { findById: jest.Mock; findOne: jest.Mock };
+  let empresaModel: { findById: jest.Mock; findOne: jest.Mock };
+  let trabajadorModel: { findById: jest.Mock; findOne: jest.Mock };
   let expedienteColaboracionService: {
     resolveTrabajadorDestinoPorOrigen: jest.Mock;
     hasDocumentAtPathForTrabajador: jest.Mock;
@@ -56,9 +56,9 @@ describe('OrganizationalAccessService', () => {
 
   beforeEach(() => {
     userModel = { findById: jest.fn() };
-    centroTrabajoModel = { findById: jest.fn() };
-    empresaModel = { findById: jest.fn() };
-    trabajadorModel = { findById: jest.fn() };
+    centroTrabajoModel = { findById: jest.fn(), findOne: jest.fn() };
+    empresaModel = { findById: jest.fn(), findOne: jest.fn() };
+    trabajadorModel = { findById: jest.fn(), findOne: jest.fn() };
     expedienteColaboracionService = {
       resolveTrabajadorDestinoPorOrigen: jest.fn(),
       hasDocumentAtPathForTrabajador: jest.fn(),
@@ -75,6 +75,16 @@ describe('OrganizationalAccessService', () => {
 
   function mockExec<T>(value: T) {
     return { exec: jest.fn().mockResolvedValue(value) };
+  }
+
+  function mockLeanQuery<T>(value: T) {
+    return {
+      select: jest.fn().mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(value),
+        }),
+      }),
+    };
   }
 
   describe('assertUserCanAccessCentro', () => {
@@ -223,7 +233,40 @@ describe('OrganizationalAccessService', () => {
       ).resolves.toBeUndefined();
     });
 
+    it('permite acceso con ruta legacy sin ObjectId en carpeta del trabajador', async () => {
+      const legacyPath =
+        'expedientes-medicos/Comercializadora Delta/Planta Omega/Ludwig/Aptitud 15-09-2025.pdf';
+
+      empresaModel.findOne.mockReturnValue(mockLeanQuery({ _id: empresaId }));
+      centroTrabajoModel.findOne.mockReturnValue(
+        mockLeanQuery({ _id: centroId, idEmpresa: empresaId }),
+      );
+      trabajadorModel.findOne.mockReturnValue(
+        mockLeanQuery({ _id: trabajadorId, idCentroTrabajo: centroId }),
+      );
+      trabajadorModel.findById.mockReturnValue(
+        mockExec({ _id: trabajadorId, idCentroTrabajo: centroId }),
+      );
+      centroTrabajoModel.findById.mockReturnValue(
+        mockExec({ _id: centroId, idEmpresa: empresaId }),
+      );
+      empresaModel.findById.mockReturnValue(
+        mockExec({ _id: empresaId, idProveedorSalud: proveedorId }),
+      );
+      userModel.findById.mockReturnValue(mockExec(limitedUser));
+
+      await expect(
+        service.assertUserCanAccessClinicalPath(userId, legacyPath),
+      ).resolves.toBeUndefined();
+    });
+
     it('rechaza ruta sin trabajadorId reconocible', async () => {
+      empresaModel.findOne.mockReturnValue(mockLeanQuery({ _id: empresaId }));
+      centroTrabajoModel.findOne.mockReturnValue(
+        mockLeanQuery({ _id: centroId, idEmpresa: empresaId }),
+      );
+      trabajadorModel.findOne.mockReturnValue(mockLeanQuery(null));
+
       await expect(
         service.assertUserCanAccessClinicalPath(
           userId,

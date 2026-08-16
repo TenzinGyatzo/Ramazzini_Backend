@@ -110,6 +110,7 @@ describe('TrabajadoresService - importarTrabajadores', () => {
   const baseSiresRow = {
     ...baseSinRegimenRow,
     curp: 'XXXX999999XXXXXX99',
+    sexoCURP: 1,
     entidadNacimiento: '09',
     paisNacimiento: 142,
     entidadResidencia: '09',
@@ -225,6 +226,57 @@ describe('TrabajadoresService - importarTrabajadores', () => {
     expect(createSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('SIN_REGIMEN: importa fila sin primerApellido ni segundoApellido', async () => {
+    mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue(
+      createSinRegimenPolicy(),
+    );
+
+    const createSpy = jest.spyOn(service, 'create').mockResolvedValue({
+      trabajador: {
+        toObject: () => ({ _id: 'new-id', nombre: 'JUAN' }),
+      },
+      posibleDuplicado: null,
+    } as any);
+
+    const { primerApellido, ...sinApellidos } = baseSinRegimenRow;
+    const result = await service.importarTrabajadores(
+      [sinApellidos],
+      centroTrabajoId,
+      createdBy,
+    );
+
+    expect(result.successful).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(createSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('SIN_REGIMEN: rechaza segundoApellido sin primerApellido', async () => {
+    mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue(
+      createSinRegimenPolicy(),
+    );
+
+    const createSpy = jest.spyOn(service, 'create');
+
+    const result = await service.importarTrabajadores(
+      [
+        {
+          ...baseSinRegimenRow,
+          primerApellido: '',
+          segundoApellido: 'LOPEZ',
+        },
+      ],
+      centroTrabajoId,
+      createdBy,
+    );
+
+    expect(result.successful).toBe(0);
+    expect(result.failed).toBe(1);
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(result.data[0].validationErrors?.join(' ')).toMatch(
+      /segundo apellido sin primer apellido/i,
+    );
+  });
+
   it('SIRES_NOM024: rechaza fila sin CURP antes de create', async () => {
     mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue(
       createSiresPolicy(),
@@ -290,6 +342,7 @@ describe('TrabajadoresService - importarTrabajadores', () => {
     const rowWithSpanishHeaders = {
       ...baseSinRegimenRow,
       curp: 'XXXX999999XXXXXX99',
+      sexoCURP: 2,
       'Entidad Nacimiento': '09',
       'País de nacimiento': 142,
       'Entidad Residencia': '09',
@@ -310,7 +363,36 @@ describe('TrabajadoresService - importarTrabajadores', () => {
         entidadNacimiento: '09',
         paisNacimiento: 142,
         entidadResidencia: '09',
+        sexoCURP: 2,
       }),
+    );
+  });
+
+  it('SIRES_NOM024: normaliza columna Sexo CURP en import', async () => {
+    mockRegulatoryPolicyService.getRegulatoryPolicy.mockResolvedValue(
+      createSiresPolicy(),
+    );
+
+    const createSpy = jest.spyOn(service, 'create').mockImplementation(async (dto: any) => ({
+      trabajador: { toObject: () => ({ _id: 'new-id', ...dto }) },
+      posibleDuplicado: null,
+    }));
+
+    const row = {
+      ...baseSiresRow,
+      sexoCURP: undefined,
+      'Sexo CURP': 'No binario',
+    };
+
+    const result = await service.importarTrabajadores(
+      [row],
+      centroTrabajoId,
+      createdBy,
+    );
+
+    expect(result.successful).toBe(1);
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ sexoCURP: 3 }),
     );
   });
 

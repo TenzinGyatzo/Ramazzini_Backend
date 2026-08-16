@@ -11,6 +11,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { SOMATOMETRIA_SIGNOS_RANGES as R } from '../constants/somatometria-signos.ranges';
 
 const categoriasIMC = [
   '',
@@ -81,14 +82,14 @@ export class CreateExploracionFisicaDto {
   // Somatometría
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 1 })
-  @Min(45)
-  @Max(200)
+  @Min(R.peso.min)
+  @Max(R.peso.max)
   peso: number;
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(1.4)
-  @Max(2.2)
+  @Min(R.altura.min)
+  @Max(R.altura.max)
   altura: number;
 
   @IsOptional()
@@ -103,6 +104,8 @@ export class CreateExploracionFisicaDto {
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 0 })
+  @Min(R.circunferenciaCintura.min)
+  @Max(R.circunferenciaCintura.max)
   circunferenciaCintura: number;
 
   @IsOptional()
@@ -116,13 +119,13 @@ export class CreateExploracionFisicaDto {
   // Signos Vitales
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 0 })
-  @Min(60)
-  @Max(300)
+  @Min(R.tensionArterialSistolica.min)
+  @Max(R.tensionArterialSistolica.max)
   tensionArterialSistolica: number;
 
   @IsOptional()
-  @Min(40)
-  @Max(200)
+  @Min(R.tensionArterialDiastolica.min)
+  @Max(R.tensionArterialDiastolica.max)
   @IsNumber({ maxDecimalPlaces: 0 })
   tensionArterialDiastolica: number;
 
@@ -131,8 +134,8 @@ export class CreateExploracionFisicaDto {
   categoriaTensionArterial: string;
 
   @IsOptional()
-  @Min(40)
-  @Max(150)
+  @Min(R.frecuenciaCardiaca.min)
+  @Max(R.frecuenciaCardiaca.max)
   @IsNumber({ maxDecimalPlaces: 0 })
   frecuenciaCardiaca: number;
 
@@ -146,8 +149,8 @@ export class CreateExploracionFisicaDto {
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 0 })
-  @Min(12)
-  @Max(45)
+  @Min(R.frecuenciaRespiratoria.min)
+  @Max(R.frecuenciaRespiratoria.max)
   frecuenciaRespiratoria: number;
 
   @IsOptional()
@@ -160,8 +163,8 @@ export class CreateExploracionFisicaDto {
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 0 })
-  @Min(70)
-  @Max(100)
+  @Min(R.saturacionOxigeno.min)
+  @Max(R.saturacionOxigeno.max)
   saturacionOxigeno: number;
 
   @IsOptional()

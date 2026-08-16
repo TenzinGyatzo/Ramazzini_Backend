@@ -8,6 +8,7 @@ import { FooterFirmantesData } from '../interfaces/firmante-data.interface';
 import { generarFooterFirmantes } from '../helpers/footer-firmantes.helper';
 import { EnfermeraFirmanteInforme, MedicoFirmanteInforme, TecnicoFirmanteInforme } from '../types/firmante-informe.types';
 import { firmanteTieneLineaNombre, resolverFirmanteActivo } from '../helpers/firmante-informe.helpers';
+import { buildEnfermeraPiePaginaPdfBlock, buildTecnicoPiePaginaPdfBlock } from '../../../utils/firmante-pie-pagina.util';
 
 // ==================== ESTILOS ====================
 const styles: StyleDictionary = {
@@ -194,6 +195,7 @@ interface EnfermeraFirmante {
 interface ProveedorSalud {
   nombre: string;
   pais: string;
+  regimenRegulatorio?: string;
   perfilProveedorSalud: string;
   logotipoEmpresa: {
     data: string;
@@ -860,7 +862,7 @@ export const notaAclaratoriaInforme = (
                     // Nombre y título profesional
                     firmanteTieneLineaNombre(firmanteActivo)
                       ? {
-                          text: `${formatearTituloYNombreFirmante(firmanteActivo)}\n`,
+                          text: `${formatearTituloYNombreFirmante(firmanteActivo, proveedorSalud.regimenRegulatorio)}\n`,
                           bold: true,
                         }
                       : null,
@@ -899,15 +901,9 @@ export const notaAclaratoriaInforme = (
                       : null,
 
                     // Texto específico para enfermeras
-                    usarEnfermera && enfermeraFirmante?.sexo
-                      ? {
-                          text:
-                            enfermeraFirmante.sexo === 'Femenino'
-                              ? 'Enfermera responsable de la nota\n'
-                              : 'Enfermero responsable de la nota\n',
-                          bold: false,
-                        }
-                      : null,
+                usarEnfermera
+                  ? buildEnfermeraPiePaginaPdfBlock(enfermeraFirmante, 'de la nota')
+                  : null,
                   ].filter((item) => item !== null), // Filtrar los nulos para que no aparezcan en el informe
               fontSize: 8,
               margin: [40, 0, 0, 0],

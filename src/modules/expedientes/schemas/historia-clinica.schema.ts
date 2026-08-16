@@ -4,6 +4,7 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 const siONo = ['Si', 'No'];
 
@@ -384,5 +385,6 @@ export class HistoriaClinica extends Document {
 export const HistoriaClinicaSchema = SchemaFactory.createForClass(
   HistoriaClinica,
 ).set('timestamps', true);
+HistoriaClinicaSchema.plugin(fichaSnapshotPlugin);
 HistoriaClinicaSchema.index({ idTrabajador: 1, fechaHistoriaClinica: -1 });
 HistoriaClinicaSchema.index({ createdBy: 1, createdAt: -1 });

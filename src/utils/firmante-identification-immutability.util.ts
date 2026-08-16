@@ -11,6 +11,7 @@ export const FIRMANTE_IMMUTABLE_IDENTIFICATION_FIELDS = [
   'segundoApellido',
   'fechaNacimiento',
   'sexo',
+  'sexoCURP',
   'entidadNacimiento',
   'paisNacimiento',
 ] as const;
@@ -21,6 +22,7 @@ export const FIRMANTE_CURP_CONFORMATION_FIELDS = [
   'segundoApellido',
   'fechaNacimiento',
   'sexo',
+  'sexoCURP',
   'entidadNacimiento',
   'paisNacimiento',
 ] as const;
@@ -36,6 +38,7 @@ export interface FirmanteIdentificationCurrent {
   segundoApellido?: string;
   fechaNacimiento?: Date | string;
   sexo?: string;
+  sexoCURP?: number;
   entidadNacimiento?: string;
   paisNacimiento?: number;
   toObject?: () => Record<string, unknown>;
@@ -111,6 +114,8 @@ function getNormalizedFieldValue(
       return normalizeUpperString(raw);
     case 'sexo':
       return normalizeOptionalString(raw);
+    case 'sexoCURP':
+      return raw == null || raw === '' ? '' : String(raw);
     default:
       return normalizeOptionalString(raw);
   }

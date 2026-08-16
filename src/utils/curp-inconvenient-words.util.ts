@@ -108,3 +108,45 @@ export function applyInconvenientWordFilter(iniciales: string): string {
 
   return normalized.charAt(0) + 'X' + normalized.slice(2);
 }
+
+export function isInconvenientWord(block4: string): boolean {
+  return (
+    block4.length === 4 && CURP_INCONVENIENT_WORDS.has(block4.toUpperCase())
+  );
+}
+
+export interface InconvenientWordVariants {
+  raw: string;
+  filtered: string;
+  isInconvenient: boolean;
+}
+
+export function getInconvenientWordVariants(
+  raw4: string,
+): InconvenientWordVariants {
+  const raw = raw4.toUpperCase();
+  const filtered = applyInconvenientWordFilter(raw);
+  return {
+    raw,
+    filtered,
+    isInconvenient: raw.length === 4 && raw !== filtered,
+  };
+}
+
+/** Acepta iniciales crudas o con sustituto X en posición 2. */
+export function curpInicialesMatchExpected(
+  got: string,
+  rawExpected: string,
+): boolean {
+  const normalizedGot = got.toUpperCase();
+  const { raw, filtered } = getInconvenientWordVariants(rawExpected);
+  return normalizedGot === raw || normalizedGot === filtered;
+}
+
+/** true si pos. 1-4 de la CURP forman palabra inconveniente sin filtrar. */
+export function curpHasUnfilteredInconvenientWord(curp: string): boolean {
+  if (!curp || curp.length < 4) {
+    return false;
+  }
+  return isInconvenientWord(curp.substring(0, 4));
+}

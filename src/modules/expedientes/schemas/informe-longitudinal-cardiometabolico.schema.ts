@@ -31,6 +31,7 @@ import {
   TendenciaLongitudinal,
   TrayectoriaLongitudinalInforme,
 } from '../enums/informe-longitudinal-cardiometabolico.enums';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 const ESTADOS_CONTROL = Object.values(EstadoControlCondicion);
 const GRADOS_OBESIDAD = Object.values(GradoObesidad);
@@ -371,6 +372,7 @@ export class InformeLongitudinalCardiometabolico extends Document {
 export const InformeLongitudinalCardiometabolicoSchema = SchemaFactory.createForClass(
   InformeLongitudinalCardiometabolico,
 ).set('timestamps', true);
+InformeLongitudinalCardiometabolicoSchema.plugin(fichaSnapshotPlugin);
 
 InformeLongitudinalCardiometabolicoSchema.index({
   idTrabajador: 1,

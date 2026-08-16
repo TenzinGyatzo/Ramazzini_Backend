@@ -16,6 +16,13 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { TRABAJADOR_SEXOS } from '../constants/trabajador-sexo.constants';
+import {
+  TRABAJADOR_SEXO_CURP_VALUES,
+} from '../constants/trabajador-sexo-curp.constants';
+import {
+  IsOptionalPersonNameField,
+  IsRequiredPersonNameField,
+} from 'src/utils/decorators/person-name.decorators';
 
 const sexos = [...TRABAJADOR_SEXOS];
 
@@ -43,27 +50,25 @@ const estadosLaborales = ['Activo', 'Inactivo'];
 
 export class CreateTrabajadorDto {
   @ApiProperty({
-    description: 'Primer apellido del trabajador',
+    description: 'Primer apellido del trabajador (opcional)',
     example: 'Varela',
+    required: false,
   })
-  @IsString({ message: 'El primer apellido debe ser un string' })
-  @IsNotEmpty({ message: 'El primer apellido no puede estar vacío' })
-  primerApellido: string;
+  @IsOptionalPersonNameField('El primer apellido')
+  primerApellido?: string;
 
   @ApiProperty({
     description: 'Segundo apellido del trabajador',
     example: 'Ruvalcaba',
   })
-  @IsString({ message: 'El segundo apellido debe ser un string' })
-  @IsOptional({ message: 'El segundo apellido puede estar vacío' })
+  @IsOptionalPersonNameField('El segundo apellido')
   segundoApellido?: string;
 
   @ApiProperty({
     description: 'Nombre completo del trabajador',
     example: 'Juan Enrique',
   })
-  @IsString({ message: 'El nombre debe ser un string' })
-  @IsNotEmpty({ message: 'El nombre no puede estar vacío' })
+  @IsRequiredPersonNameField('El nombre')
   nombre: string;
 
   @ApiProperty({
@@ -87,6 +92,19 @@ export class CreateTrabajadorDto {
     message: 'El sexo debe ser Masculino, Femenino o Intersexual',
   })
   sexo: string;
+
+  @ApiProperty({
+    description: 'Sexo RENAPO para CURP (1=Hombre, 2=Mujer, 3=No binario). Requerido en SIRES_NOM024.',
+    enum: TRABAJADOR_SEXO_CURP_VALUES,
+    required: false,
+    example: 1,
+  })
+  @IsOptional()
+  @IsInt({ message: 'sexoCURP debe ser un número entero' })
+  @IsEnum(TRABAJADOR_SEXO_CURP_VALUES, {
+    message: 'sexoCURP debe ser 1 (Hombre), 2 (Mujer) o 3 (No binario)',
+  })
+  sexoCURP?: number;
 
   @ApiProperty({
     description: 'Último nivel de estudios completado',
@@ -219,15 +237,15 @@ export class CreateTrabajadorDto {
   // NOM-024 Person Identification Fields
   @ApiProperty({
     description:
-      'Entidad de nacimiento (código INEGI 2 dígitos: 01-32, NE para Extranjero, 00 para No disponible). Obligatorio para proveedores MX.',
+      'Entidad de nacimiento (código INEGI/GIIS 2 dígitos: 01-32, NE, 00, 88 o 99). Obligatorio para proveedores MX.',
     example: '01',
     required: false,
   })
   @IsOptional()
   @IsString({ message: 'La entidad de nacimiento debe ser un string' })
-  @Matches(/^$|^(0[1-9]|[12][0-9]|3[0-2]|NE|00)$/, {
+  @Matches(/^$|^(0[1-9]|[12][0-9]|3[0-2]|NE|00|88|99)$/, {
     message:
-      'Entidad de nacimiento debe ser código INEGI válido (01-32, NE, o 00)',
+      'Entidad de nacimiento debe ser código INEGI/GIIS válido (01-32, NE, 00, 88 o 99)',
   })
   entidadNacimiento?: string;
 
@@ -246,15 +264,15 @@ export class CreateTrabajadorDto {
 
   @ApiProperty({
     description:
-      'Entidad de residencia (código INEGI 2 dígitos: 01-32, NE para Extranjero, 00 para No disponible). Obligatorio para proveedores MX.',
+      'Entidad de residencia (código INEGI/GIIS 2 dígitos: 01-32, NE, 00, 88 o 99). Obligatorio para proveedores MX.',
     example: '01',
     required: false,
   })
   @IsOptional()
   @IsString({ message: 'La entidad de residencia debe ser un string' })
-  @Matches(/^$|^(0[1-9]|[12][0-9]|3[0-2]|NE|00)$/, {
+  @Matches(/^$|^(0[1-9]|[12][0-9]|3[0-2]|NE|00|88|99)$/, {
     message:
-      'Entidad de residencia debe ser código INEGI válido (01-32, NE, o 00)',
+      'Entidad de residencia debe ser código INEGI/GIIS válido (01-32, NE, 00, 88 o 99)',
   })
   entidadResidencia?: string;
 

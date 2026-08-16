@@ -4,6 +4,7 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 @Schema()
 export class ControlPrenatal extends Document {
@@ -323,6 +324,7 @@ export class ControlPrenatal extends Document {
 export const ControlPrenatalSchema = SchemaFactory.createForClass(
   ControlPrenatal,
 ).set('timestamps', true);
+ControlPrenatalSchema.plugin(fichaSnapshotPlugin);
 
 // Crear índices para mejorar el rendimiento de las consultas
 ControlPrenatalSchema.index({

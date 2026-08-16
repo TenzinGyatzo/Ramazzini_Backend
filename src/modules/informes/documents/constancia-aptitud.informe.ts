@@ -200,6 +200,7 @@ interface ConstanciaAptitud {
 interface ProveedorSalud {
   nombre: string;
   pais: string;
+  regimenRegulatorio?: string;
   perfilProveedorSalud: string;
   logotipoEmpresa: {
     data: string;
@@ -343,7 +344,7 @@ export const constanciaAptitudInforme = (
                       ]
                     : []),
                   {
-                    text: formatearTituloYNombreFirmanteConFallback(firmanteActivo, 'Nombre del Emisor'),
+                    text: formatearTituloYNombreFirmanteConFallback(firmanteActivo, 'Nombre del Emisor', proveedorSalud.regimenRegulatorio),
                     style: 'nombreEmisor',
                     alignment: 'center' as const,
                     margin: [0, 5, 0, 0] as [number, number, number, number],

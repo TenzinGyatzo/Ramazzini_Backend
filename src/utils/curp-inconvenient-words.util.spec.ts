@@ -1,6 +1,10 @@
 import {
   applyInconvenientWordFilter,
   CURP_INCONVENIENT_WORDS,
+  curpHasUnfilteredInconvenientWord,
+  curpInicialesMatchExpected,
+  getInconvenientWordVariants,
+  isInconvenientWord,
 } from './curp-inconvenient-words.util';
 
 /** Pares origen → reemplazo según catálogo RENAPO oficial. */
@@ -117,6 +121,38 @@ describe('curp-inconvenient-words.util', () => {
       expect(applyInconvenientWordFilter('COG')).toBe('COG');
       expect(applyInconvenientWordFilter('COGEE')).toBe('COGEE');
       expect(applyInconvenientWordFilter('')).toBe('');
+    });
+  });
+
+  describe('dual acceptance helpers', () => {
+    it('isInconvenientWord detecta palabras del catálogo', () => {
+      expect(isInconvenientWord('COGE')).toBe(true);
+      expect(isInconvenientWord('GALJ')).toBe(false);
+    });
+
+    it('getInconvenientWordVariants expone raw y filtered', () => {
+      expect(getInconvenientWordVariants('COGE')).toEqual({
+        raw: 'COGE',
+        filtered: 'CXGE',
+        isInconvenient: true,
+      });
+      expect(getInconvenientWordVariants('GALJ')).toEqual({
+        raw: 'GALJ',
+        filtered: 'GALJ',
+        isInconvenient: false,
+      });
+    });
+
+    it('curpInicialesMatchExpected acepta crudo o sustituto', () => {
+      expect(curpInicialesMatchExpected('COGE', 'COGE')).toBe(true);
+      expect(curpInicialesMatchExpected('CXGE', 'COGE')).toBe(true);
+      expect(curpInicialesMatchExpected('GALJ', 'COGE')).toBe(false);
+    });
+
+    it('curpHasUnfilteredInconvenientWord detecta pos. 1-4 sin filtrar', () => {
+      expect(curpHasUnfilteredInconvenientWord('COGE941130HJCRND07')).toBe(true);
+      expect(curpHasUnfilteredInconvenientWord('CXGE941130HJCRND07')).toBe(false);
+      expect(curpHasUnfilteredInconvenientWord('GALJ900515HDFRPN08')).toBe(false);
     });
   });
 });

@@ -7,10 +7,12 @@ import {
 import { createRegulatoryError } from './regulatory-error-helper';
 import { RegulatoryErrorCode } from './regulatory-error-codes';
 import { buildCurpCrossCheckErrorContent } from './curp-cross-check-messages.util';
+import { requiresGenericCurpForEntidadNacimiento } from './giis-residencia-geo.util';
 
 export interface CurpDemographicData {
   fechaNacimiento?: Date | string;
   sexo?: string;
+  sexoCURP?: 1 | 2 | 3;
   entidadNacimiento?: string;
   nombre?: string;
   primerApellido?: string;
@@ -48,10 +50,21 @@ export function validateCurpForSires(
   }
 
   const normalizedCurp = curp.trim().toUpperCase();
+  const requireGeneric = requiresGenericCurpForEntidadNacimiento(
+    demographics.entidadNacimiento,
+  );
 
   if (!options.allowGenericCurp && isGenericCURP(normalizedCurp)) {
     throw new BadRequestException(
-      `CURP genérica no permitida para ${options.subjectLabel === 'firmante' ? 'firmantes' : 'este registro'}`,
+      options.subjectLabel === 'firmante'
+        ? 'CURP genérica no permitida para firmantes nacidos en México'
+        : 'CURP genérica no permitida para este registro',
+    );
+  }
+
+  if (requireGeneric && !isGenericCURP(normalizedCurp)) {
+    throw new BadRequestException(
+      'Con entidad de nacimiento NO ESPECIFICADO o SE IGNORA la CURP debe ser XXXX999999XXXXXX99',
     );
   }
 
@@ -66,10 +79,14 @@ export function validateCurpForSires(
     return;
   }
 
-  if (demographics.fechaNacimiento && demographics.sexo) {
+  if (
+    demographics.fechaNacimiento &&
+    (demographics.sexoCURP != null || demographics.sexo)
+  ) {
     const crossCheck = validateCURPCrossCheck(normalizedCurp, {
       fechaNacimiento: demographics.fechaNacimiento,
       sexo: demographics.sexo,
+      sexoCURP: demographics.sexoCURP,
       entidadNacimiento: demographics.entidadNacimiento,
       nombre: demographics.nombre,
       primerApellido: demographics.primerApellido,
@@ -77,10 +94,11 @@ export function validateCurpForSires(
     });
 
     if (!crossCheck.isValid) {
-      const { summary, userMessages, message } = buildCurpCrossCheckErrorContent(
-        crossCheck.discrepancies,
-        options.subjectLabel,
-      );
+      const { summary, userMessages, message, details } =
+        buildCurpCrossCheckErrorContent(
+          crossCheck.discrepancies,
+          options.subjectLabel,
+        );
 
       console.warn('CURP cross-check A1 failed:', {
         subject: options.subjectLabel,
@@ -95,7 +113,7 @@ export function validateCurpForSires(
         summary,
         userMessages,
         message,
-        details: crossCheck.discrepancies,
+        details,
       });
     }
   }

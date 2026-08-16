@@ -121,6 +121,8 @@ export class ProveedorInformeResolver {
     const datos: DatosProveedorSaludInforme = {
       nombre: (proveedorSalud.nombre as string) || '',
       pais: (proveedorSalud.pais as string) || '',
+      regimenRegulatorio:
+        (proveedorSalud.regimenRegulatorio as string) || undefined,
       perfilProveedorSalud:
         (proveedorSalud.perfilProveedorSalud as string) || '',
       logotipoEmpresa:

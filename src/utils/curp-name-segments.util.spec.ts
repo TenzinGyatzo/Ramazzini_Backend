@@ -88,6 +88,7 @@ describe('curp-name-segments.util', () => {
         nombre: 'EDGAR OMAR',
       });
 
+      expect(result.inicialesRaw).toBe('COGE');
       expect(result.iniciales).toBe('CXGE');
       expect(result.consonantes).toBe('RND');
     });

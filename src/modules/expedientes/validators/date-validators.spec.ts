@@ -6,6 +6,20 @@ import {
   AGE_MAX_YEARS,
 } from './date-validators';
 
+const RANGE_MESSAGE_PREFIX = `Edad fuera de rango (${AGE_MIN_YEARS} a ${AGE_MAX_YEARS} años, incluyendo meses y días)`;
+
+function expectRegistrationAgeRangeError(action: () => void): void {
+  expect(action).toThrow(BadRequestException);
+  expect(action).toThrow(RANGE_MESSAGE_PREFIX);
+  expect(action).toThrow(/Edad calculada: \d+ años, \d+ meses y \d+ días\./);
+}
+
+function subtractDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() - days);
+  return result;
+}
+
 describe('Date Validators', () => {
   describe('validateFechaNacimiento (A2)', () => {
     it('debe lanzar error si fechaNacimiento es futura', () => {
@@ -19,38 +33,90 @@ describe('Date Validators', () => {
       );
     });
 
-    it('debe lanzar error si edad > 70 años', () => {
-      const fechaHace71 = new Date();
-      fechaHace71.setFullYear(fechaHace71.getFullYear() - 71);
-      expect(() => validateFechaNacimiento(fechaHace71)).toThrow(
-        BadRequestException,
+    it(`debe lanzar error si supera ${AGE_MAX_YEARS} años exactos (${AGE_MAX_YEARS}a 0m 1d)`, () => {
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const fechaHaceMaxY1d = subtractDays(
+        new Date(
+          hoy.getFullYear() - AGE_MAX_YEARS,
+          hoy.getMonth(),
+          hoy.getDate(),
+        ),
+        1,
       );
-      expect(() => validateFechaNacimiento(fechaHace71)).toThrow(
-        `La edad calculada (71 años) está fuera del rango válido (${AGE_MIN_YEARS}-${AGE_MAX_YEARS} años)`,
+      expectRegistrationAgeRangeError(() =>
+        validateFechaNacimiento(fechaHaceMaxY1d),
+      );
+    });
+
+    it('debe lanzar error si edad < 18 años exactos (17a 11m 30d)', () => {
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const fechaHace17y364d = subtractDays(
+        new Date(hoy.getFullYear() - 18, hoy.getMonth(), hoy.getDate()),
+        -1,
+      );
+      expectRegistrationAgeRangeError(() =>
+        validateFechaNacimiento(fechaHace17y364d),
       );
     });
 
     it('debe lanzar error si edad < 18 años', () => {
       const fechaHace10 = new Date();
       fechaHace10.setFullYear(fechaHace10.getFullYear() - 10);
-      expect(() => validateFechaNacimiento(fechaHace10)).toThrow(
-        BadRequestException,
-      );
-      expect(() => validateFechaNacimiento(fechaHace10)).toThrow(
-        `La edad calculada (10 años) está fuera del rango válido (${AGE_MIN_YEARS}-${AGE_MAX_YEARS} años)`,
+      expectRegistrationAgeRangeError(() =>
+        validateFechaNacimiento(fechaHace10),
       );
     });
 
-    it('debe permitir fechaNacimiento válida (18 años)', () => {
+    it('debe permitir fechaNacimiento válida (18 años exactos)', () => {
       const fechaHace18 = new Date();
       fechaHace18.setFullYear(fechaHace18.getFullYear() - 18);
       expect(() => validateFechaNacimiento(fechaHace18)).not.toThrow();
     });
 
-    it('debe permitir fechaNacimiento válida (70 años)', () => {
-      const fechaHace70 = new Date();
-      fechaHace70.setFullYear(fechaHace70.getFullYear() - 70);
-      expect(() => validateFechaNacimiento(fechaHace70)).not.toThrow();
+    it(`debe permitir fechaNacimiento válida (${AGE_MAX_YEARS} años exactos)`, () => {
+      const fechaHaceMax = new Date();
+      fechaHaceMax.setFullYear(fechaHaceMax.getFullYear() - AGE_MAX_YEARS);
+      expect(() => validateFechaNacimiento(fechaHaceMax)).not.toThrow();
+    });
+
+    it(`debe permitir string YYYY-MM-DD en límite exacto de ${AGE_MAX_YEARS} años`, () => {
+      const hoy = new Date();
+      const minBirth = new Date(
+        hoy.getFullYear() - AGE_MAX_YEARS,
+        hoy.getMonth(),
+        hoy.getDate(),
+      );
+      const yyyy = minBirth.getFullYear();
+      const mm = String(minBirth.getMonth() + 1).padStart(2, '0');
+      const dd = String(minBirth.getDate()).padStart(2, '0');
+      expect(() => validateFechaNacimiento(`${yyyy}-${mm}-${dd}`)).not.toThrow();
+    });
+
+    it(`debe permitir string ISO UTC en límite exacto de ${AGE_MAX_YEARS} años`, () => {
+      const hoy = new Date();
+      const minBirth = new Date(
+        hoy.getFullYear() - AGE_MAX_YEARS,
+        hoy.getMonth(),
+        hoy.getDate(),
+      );
+      const yyyy = minBirth.getFullYear();
+      const mm = String(minBirth.getMonth() + 1).padStart(2, '0');
+      const dd = String(minBirth.getDate()).padStart(2, '0');
+      expect(() =>
+        validateFechaNacimiento(`${yyyy}-${mm}-${dd}T00:00:00.000Z`),
+      ).not.toThrow();
+    });
+
+    it('debe permitir 18a 0m 1d', () => {
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const fecha = subtractDays(
+        new Date(hoy.getFullYear() - 18, hoy.getMonth(), hoy.getDate()),
+        1,
+      );
+      expect(() => validateFechaNacimiento(fecha)).not.toThrow();
     });
 
     it('debe aceptar string ISO como fechaNacimiento', () => {

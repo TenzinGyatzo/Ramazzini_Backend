@@ -4,7 +4,7 @@ import { FooterFirmantesData } from '../interfaces/firmante-data.interface';
 
 export function generarFooterFirmantes(
   footerData: FooterFirmantesData,
-  proveedorSalud: { pais: string },
+  proveedorSalud: { pais: string; regimenRegulatorio?: string },
 ): Content[] {
   if (!footerData.esDocumentoFinalizado) {
     const firmante = footerData.finalizador || footerData.elaborador;
@@ -14,6 +14,7 @@ export function generarFooterFirmantes(
   }
 
   const textos: any[] = [];
+  const regimen = proveedorSalud.regimenRegulatorio;
 
   if (footerData.elaborador) {
     const cedulaElab =
@@ -33,7 +34,7 @@ export function generarFooterFirmantes(
           : null;
 
     textos.push({
-      text: `Elab. ${formatearTituloYNombreFirmante(footerData.elaborador)}\n`,
+      text: `Elab. ${formatearTituloYNombreFirmante(footerData.elaborador, regimen)}\n`,
       bold: true,
     });
 
@@ -63,7 +64,7 @@ export function generarFooterFirmantes(
           : null;
 
     textos.push({
-      text: `Rev./Fin. ${formatearTituloYNombreFirmante(footerData.finalizador)}\n`,
+      text: `Rev./Fin. ${formatearTituloYNombreFirmante(footerData.finalizador, regimen)}\n`,
       bold: true,
     });
 
@@ -80,14 +81,14 @@ export function generarFooterFirmantes(
 
 function generarTextosFirmante(
   firmante: any,
-  proveedorSalud: { pais: string },
+  proveedorSalud: { pais: string; regimenRegulatorio?: string },
   esElaborador: boolean,
 ): Content[] {
   const textos: any[] = [];
   const prefijo = esElaborador ? 'Elab. ' : '';
 
   textos.push({
-    text: `${prefijo}${formatearTituloYNombreFirmante(firmante)}\n`,
+    text: `${prefijo}${formatearTituloYNombreFirmante(firmante, proveedorSalud.regimenRegulatorio)}\n`,
     bold: true,
   });
 

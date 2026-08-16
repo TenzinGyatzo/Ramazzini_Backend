@@ -1,6 +1,39 @@
-import { parseAgeLimit } from './cie10-age-parser.util';
+import {
+  addCatalogAgeLimit,
+  parseAgeLimit,
+  parseCatalogAgeLimit,
+} from './cie10-age-parser.util';
 
 describe('CIE10 Age Parser Utility', () => {
+  describe('parseCatalogAgeLimit', () => {
+    it('parses days, months and years', () => {
+      expect(parseCatalogAgeLimit('028D')).toEqual({ value: 28, unit: 'D' });
+      expect(parseCatalogAgeLimit('006M')).toEqual({ value: 6, unit: 'M' });
+      expect(parseCatalogAgeLimit('010A')).toEqual({ value: 10, unit: 'A' });
+      expect(parseCatalogAgeLimit('010Y')).toEqual({ value: 10, unit: 'A' });
+    });
+
+    it('returns null for NO and empty', () => {
+      expect(parseCatalogAgeLimit('NO')).toBeNull();
+      expect(parseCatalogAgeLimit('')).toBeNull();
+    });
+  });
+
+  describe('addCatalogAgeLimit', () => {
+    it('adds days months and years on the calendar', () => {
+      const birth = new Date(2024, 0, 1);
+      expect(addCatalogAgeLimit(birth, { value: 28, unit: 'D' })).toEqual(
+        new Date(2024, 0, 29),
+      );
+      expect(addCatalogAgeLimit(birth, { value: 6, unit: 'M' })).toEqual(
+        new Date(2024, 6, 1),
+      );
+      expect(addCatalogAgeLimit(birth, { value: 10, unit: 'A' })).toEqual(
+        new Date(2034, 0, 1),
+      );
+    });
+  });
+
   describe('parseAgeLimit', () => {
     it('should parse "010A" to 10 years', () => {
       const result = parseAgeLimit('010A');

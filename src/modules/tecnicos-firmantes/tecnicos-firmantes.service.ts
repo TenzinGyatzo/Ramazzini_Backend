@@ -4,7 +4,7 @@ import { Model } from 'mongoose';
 import { TecnicoFirmante } from './schemas/tecnico-firmante.schema';
 import { CreateTecnicoFirmanteDto } from './dto/create-tecnico-firmante.dto';
 import { UpdateTecnicoFirmanteDto } from './dto/update-tecnico-firmante.dto';
-import { normalizeTecnicoFirmanteData } from 'src/utils/normalization';
+import { normalizeTecnicoFirmanteData, applyTrabajadorPersonNames } from 'src/utils/normalization';
 import { User } from '../users/schemas/user.schema';
 import { ProveedorSalud } from '../proveedores-salud/schemas/proveedor-salud.schema';
 import { RegulatoryPolicyService } from 'src/utils/regulatory-policy.service';
@@ -16,6 +16,8 @@ import {
   validateFirmanteRegulatoryFields,
 } from 'src/utils/firmante-regulatory-validation.util';
 import { validateFirmanteIdentificationImmutable } from 'src/utils/firmante-identification-immutability.util';
+import { assertValidPersonNameFields } from 'src/utils/name-validator.util';
+import { generateFolioFromWorkerData } from 'src/utils/folio-generator.util';
 
 @Injectable()
 export class TecnicosFirmantesService {
@@ -86,10 +88,32 @@ export class TecnicosFirmantesService {
       true,
     );
 
+    const policy = await this.getPolicyForUser(dto.idUser);
+    applyTrabajadorPersonNames(
+      normalized as Record<string, unknown>,
+      policy?.regime,
+    );
+
+    assertValidPersonNameFields(
+      (normalized as any).nombre,
+      (normalized as any).primerApellido,
+      (normalized as any).segundoApellido,
+      policy?.regime,
+    );
+
     await this.validateFirmanteSiresFields(
       normalized as Record<string, unknown>,
       dto.idUser,
     );
+
+    // NOM-024: Generar folio alfanumérico 18 caracteres (solo nuevos, no retroactivo)
+    (normalized as any).folio = generateFolioFromWorkerData({
+      nombre: (normalized as any).nombre,
+      primerApellido: (normalized as any).primerApellido,
+      segundoApellido: (normalized as any).segundoApellido,
+      fechaNacimiento: (normalized as any).fechaNacimiento,
+      sexo: (normalized as any).sexo,
+    });
 
     const created = new this.tecnicoModel(normalized);
     return created.save();
@@ -150,10 +174,32 @@ export class TecnicosFirmantesService {
             merged[key] = (normalized as Record<string, unknown>)[key];
           }
         }
+        applyTrabajadorPersonNames(merged as Record<string, unknown>, policy?.regime);
+        assertValidPersonNameFields(
+          merged.nombre as string,
+          merged.primerApellido as string,
+          merged.segundoApellido as string,
+          policy?.regime,
+        );
+        applyTrabajadorPersonNames(
+          normalized as Record<string, unknown>,
+          policy?.regime,
+        );
         await this.validateFirmanteSiresFields(
           merged as Record<string, unknown>,
           idUser,
         );
+
+        // Backfill: firmantes previos sin folio lo reciben en el primer update
+        if (!(existing as any).folio) {
+          (normalized as any).folio = generateFolioFromWorkerData({
+            nombre: merged.nombre as string,
+            primerApellido: merged.primerApellido as string,
+            segundoApellido: merged.segundoApellido as string | undefined,
+            fechaNacimiento: (merged.fechaNacimiento as Date) || fechaNacimientoToValidate,
+            sexo: merged.sexo as string,
+          });
+        }
       }
     }
 

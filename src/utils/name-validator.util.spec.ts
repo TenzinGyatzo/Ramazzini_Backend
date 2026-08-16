@@ -2,6 +2,7 @@ import {
   detectAbbreviations,
   removeAbbreviations,
   validateNameField,
+  validatePersonNameFields,
   validateTrabajadorNames,
 } from './name-validator.util';
 
@@ -114,6 +115,17 @@ describe('Name Validator Utility', () => {
       expect(result.errors.some((e) => e.includes('50 caracteres'))).toBe(true);
     });
 
+    it('should enforce min length of 2 characters', () => {
+      const result = validateNameField('A', 'Nombre');
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some((e) => e.includes('entre 2 y 50'))).toBe(true);
+    });
+
+    it('should accept names at min length', () => {
+      const result = validateNameField('AB', 'Nombre');
+      expect(result.isValid).toBe(true);
+    });
+
     it('should accept names at max length', () => {
       const maxName = 'A'.repeat(50);
       const result = validateNameField(maxName, 'Nombre');
@@ -142,15 +154,70 @@ describe('Name Validator Utility', () => {
       expect(result.errors.some((e) => e.includes('no permitidos'))).toBe(true);
     });
 
-    it('should allow accented characters', () => {
+    it('debe normalizar acentos en SIRES_NOM024 al validar', () => {
       const result = validateNameField('JOSÉ MARÍA PÉREZ', 'Nombre');
       expect(result.isValid).toBe(true);
-      expect(result.warnings).toHaveLength(0);
+      expect(result.normalizedValue).toBe('JOSE MARIA PEREZ');
+    });
+
+    it('debe permitir acentos en SIN_REGIMEN', () => {
+      const result = validateNameField('José María', 'Nombre', 50, 'SIN_REGIMEN');
+      expect(result.isValid).toBe(true);
+      expect(result.normalizedValue).toBe('José María');
     });
 
     it('should allow CURP special characters in names', () => {
       const result = validateNameField('D/AMICO', 'Primer apellido');
       expect(result.isValid).toBe(true);
+    });
+  });
+
+  describe('validatePersonNameFields', () => {
+    it('should accept valid required and optional fields', () => {
+      const result = validatePersonNameFields('JUAN', 'PEREZ', 'GARCIA');
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should accept nombre without apellidos', () => {
+      const result = validatePersonNameFields('JUAN', '', '');
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should accept nombre with only primerApellido', () => {
+      const result = validatePersonNameFields('JUAN', 'PEREZ', '');
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should reject segundoApellido without primerApellido', () => {
+      const result = validatePersonNameFields('JUAN', '', 'GARCIA');
+      expect(result.isValid).toBe(false);
+      expect(
+        result.errors.some((e) =>
+          e.includes('No puede registrar segundo apellido sin primer apellido'),
+        ),
+      ).toBe(true);
+    });
+
+    it('should reject names shorter than 2 characters', () => {
+      const result = validatePersonNameFields('J', 'PE', '');
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some((e) => e.includes('Nombre'))).toBe(true);
+    });
+
+    it('should reject optional segundo apellido when too short', () => {
+      const result = validatePersonNameFields('JUAN', 'PEREZ', 'G');
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some((e) => e.includes('Segundo apellido'))).toBe(true);
+    });
+
+    it('should reject names longer than 50 characters', () => {
+      const longName = 'A'.repeat(51);
+      const result = validatePersonNameFields(longName, 'PEREZ', '');
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some((e) => e.includes('50 caracteres'))).toBe(true);
     });
   });
 
@@ -255,9 +322,25 @@ describe('Name Validator Utility', () => {
       });
     });
 
-    it('should handle names with accents correctly', () => {
+    it('should normalize names with accents in SIRES_NOM024', () => {
       const result = validateTrabajadorNames('JOSÉ MARÍA', 'LÓPEZ', 'NÚÑEZ');
       expect(result.isValid).toBe(true);
+      expect(result.normalized.nombre).toBe('JOSE MARIA');
+      expect(result.normalized.primerApellido).toBe('LOPEZ');
+      expect(result.normalized.segundoApellido).toBe('NUÑEZ');
+    });
+
+    it('should allow names with accents in SIN_REGIMEN', () => {
+      const result = validateTrabajadorNames(
+        'José María',
+        'López',
+        'Núñez',
+        'SIN_REGIMEN',
+      );
+      expect(result.isValid).toBe(true);
+      expect(result.normalized.nombre).toBe('José María');
+      expect(result.normalized.primerApellido).toBe('López');
+      expect(result.normalized.segundoApellido).toBe('Núñez');
     });
 
     it('should handle compound surnames', () => {

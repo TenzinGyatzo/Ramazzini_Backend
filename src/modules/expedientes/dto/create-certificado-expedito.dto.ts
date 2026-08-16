@@ -11,6 +11,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { SOMATOMETRIA_SIGNOS_RANGES as R } from '../constants/somatometria-signos.ranges';
 
 const gradosSalud = ['Óptimo', 'Bueno', 'Regular', 'Malo'];
 
@@ -50,14 +51,14 @@ export class CreateCertificadoExpeditoDto {
   // Somatometría
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 1 })
-  @Min(45)
-  @Max(200)
+  @Min(R.peso.min)
+  @Max(R.peso.max)
   peso: number;
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(1.4)
-  @Max(2.2)
+  @Min(R.altura.min)
+  @Max(R.altura.max)
   altura: number;
 
   @IsOptional()
@@ -67,32 +68,32 @@ export class CreateCertificadoExpeditoDto {
   // Signos Vitales
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 0 })
-  @Min(60)
-  @Max(200)
+  @Min(R.tensionArterialSistolica.min)
+  @Max(R.tensionArterialSistolica.max)
   tensionArterialSistolica: number;
 
   @IsOptional()
-  @Min(40)
-  @Max(150)
+  @Min(R.tensionArterialDiastolica.min)
+  @Max(R.tensionArterialDiastolica.max)
   @IsNumber({ maxDecimalPlaces: 0 })
   tensionArterialDiastolica: number;
 
   @IsOptional()
-  @Min(40)
-  @Max(150)
+  @Min(R.frecuenciaCardiaca.min)
+  @Max(R.frecuenciaCardiaca.max)
   @IsNumber({ maxDecimalPlaces: 0 })
   frecuenciaCardiaca: number;
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 0 })
-  @Min(12)
-  @Max(45)
+  @Min(R.frecuenciaRespiratoria.min)
+  @Max(R.frecuenciaRespiratoria.max)
   frecuenciaRespiratoria: number;
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 1 })
-  @Min(35.0)
-  @Max(40.0)
+  @Min(R.temperaturaCorporal.min)
+  @Max(R.temperaturaCorporal.max)
   temperaturaCorporal: number;
 
   // Conclusión

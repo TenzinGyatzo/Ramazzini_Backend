@@ -255,6 +255,29 @@ describe('CEX mapper unit', () => {
     expect(row.tipoPersonal).toBe(2);
   });
 
+  it('should map missing primerApellido and segundoApellido to XX', () => {
+    const consulta = {
+      fechaNotaMedica: new Date('2025-01-15'),
+      codigoCIE10Principal: 'Z00',
+      relacionTemporal: 0,
+    };
+    const trabajador = {
+      curp: 'XXXX999999XXXXXX99',
+      nombre: 'JUAN',
+      fechaNacimiento: new Date('1985-01-02'),
+      sexo: 'Masculino',
+      entidadNacimiento: '09',
+    };
+    const row = mapNotaMedicaToCexRow(
+      consulta,
+      cexContextBase,
+      trabajador,
+    );
+    expect(row.primerApellido).toBe('XX');
+    expect(row.segundoApellido).toBe('XX');
+    expect(row.nombre).toBe('JUAN');
+  });
+
   it('should map sexoCURP and sexoBiologico to 3 for Intersexual trabajador', () => {
     const consulta = {
       fechaNotaMedica: new Date('2025-01-15'),
@@ -275,8 +298,33 @@ describe('CEX mapper unit', () => {
       cexContextBase,
       trabajador,
     );
-    expect(row.sexoCURP).toBe(3);
     expect(row.sexoBiologico).toBe(3);
+    expect(row.sexoCURP).toBe(3);
+  });
+
+  it('should map sexoCURP and sexoBiologico independently when sexoCURP is set', () => {
+    const consulta = {
+      fechaNotaMedica: new Date('2025-01-15'),
+      codigoCIE10Principal: 'Z00',
+      relacionTemporal: 0,
+    };
+    const trabajador = {
+      curp: 'PEGJ850102XDFRNN08',
+      nombre: 'JUAN',
+      primerApellido: 'PEREZ',
+      segundoApellido: 'GONZALEZ',
+      fechaNacimiento: new Date('1985-01-02'),
+      sexo: 'Masculino',
+      sexoCURP: 3,
+      entidadNacimiento: '09',
+    };
+    const row = mapNotaMedicaToCexRow(
+      consulta,
+      cexContextBase,
+      trabajador,
+    );
+    expect(row.sexoBiologico).toBe(1);
+    expect(row.sexoCURP).toBe(3);
   });
 
   it('should use servicioAtencion from prestador when provided', () => {
@@ -392,6 +440,24 @@ describe('CEX mapper unit', () => {
         trabajador,
         prestadorTipo2,
       );
+      expect(row.sintomaticoRespiratorioTb).toBe(1);
+    });
+
+    it('should not map complementarios[0] to codigoCIEDiagnostico2', () => {
+      const consulta = {
+        fechaNotaMedica: new Date('2025-01-15'),
+        codigoCIE10Principal: 'Z00',
+        codigosCIE10Complementarios: ['J00', 'A161 - TB pulmonar'],
+        primeraVezDiagnostico2: 1,
+        relacionTemporal: 0,
+      };
+      const row = mapNotaMedicaToCexRow(
+        consulta,
+        context,
+        trabajador,
+        prestadorTipo2,
+      );
+      expect(row.codigoCIEDiagnostico2).toBe('R69X');
       expect(row.sintomaticoRespiratorioTb).toBe(1);
     });
 

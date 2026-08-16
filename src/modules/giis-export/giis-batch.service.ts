@@ -18,6 +18,7 @@ import { loadGiisSchema } from './schema-loader';
 import { GiisSerializerService } from './giis-serializer.service';
 import { mapNotaMedicaToCexRow, extractCieCode } from './transformers/cex.mapper';
 import { resolveCexDiagCatalogFlags } from './utils/cex-diag-catalog-flags.util';
+import { resolveCexPrestadorUserId } from './utils/cex-prestador-user.util';
 import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
 import { ProveedoresSaludService } from '../proveedores-salud/proveedores-salud.service';
 import { formatCLUES } from './formatters/field.formatter';
@@ -285,13 +286,7 @@ export class GiisBatchService {
       const primeraVezAnio = firstInYearIds.has(nota._id.toString()) ? 1 : 0;
       const consultaWithPrimera = { ...nota, primeraVezAnio };
       const trabajador = nota.idTrabajador ? (nota.idTrabajador as any) : null;
-      const rawUser = nota.finalizadoPor ?? nota.updatedBy;
-      const userId =
-        rawUser != null
-          ? typeof rawUser === 'string'
-            ? rawUser
-            : (rawUser as Types.ObjectId).toString()
-          : '';
+      const userId = resolveCexPrestadorUserId(nota);
       const prestadorData = userId
         ? await this.firmanteHelper.getPrestadorDataFromUser(userId)
         : null;

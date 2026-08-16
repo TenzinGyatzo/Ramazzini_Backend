@@ -211,13 +211,13 @@ const GIIS_NAME_ACCENT_MAP: Record<string, string> = {
   Ñ: 'Ñ',
 };
 
-/** Caracteres permitidos en nombres GIIS: A-Z, Ñ, diéresis en vocal, espacio, - , . / ' ¨ */
-const GIIS_NAME_ALLOWED = /^[A-ZÑÄËÏÖÜ\s\-,\.\/'¨]$/u;
+/** Caracteres permitidos en nombres GIIS: A-Z, Ñ, diéresis en vocal, espacio, - . / ' ¨ */
+const GIIS_NAME_ALLOWED = /^[A-ZÑÄËÏÖÜ\s\-.\/'¨]$/u;
 
 /**
  * Normaliza un nombre o apellido al formato GIIS (NOM-024 validationRaw).
  * - Solo A–Z, Ñ en mayúsculas; sin acentos (sí conserva diéresis en vocal: Ä, Ë, Ï, Ö, Ü).
- * - Especiales permitidos: - , . / ' ¨
+ * - Especiales permitidos: - . / ' ¨
  * - No más de un espacio consecutivo; no más de un caracter especial consecutivo.
  *
  * @param value - Nombre o apellido del firmante
@@ -247,7 +247,7 @@ export function normalizeNameForGiis(value: string | null | undefined): string {
   out = out.replace(/\s+/g, ' ').trim();
 
   // 5) Colapsar el mismo caracter especial repetido (regla: no más de uno consecutivo del mismo)
-  out = out.replace(/([\-,\.\/'¨])\1+/g, '$1');
+  out = out.replace(/([\-.\/'¨])\1+/g, '$1');
 
   return out.trim();
 }

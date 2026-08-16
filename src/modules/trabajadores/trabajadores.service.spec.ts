@@ -312,16 +312,20 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
       );
     });
 
-    it('debe rechazar crear trabajador con edad > 70 años', async () => {
-      const fechaHace71 = new Date();
-      fechaHace71.setFullYear(fechaHace71.getFullYear() - 71);
+    it('debe rechazar crear trabajador con edad > 100 años exactos', async () => {
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const fechaHace100y1d = new Date(
+        hoy.getFullYear() - 100,
+        hoy.getMonth(),
+        hoy.getDate() - 1,
+      );
 
       const dto = {
         ...mockCreateTrabajadorDto,
-        fechaNacimiento: fechaHace71,
+        fechaNacimiento: fechaHace100y1d,
       };
 
-      // Mock para getProveedorSaludIdFromCentroTrabajo
       const mockCentroTrabajoModel = service['centroTrabajoModel'];
       const mockEmpresaModel = service['empresaModel'];
       mockCentroTrabajoModel.findById.mockReturnValue({
@@ -333,8 +337,42 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
 
       await expect(service.create(dto)).rejects.toThrow(BadRequestException);
       await expect(service.create(dto)).rejects.toThrow(
-        'está fuera del rango válido',
+        'incluyendo meses y días',
       );
+    });
+
+    it('debe permitir crear trabajador con exactamente 100 años', async () => {
+      const mockTrabajadorModel = service['trabajadorModel'];
+      const mockCentroTrabajoModel = service['centroTrabajoModel'];
+      const mockEmpresaModel = service['empresaModel'];
+
+      const fechaExacta100 = new Date();
+      fechaExacta100.setFullYear(fechaExacta100.getFullYear() - 100);
+
+      const dto = {
+        ...mockCreateTrabajadorDto,
+        fechaNacimiento: fechaExacta100,
+      };
+
+      mockCentroTrabajoModel.findById.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({ idEmpresa: 'empresa123' }),
+      });
+      mockEmpresaModel.findById.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({ idProveedorSalud: 'proveedor123' }),
+      });
+
+      const savedTrabajador = { ...dto, _id: 'trabajador123' };
+      mockTrabajadorModel.save = jest.fn().mockResolvedValue(savedTrabajador);
+      mockTrabajadorModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(0),
+      });
+      (mockTrabajadorModel as any).mockImplementation((data: any) => ({
+        ...data,
+        save: mockTrabajadorModel.save,
+      }));
+
+      const result = await service.create(dto);
+      expect(result).toBeDefined();
     });
 
     it('debe permitir crear trabajador con fechaNacimiento válida', async () => {
@@ -948,6 +986,48 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
         await expect(service.create(dto as any)).rejects.toThrow(
           BadRequestException,
         );
+      });
+
+      it('should require sexoCURP for SIRES_NOM024', async () => {
+        const mockTrabajadorModel = service['trabajadorModel'];
+        (mockTrabajadorModel as any).save = jest.fn().mockResolvedValue({
+          _id: 'new-id',
+        });
+
+        const dto = {
+          primerApellido: 'García',
+          nombre: 'Juan',
+          fechaNacimiento: new Date('1990-01-01'),
+          sexo: 'Masculino',
+          escolaridad: 'Licenciatura',
+          puesto: 'Desarrollador',
+          estadoCivil: 'Soltero/a',
+          estadoLaboral: 'Activo',
+          idCentroTrabajo: centroTrabajoId,
+          createdBy: '507f1f77bcf86cd799439012',
+          updatedBy: '507f1f77bcf86cd799439012',
+          entidadNacimiento: '25',
+          paisNacimiento: 142,
+          entidadResidencia: '25',
+          municipioResidencia: '001',
+          localidadResidencia: '0001',
+          paisResidencia: 142,
+        };
+
+        jest
+          .spyOn(service as any, 'validateGeographyHierarchy')
+          .mockResolvedValue(undefined);
+        jest
+          .spyOn(service as any, 'validateCURPForMX')
+          .mockResolvedValue(undefined);
+        jest
+          .spyOn(service as any, 'validateNOM024NameFormat')
+          .mockResolvedValue(undefined);
+
+        await expect(service.create(dto as any)).rejects.toThrow(
+          BadRequestException,
+        );
+        await expect(service.create(dto as any)).rejects.toThrow(/Sexo CURP/i);
       });
     });
 

@@ -30,7 +30,7 @@ const estadosLaborales = ['Activo', 'Inactivo'];
 
 @Schema()
 export class Trabajador extends Document {
-  @Prop({ required: true })
+  @Prop({ required: false })
   primerApellido: string;
 
   @Prop({ required: false })
@@ -44,6 +44,10 @@ export class Trabajador extends Document {
 
   @Prop({ required: true, enum: sexos })
   sexo: string;
+
+  /** Sexo RENAPO para CURP (1=Hombre, 2=Mujer, 3=No binario). Solo SIRES_NOM024. */
+  @Prop({ required: false, enum: [1, 2, 3] })
+  sexoCURP?: number;
 
   @Prop({ required: true, enum: nivelesEscolaridad })
   escolaridad: string;
@@ -86,10 +90,10 @@ export class Trabajador extends Document {
   curp: string;
 
   // NOM-024 Person Identification Fields
-  // Entidad de nacimiento (INEGI state code, 2 chars): 01-32, NE (Extranjero), 00 (No disponible)
+  // Entidad de nacimiento (INEGI/GIIS, 2 chars): 01-32, NE, 00, 88, 99
   @Prop({
     required: false,
-    match: /^$|^(0[1-9]|[12][0-9]|3[0-2]|NE|00)$/,
+    match: /^$|^(0[1-9]|[12][0-9]|3[0-2]|NE|00|88|99)$/,
   })
   entidadNacimiento?: string;
 
@@ -97,10 +101,10 @@ export class Trabajador extends Document {
   @Prop()
   paisNacimiento?: number;
 
-  // Entidad de residencia (INEGI state code, 2 chars): 01-32, NE (Extranjero), 00 (No disponible)
+  // Entidad de residencia (INEGI/GIIS, 2 chars): 01-32, NE, 00, 88, 99
   @Prop({
     required: false,
-    match: /^$|^(0[1-9]|[12][0-9]|3[0-2]|NE|00)$/,
+    match: /^$|^(0[1-9]|[12][0-9]|3[0-2]|NE|00|88|99)$/,
   })
   entidadResidencia?: string;
 

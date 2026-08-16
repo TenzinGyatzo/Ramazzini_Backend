@@ -1,8 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
+import {
+  isBirthDateInRegistrationRange,
+  normalizeDateOnly,
+  buildRegistrationAgeRangeMessage,
+} from '../../../utils/age-registration.util';
 
 // Constantes de política
 export const AGE_MIN_YEARS = 18;
-export const AGE_MAX_YEARS = 70;
+export const AGE_MAX_YEARS = 100;
 
 /**
  * Normaliza una fecha a objeto Date (date-only, sin hora)
@@ -20,32 +25,23 @@ function normalizeDate(date: Date | string): Date {
 }
 
 /**
- * Calcula edad desde fechaNacimiento (precisa, considerando año bisiesto)
+ * Valida fechaNacimiento con rango de edad configurable (duración calendario exacta).
  */
-function calcularEdadDesdeFecha(fechaNacimiento: Date): number {
-  const hoy = new Date();
-  let edad = hoy.getFullYear() - fechaNacimiento.getFullYear();
-  const mesDiff = hoy.getMonth() - fechaNacimiento.getMonth();
-  if (
-    mesDiff < 0 ||
-    (mesDiff === 0 && hoy.getDate() < fechaNacimiento.getDate())
-  ) {
-    edad--;
+function normalizeBirthDate(date: Date | string): Date {
+  try {
+    return normalizeDateOnly(date);
+  } catch {
+    throw new BadRequestException('Fecha inválida');
   }
-  return edad;
 }
 
-/**
- * Valida fechaNacimiento con rango de edad configurable (precisa, mes/día).
- */
 export function validateFechaNacimientoWithRange(
   fechaNacimiento: Date | string,
   minYears: number,
   maxYears: number,
 ): void {
-  const fecha = normalizeDate(fechaNacimiento);
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
+  const fecha = normalizeBirthDate(fechaNacimiento);
+  const hoy = normalizeDateOnly(new Date());
 
   if (fecha > hoy) {
     throw new BadRequestException({
@@ -55,12 +51,18 @@ export function validateFechaNacimientoWithRange(
     });
   }
 
-  const edad = calcularEdadDesdeFecha(fecha);
-  if (edad < minYears || edad > maxYears) {
+  if (
+    !isBirthDateInRegistrationRange(fecha, hoy, minYears, maxYears)
+  ) {
     throw new BadRequestException({
       code: 'VALIDATION_ERROR',
       ruleId: 'A2',
-      message: `La edad calculada (${edad} años) debe estar entre ${minYears} y ${maxYears} años cumplidos`,
+      message: buildRegistrationAgeRangeMessage(
+        minYears,
+        maxYears,
+        fecha,
+        hoy,
+      ),
     });
   }
 }

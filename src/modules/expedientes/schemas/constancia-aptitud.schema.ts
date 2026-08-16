@@ -4,6 +4,7 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 @Schema()
 export class ConstanciaAptitud extends Document {
@@ -68,3 +69,4 @@ export class ConstanciaAptitud extends Document {
 export const ConstanciaAptitudSchema = SchemaFactory.createForClass(
   ConstanciaAptitud,
 ).set('timestamps', true);
+ConstanciaAptitudSchema.plugin(fichaSnapshotPlugin);

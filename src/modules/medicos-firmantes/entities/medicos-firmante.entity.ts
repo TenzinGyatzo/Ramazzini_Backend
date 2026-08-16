@@ -26,6 +26,7 @@ export class MedicoFirmante extends Document {
   idUser: User | string;
   curp?: string;
   sexo?: string;
+  sexoCURP?: number;
   entidadNacimiento?: string;
   entidadResidencia?: string;
   municipioResidencia?: string;

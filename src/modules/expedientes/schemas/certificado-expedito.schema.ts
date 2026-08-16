@@ -4,6 +4,7 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 const gradosSalud = ['Óptimo', 'Bueno', 'Regular', 'Malo'];
 
@@ -124,3 +125,4 @@ export class CertificadoExpedito extends Document {
 export const CertificadoExpeditoSchema = SchemaFactory.createForClass(
   CertificadoExpedito,
 ).set('timestamps', true);
+CertificadoExpeditoSchema.plugin(fichaSnapshotPlugin);

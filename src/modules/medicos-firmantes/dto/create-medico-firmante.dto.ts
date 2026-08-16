@@ -7,9 +7,18 @@ import {
   IsMongoId,
   IsOptional,
   IsNumber,
+  IsInt,
   IsDateString,
   Matches,
 } from 'class-validator';
+import {
+  TRABAJADOR_SEXO_CURP_VALUES,
+} from 'src/modules/trabajadores/constants/trabajador-sexo-curp.constants';
+import {
+  IsOptionalPersonNameField,
+  IsRequiredPersonNameField,
+} from 'src/utils/decorators/person-name.decorators';
+import { normalizeSexoCurpInput } from 'src/utils/sexo-curp.util';
 
 const titulos = ['Dr.', 'Dra.'];
 const siONo = ['Si', 'No'];
@@ -24,16 +33,13 @@ class LogotipoDto {
 }
 
 export class CreateMedicoFirmanteDto {
-  @IsString({ message: 'El nombre debe ser un string' })
-  @IsNotEmpty({ message: 'El nombre no puede estar vacío' })
+  @IsRequiredPersonNameField('El nombre')
   nombre: string;
 
-  @IsString({ message: 'El primer apellido debe ser un string' })
-  @IsNotEmpty({ message: 'El primer apellido no puede estar vacío' })
+  @IsRequiredPersonNameField('El primer apellido')
   primerApellido: string;
 
-  @IsOptional()
-  @IsString({ message: 'El segundo apellido debe ser un string' })
+  @IsOptionalPersonNameField('El segundo apellido')
   segundoApellido?: string;
 
   @IsOptional()
@@ -98,14 +104,22 @@ export class CreateMedicoFirmanteDto {
   sexo?: string;
 
   @IsOptional()
+  @Transform(({ value }) => normalizeSexoCurpInput(value) ?? undefined)
+  @IsInt({ message: 'sexoCURP debe ser un número entero' })
+  @IsEnum(TRABAJADOR_SEXO_CURP_VALUES, {
+    message: 'sexoCURP debe ser 1 (Hombre), 2 (Mujer) o 3 (No binario)',
+  })
+  sexoCURP?: number;
+
+  @IsOptional()
   @IsString({ message: 'La entidad de nacimiento debe ser un string' })
   entidadNacimiento?: string;
 
   @IsOptional()
   @IsString({ message: 'La entidad de residencia debe ser un string' })
-  @Matches(/^$|^(0[1-9]|[12][0-9]|3[0-2]|NE|00)$/, {
+  @Matches(/^$|^(0[1-9]|[12][0-9]|3[0-2]|NE|00|88|99)$/, {
     message:
-      'Entidad de residencia debe ser código INEGI válido (01-32, NE, o 00)',
+      'Entidad de residencia debe ser código INEGI/GIIS válido (01-32, NE, 00, 88 o 99)',
   })
   entidadResidencia?: string;
 
@@ -137,9 +151,9 @@ export class CreateMedicoFirmanteDto {
   @IsOptional()
   @IsString({ message: 'El CURP debe ser un string' })
   @Transform(({ value }) => value?.trim().toUpperCase())
-  @Matches(/^[A-Z]{4}\d{6}[HM][A-Z]{5}[0-9A-Z]\d$/, {
+  @Matches(/^[A-Z]{4}\d{6}[HMX][A-Z]{5}[0-9A-Z]\d$/, {
     message:
-      'CURP debe tener exactamente 18 caracteres con el formato: 4 letras, 6 dígitos, H/M, 5 letras, 1 alfanumérico, 1 dígito',
+      'CURP debe tener exactamente 18 caracteres con el formato: 4 letras, 6 dígitos, H/M/X, 5 letras, 1 alfanumérico, 1 dígito',
   })
   curp?: string;
 
@@ -156,6 +170,14 @@ export class CreateMedicoFirmanteDto {
     { message: 'La fecha de nacimiento debe ser una fecha válida (YYYY-MM-DD)' },
   )
   fechaNacimiento: string;
+
+  // NOM-024: Folio alfanumérico 18 caracteres. Generado por backend, no enviado por cliente
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z0-9]{18}$/, {
+    message: 'El folio debe tener exactamente 18 caracteres alfanuméricos',
+  })
+  folio?: string;
 
   static firma: { data: string; contentType: string };
 }

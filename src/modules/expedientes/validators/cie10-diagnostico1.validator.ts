@@ -3,7 +3,7 @@
  */
 
 import {
-  isAgeAllowedForLimits,
+  isAgeAllowedForLinfLsup,
   isCIE10Exact4Chars,
   isSexAllowedForLsex,
   isTipoPersonalAllowedForDiagnostico1,
@@ -34,7 +34,8 @@ export interface ValidateDiagnostico1Params {
   codigoCIE10Principal?: string | null;
   relacionTemporal?: number | null;
   sexoBiologico: SexoBiologicoGiis | null;
-  edad: number | null;
+  fechaNacimiento?: Date | null;
+  fechaNotaMedica?: Date | null;
   tipoPersonal: number | null;
   lookup: (code: string) => Promise<DiagnosisRule | null>;
   catalogExists: (catalogKey: string) => Promise<boolean>;
@@ -108,8 +109,12 @@ export async function validateCodigoCIEDiagnostico1(
   }
 
   if (
-    params.edad != null &&
-    !isAgeAllowedForLimits(rule.linf, rule.lsup, params.edad)
+    !isAgeAllowedForLinfLsup(
+      rule.linf,
+      rule.lsup,
+      params.fechaNacimiento,
+      params.fechaNotaMedica,
+    )
   ) {
     issues.push({
       field: 'codigoCIE10Principal',
@@ -129,9 +134,14 @@ export async function validateCodigoCIEDiagnostico1(
     if (!tpCheck.allowed) {
       const temporalLabel =
         params.relacionTemporal === 1 ? 'subsecuente' : 'primera vez';
-      const message = tpCheck.requiresTipoPersonal && params.tipoPersonal == null
-        ? `El diagnóstico ${catalogKey} requiere un firmante médico o de enfermería registrado para validar el tipo de personal (${temporalLabel}).`
-        : `El tipo de personal (${params.tipoPersonal}) no está autorizado para el diagnóstico ${catalogKey} en relación temporal ${temporalLabel}.`;
+      let message: string;
+      if (tpCheck.emptyAuthorizedList) {
+        message = `El diagnóstico ${catalogKey} no autoriza ningún tipo de personal en relación temporal ${temporalLabel}.`;
+      } else if (tpCheck.requiresTipoPersonal && params.tipoPersonal == null) {
+        message = `El diagnóstico ${catalogKey} requiere un firmante médico o de enfermería registrado para validar el tipo de personal (${temporalLabel}).`;
+      } else {
+        message = `El tipo de personal (${params.tipoPersonal}) no está autorizado para el diagnóstico ${catalogKey} en relación temporal ${temporalLabel}.`;
+      }
       issues.push({
         field: 'codigoCIE10Principal',
         code: catalogKey,

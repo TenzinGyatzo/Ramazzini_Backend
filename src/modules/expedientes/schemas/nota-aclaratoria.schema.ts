@@ -4,6 +4,7 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { User } from 'src/modules/users/entities/user.entity';
 import { DocumentoEstado } from '../enums/documento-estado.enum';
 import { PdfStatus } from '../enums/pdf-status.enum';
+import { fichaSnapshotPlugin } from './ficha-snapshot.plugin';
 
 const alcanceAclaracion = ['ACLARA', 'CORRIGE', 'COMPLEMENTA', 'INVALIDA'];
 const impactoClinico = ['LEVE', 'MODERADO', 'SEVERO'];
@@ -104,3 +105,4 @@ export class NotaAclaratoria extends Document {
 export const NotaAclaratoriaSchema = SchemaFactory.createForClass(
   NotaAclaratoria,
 ).set('timestamps', true);
+NotaAclaratoriaSchema.plugin(fichaSnapshotPlugin);

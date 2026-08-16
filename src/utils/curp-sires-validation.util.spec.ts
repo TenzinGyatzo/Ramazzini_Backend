@@ -44,6 +44,34 @@ describe('curp-sires-validation.util', () => {
       ).not.toThrow();
     });
 
+    it('exige CURP genérica con entidad 00 o 99', () => {
+      for (const entidadNacimiento of ['00', '99'] as const) {
+        expect(() =>
+          validateCurpForSires(
+            'GALJ900515HDFRPN08',
+            true,
+            { ...demographics, entidadNacimiento },
+            {
+              allowGenericCurp: true,
+              subjectLabel: 'trabajador',
+            },
+          ),
+        ).toThrow(BadRequestException);
+
+        expect(() =>
+          validateCurpForSires(
+            'XXXX999999XXXXXX99',
+            true,
+            { ...demographics, entidadNacimiento },
+            {
+              allowGenericCurp: true,
+              subjectLabel: 'trabajador',
+            },
+          ),
+        ).not.toThrow();
+      }
+    });
+
     it('rechaza CURP genérica para firmantes', () => {
       expect(() =>
         validateCurpForSires('XXXX999999XXXXXX99', true, demographics, {
@@ -85,14 +113,20 @@ describe('curp-sires-validation.util', () => {
         >;
 
         expect(response.ruleId).toBe('A1');
-        expect(response.summary).toBe(
-          'La CURP no coincide con las iniciales del nombre y apellidos (posiciones 1 a 4).',
-        );
-        expect(response.message).toBe(response.summary);
-        expect(response.message).not.toContain('demográficos');
-        expect(response.message).not.toContain('iniciales,');
+        expect(String(response.summary)).toMatch(/Pos\. \d+/);
+        expect(String(response.message)).not.toContain('demográficos');
         expect(Array.isArray(response.userMessages)).toBe(true);
         expect(Array.isArray(response.details)).toBe(true);
+        const details = response.details as Array<{
+          code?: string;
+          positions?: number[];
+        }>;
+        expect(details.some((d) => d.code === 'CURP_CROSS_INICIALES')).toBe(true);
+        expect(
+          details
+            .filter((d) => d.code === 'CURP_CROSS_INICIALES')
+            .every((d) => d.positions?.length === 1),
+        ).toBe(true);
       } finally {
         warnSpy.mockRestore();
       }
@@ -121,10 +155,19 @@ describe('curp-sires-validation.util', () => {
         >;
 
         expect(response.ruleId).toBe('A1');
-        expect(response.message).toBe(
-          'La CURP no coincide con la fecha de nacimiento. (posiciones 5 a 10).',
-        );
-        expect(response.message).not.toContain('fechaNacimiento');
+        expect(String(response.message)).toMatch(/Pos\. \d+/);
+        expect(String(response.message)).toContain('fecha AAMMDD');
+        expect(String(response.message)).not.toContain('fechaNacimiento');
+        const details = response.details as Array<{
+          code?: string;
+          positions?: number[];
+        }>;
+        expect(details.some((d) => d.code === 'CURP_CROSS_FECHA')).toBe(true);
+        expect(
+          details
+            .filter((d) => d.code === 'CURP_CROSS_FECHA')
+            .every((d) => d.positions?.length === 1),
+        ).toBe(true);
       } finally {
         warnSpy.mockRestore();
       }

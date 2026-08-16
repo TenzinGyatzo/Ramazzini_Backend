@@ -1,6 +1,10 @@
 import { validateCodigoCIEDiagnostico23 } from './cie10-diagnostico23.validator';
 import { DiagnosisRule } from '../services/cie10-catalog-lookup.service';
 
+const fechaNacimiento30 = new Date(1994, 0, 1);
+const fechaNota30 = new Date(2024, 0, 1);
+const fechaNacimiento10 = new Date(2014, 0, 1);
+
 describe('validateCodigoCIEDiagnostico23', () => {
   const mtRule: DiagnosisRule = {
     key: 'MT01',
@@ -48,7 +52,8 @@ describe('validateCodigoCIEDiagnostico23', () => {
       primeraVez: -1,
       codigoCIEDiagnostico1: 'A000',
       sexoBiologico: 1,
-      edad: 30,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 2,
       tipoPersonalMedicoGeneral: 2,
       tipoPersonalMedicoEspecialista: 4,
@@ -65,7 +70,8 @@ describe('validateCodigoCIEDiagnostico23', () => {
       primeraVez: 0,
       codigoCIEDiagnostico1: 'A000',
       sexoBiologico: 1,
-      edad: 30,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 2,
       tipoPersonalMedicoGeneral: 2,
       tipoPersonalMedicoEspecialista: 4,
@@ -82,7 +88,8 @@ describe('validateCodigoCIEDiagnostico23', () => {
       primeraVez: 1,
       codigoCIEDiagnostico1: 'R69X',
       sexoBiologico: 1,
-      edad: 30,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 2,
       tipoPersonalMedicoGeneral: 2,
       tipoPersonalMedicoEspecialista: 4,
@@ -100,7 +107,8 @@ describe('validateCodigoCIEDiagnostico23', () => {
       codigoCIEDiagnostico1: 'A000',
       codigoCIEDiagnostico2: 'R69X',
       sexoBiologico: 1,
-      edad: 30,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 2,
       tipoPersonalMedicoGeneral: 2,
       tipoPersonalMedicoEspecialista: 4,
@@ -117,7 +125,8 @@ describe('validateCodigoCIEDiagnostico23', () => {
       primeraVez: 1,
       codigoCIEDiagnostico1: 'A000',
       sexoBiologico: 1,
-      edad: 30,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 2,
       tipoPersonalMedicoGeneral: 2,
       tipoPersonalMedicoEspecialista: 4,
@@ -135,7 +144,8 @@ describe('validateCodigoCIEDiagnostico23', () => {
       primeraVez: 1,
       codigoCIEDiagnostico1: 'A000',
       sexoBiologico: 1,
-      edad: 10,
+      fechaNacimiento: fechaNacimiento10,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 4,
       tipoPersonalMedicoGeneral: 2,
       tipoPersonalMedicoEspecialista: 4,
@@ -144,6 +154,24 @@ describe('validateCodigoCIEDiagnostico23', () => {
     });
     expect(issues.some((i) => i.reason === 'fuera_alcance_ramazzini')).toBe(true);
     expect(issues[0]?.message).toMatch(/oncología pediátrica|medicina del trabajo/i);
+  });
+
+  it('blocks diag2 when principal diagnosis is not registered', async () => {
+    const issues = await validateCodigoCIEDiagnostico23({
+      field: 'codigoCIEDiagnostico2',
+      codigo: 'A001',
+      primeraVez: 1,
+      codigoCIEDiagnostico1: '',
+      sexoBiologico: 1,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
+      tipoPersonal: 2,
+      tipoPersonalMedicoGeneral: 2,
+      tipoPersonalMedicoEspecialista: 4,
+      lookup,
+      catalogExists,
+    });
+    expect(issues.some((i) => i.reason === 'diag1_requerido')).toBe(true);
   });
 
   it('blocks diag3 when diag2 comorbilidad is not registered', async () => {
@@ -155,7 +183,8 @@ describe('validateCodigoCIEDiagnostico23', () => {
       codigoCIEDiagnostico1: 'A000',
       codigoCIEDiagnostico2: '',
       sexoBiologico: 1,
-      edad: 30,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 2,
       tipoPersonalMedicoGeneral: 2,
       tipoPersonalMedicoEspecialista: 4,
@@ -172,7 +201,8 @@ describe('validateCodigoCIEDiagnostico23', () => {
       primeraVez: 1,
       codigoCIEDiagnostico1: 'A000',
       sexoBiologico: 1,
-      edad: 30,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 2,
       tipoPersonalMedicoGeneral: 2,
       tipoPersonalMedicoEspecialista: 4,
@@ -189,7 +219,8 @@ describe('validateCodigoCIEDiagnostico23', () => {
       primeraVez: undefined,
       codigoCIEDiagnostico1: 'A000',
       sexoBiologico: 1,
-      edad: 30,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 2,
       tipoPersonalMedicoGeneral: 2,
       tipoPersonalMedicoEspecialista: 4,
@@ -223,7 +254,8 @@ describe('validateCodigoCIEDiagnostico23', () => {
       primeraVez: undefined,
       codigoCIEDiagnostico1: 'C530',
       sexoBiologico: 1,
-      edad: 30,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 2,
       tipoPersonalMedicoGeneral: 2,
       tipoPersonalMedicoEspecialista: 4,
@@ -242,7 +274,8 @@ describe('validateCodigoCIEDiagnostico23', () => {
       codigoCIEDiagnostico1: 'C530',
       codigoCIEDiagnostico2: '',
       sexoBiologico: 1,
-      edad: 30,
+      fechaNacimiento: fechaNacimiento30,
+      fechaNotaMedica: fechaNota30,
       tipoPersonal: 2,
       tipoPersonalMedicoGeneral: 2,
       tipoPersonalMedicoEspecialista: 4,

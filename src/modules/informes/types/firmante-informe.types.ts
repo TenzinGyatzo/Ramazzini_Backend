@@ -24,6 +24,7 @@ export interface MedicoFirmanteInforme extends FirmanteNombreInforme {
 
 export interface EnfermeraFirmanteInforme extends FirmanteNombreInforme {
   sexo: string;
+  sexoCURP?: number;
   tituloProfesional: string;
   numeroCedulaProfesional: string;
   nombreCredencialAdicional: string;
@@ -33,6 +34,7 @@ export interface EnfermeraFirmanteInforme extends FirmanteNombreInforme {
 
 export interface TecnicoFirmanteInforme extends FirmanteNombreInforme {
   sexo: string;
+  sexoCURP?: number;
   tituloProfesional: string;
   numeroCedulaProfesional: string;
   nombreCredencialAdicional: string;

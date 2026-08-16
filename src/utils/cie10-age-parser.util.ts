@@ -6,67 +6,92 @@
  * Examples: "010A" (10 years), "028D" (28 days), "120A" (120 years), "NO" (no limit)
  */
 
+export type CatalogAgeUnit = 'D' | 'M' | 'A';
+
+export interface CatalogAgeLimit {
+  value: number;
+  unit: CatalogAgeUnit;
+}
+
 /**
- * Parses an age limit value from the catalog format to years (number)
- *
- * Format examples:
- * - "010A" → 10 (years)
- * - "028D" → ~0.0766 (28 days / 365.25)
- * - "120A" → 120 (years)
- * - "NO" → null (no limit)
- * - "020A" → 20 (years)
- *
- * @param value - Age limit string from catalog (LINF/LSUP)
- * @returns Age in years (number) or null if no limit
+ * Parses LINF/LSUP into native catalog units (days, months, years).
+ * "NO" / empty / invalid → null (no limit).
  */
-export function parseAgeLimit(value: string | null | undefined): number | null {
+export function parseCatalogAgeLimit(
+  value: string | null | undefined,
+): CatalogAgeLimit | null {
   if (!value || typeof value !== 'string') {
     return null;
   }
 
   const trimmed = value.trim().toUpperCase();
-
-  // "NO" means no limit
   if (trimmed === 'NO' || trimmed === '') {
     return null;
   }
 
-  // Format: 3 digits + unit code (A/D/M/Y)
-  // Examples: "010A", "028D", "120A"
   const match = trimmed.match(/^(\d{3})([ADMY])$/);
-
   if (!match) {
-    // If format doesn't match, try to parse as plain number (fallback)
+    return null;
+  }
+
+  const numericValue = parseInt(match[1], 10);
+  if (isNaN(numericValue) || numericValue < 0) {
+    return null;
+  }
+
+  const rawUnit = match[2];
+  const unit: CatalogAgeUnit = rawUnit === 'Y' ? 'A' : (rawUnit as CatalogAgeUnit);
+  return { value: numericValue, unit };
+}
+
+function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/** Adds a catalog age limit to a birth date (calendar arithmetic). */
+export function addCatalogAgeLimit(birthDate: Date, limit: CatalogAgeLimit): Date {
+  const result = startOfDay(birthDate);
+  if (limit.unit === 'D') {
+    result.setDate(result.getDate() + limit.value);
+    return result;
+  }
+  if (limit.unit === 'M') {
+    result.setMonth(result.getMonth() + limit.value);
+    return result;
+  }
+  result.setFullYear(result.getFullYear() + limit.value);
+  return result;
+}
+
+/**
+ * Parses an age limit value from the catalog format to years (number).
+ * Prefer parseCatalogAgeLimit + calendar comparison for SIS validation.
+ */
+export function parseAgeLimit(value: string | null | undefined): number | null {
+  const parsed = parseCatalogAgeLimit(value);
+  if (!parsed) {
+    if (!value || typeof value !== 'string') {
+      return null;
+    }
+    const trimmed = value.trim().toUpperCase();
+    if (trimmed === 'NO' || trimmed === '') {
+      return null;
+    }
     const numValue = parseInt(trimmed, 10);
-    if (!isNaN(numValue) && numValue >= 0) {
+    if (!isNaN(numValue) && numValue >= 0 && /^\d+$/.test(trimmed)) {
       return numValue;
     }
     return null;
   }
 
-  const numericValue = parseInt(match[1], 10);
-  const unit = match[2];
-
-  if (isNaN(numericValue) || numericValue < 0) {
-    return null;
-  }
-
-  // Convert to years based on unit
-  switch (unit) {
-    case 'A': // Years (Años)
-    case 'Y': // Years (alternative)
-      return numericValue;
-
-    case 'D': // Days (Días)
-      // Convert days to years: days / 365.25 (accounting for leap years)
-      return numericValue / 365.25;
-
-    case 'M': // Months (Meses)
-      // Convert months to years: months / 12
-      return numericValue / 12;
-
+  switch (parsed.unit) {
+    case 'A':
+      return parsed.value;
+    case 'D':
+      return parsed.value / 365.25;
+    case 'M':
+      return parsed.value / 12;
     default:
-      // Unknown unit, assume years as fallback
-      return numericValue;
+      return parsed.value;
   }
 }

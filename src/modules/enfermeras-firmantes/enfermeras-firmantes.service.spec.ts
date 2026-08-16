@@ -55,6 +55,15 @@ describe('EnfermerasFirmantesService', () => {
     return `${d.getFullYear()}-${month}-${day}`;
   };
 
+  const getFechaNacimientoYearsAgoMinusOneDay = (years: number): string => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - years);
+    d.setDate(d.getDate() - 1);
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${month}-${day}`;
+  };
+
   const validFechaNacimiento = getFechaNacimientoYearsAgo(45);
 
   const siresDemographics = {
@@ -412,7 +421,7 @@ describe('EnfermerasFirmantesService', () => {
         ).toHaveBeenCalledWith(siresProveedorId);
       });
 
-      it('should reject generic CURP for SIRES_NOM024 firmantes', async () => {
+      it('should reject generic CURP for SIRES_NOM024 firmantes born in Mexico', async () => {
         const dto = {
           nombre: 'Enf. María López',
           idUser: siresUserId,
@@ -422,6 +431,21 @@ describe('EnfermerasFirmantesService', () => {
 
         await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
         await expect(service.create(dto as any)).rejects.toThrow(/genérica/i);
+      });
+
+      it('should accept generic CURP for SIRES_NOM024 firmantes born abroad', async () => {
+        const dto = {
+          nombre: 'Enf. María López',
+          idUser: siresUserId,
+          curp: 'XXXX999999XXXXXX99',
+          ...siresDemographics,
+          paisNacimiento: 246,
+          entidadNacimiento: '88',
+          sexoCURP: 2,
+        };
+
+        const result = await service.create(dto as any);
+        expect(result).toBeDefined();
       });
 
       it('should reject invalid CURP format for SIRES_NOM024', async () => {
@@ -592,7 +616,21 @@ describe('EnfermerasFirmantesService', () => {
 
       await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
       await expect(service.create(dto as any)).rejects.toThrow(
-        'debe estar entre 18 y 90 años cumplidos',
+        'incluyendo meses y días',
+      );
+    });
+
+    it('should reject edad mayor a 90 años exactos (90a 0m 1d)', async () => {
+      const dto = {
+        nombre: 'Enf. Anciana',
+        idUser: nonMxUserId,
+        paisNacimiento: defaultPaisNacimiento,
+        fechaNacimiento: getFechaNacimientoYearsAgoMinusOneDay(90),
+      };
+
+      await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto as any)).rejects.toThrow(
+        'incluyendo meses y días',
       );
     });
 
@@ -606,7 +644,7 @@ describe('EnfermerasFirmantesService', () => {
 
       await expect(service.create(dto as any)).rejects.toThrow(BadRequestException);
       await expect(service.create(dto as any)).rejects.toThrow(
-        'debe estar entre 18 y 90 años cumplidos',
+        'incluyendo meses y días',
       );
     });
 

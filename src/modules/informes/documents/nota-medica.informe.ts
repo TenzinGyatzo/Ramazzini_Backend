@@ -10,6 +10,7 @@ import {
 import { FooterFirmantesData } from '../interfaces/firmante-data.interface';
 import { generarFooterFirmantes } from '../helpers/footer-firmantes.helper';
 import { formatearNombreTrabajador, formatearTituloYNombreFirmante, formatearTituloYNombreFirmanteConFallback } from '../../../utils/names';
+import { buildEnfermeraPiePaginaPdfBlock, buildTecnicoPiePaginaPdfBlock } from '../../../utils/firmante-pie-pagina.util';
 import { EnfermeraFirmanteInforme, MedicoFirmanteInforme } from '../types/firmante-informe.types';
 import { firmanteTieneLineaNombre, resolverFirmanteMedicoEnfermera } from '../helpers/firmante-informe.helpers';
 
@@ -265,6 +266,7 @@ interface NotaMedica {
   diagnostico?: string; // Legacy field, opcional
   // NOM-024: CIE-10 Diagnosis Codes
   codigoCIE10Principal?: string;
+  diagnosticoTextoPrincipal?: string;
   codigosCIE10Complementarios?: string[];
   relacionTemporal?: number; // 0=Primera Vez, 1=Subsecuente
   primeraVezDiagnostico2?: number; // 0=No, 1=Si
@@ -274,6 +276,7 @@ interface NotaMedica {
   codigoCIEDiagnostico3?: string;
   confirmacionDiagnostica3?: boolean;
   diagnosticoTexto?: string;
+  diagnosticoTexto3?: string;
   confirmacionDiagnostica?: boolean;
   muestraConfirmacionDiagnostica1?: boolean;
   muestraConfirmacionDiagnostica2?: boolean;
@@ -299,6 +302,7 @@ interface NotaMedica {
 interface ProveedorSalud {
   nombre: string;
   pais: string;
+  regimenRegulatorio?: string;
   perfilProveedorSalud: string;
   logotipoEmpresa: {
     data: string;
@@ -698,6 +702,7 @@ export const notaMedicaInforme = (
 
       // Diagnóstico Principal y Complementarios (NOM-024) — grupo visual
       ...(notaMedica.codigoCIE10Principal ||
+      notaMedica.diagnosticoTextoPrincipal ||
       (notaMedica.codigosCIE10Complementarios &&
         notaMedica.codigosCIE10Complementarios.length > 0) ||
       notaMedica.relacionTemporal !== undefined ||
@@ -735,6 +740,20 @@ export const notaMedicaInforme = (
                             extractCIE10Code(notaMedica.codigoCIE10Principal)
                           } `,
                         },
+                      ],
+                      margin: [0, 0, 0, 6] as [number, number, number, number],
+                      style: 'paragraph',
+                    }
+                  : null,
+                notaMedica.diagnosticoTextoPrincipal &&
+                notaMedica.diagnosticoTextoPrincipal.trim() !== ''
+                  ? {
+                      text: [
+                        {
+                          text: `Descripción complementaria: `,
+                          bold: true,
+                        },
+                        { text: `${notaMedica.diagnosticoTextoPrincipal} ` },
                       ],
                       margin: [0, 0, 0, 6] as [number, number, number, number],
                       style: 'paragraph',
@@ -950,6 +969,20 @@ export const notaMedicaInforme = (
                       style: 'paragraph',
                     }
                   : null,
+                notaMedica.diagnosticoTexto3 &&
+                notaMedica.diagnosticoTexto3.trim() !== ''
+                  ? {
+                      text: [
+                        {
+                          text: `Descripción complementaria: `,
+                          bold: true,
+                        },
+                        { text: `${notaMedica.diagnosticoTexto3} ` },
+                      ],
+                      margin: [0, 0, 0, 6] as [number, number, number, number],
+                      style: 'paragraph',
+                    }
+                  : null,
               ].filter((item) => item !== null),
               margin: [0, 0, 0, 10] as [number, number, number, number],
             },
@@ -1036,7 +1069,7 @@ export const notaMedicaInforme = (
                     // Nombre y título profesional
                     firmanteTieneLineaNombre(firmanteActivo)
                       ? {
-                          text: `${formatearTituloYNombreFirmante(firmanteActivo)}\n`,
+                          text: `${formatearTituloYNombreFirmante(firmanteActivo, proveedorSalud.regimenRegulatorio)}\n`,
                           bold: true,
                         }
                       : null,
@@ -1075,15 +1108,9 @@ export const notaMedicaInforme = (
                       : null,
 
                     // Texto específico para enfermeras
-                    usarEnfermera && enfermeraFirmante?.sexo
-                      ? {
-                          text:
-                            enfermeraFirmante.sexo === 'Femenino'
-                              ? 'Enfermera responsable de la nota\n'
-                              : 'Enfermero responsable de la nota\n',
-                          bold: false,
-                        }
-                      : null,
+                usarEnfermera
+                  ? buildEnfermeraPiePaginaPdfBlock(enfermeraFirmante, 'de la nota')
+                  : null,
                   ].filter((item) => item !== null), // Filtrar los nulos para que no aparezcan en el informe
               fontSize: 8,
               margin: [40, 0, 0, 0],

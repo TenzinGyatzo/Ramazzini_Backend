@@ -246,6 +246,7 @@ function getFieldDisplayName(fieldName?: string): string {
     localidadResidencia: 'Localidad de residencia',
     paisNacimiento: 'País de nacimiento',
     paisResidencia: 'País de residencia',
+    sexoCURP: 'Sexo CURP',
   };
 
   return fieldNames[fieldName] || fieldName;

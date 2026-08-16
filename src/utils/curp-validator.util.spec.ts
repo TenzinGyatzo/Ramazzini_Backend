@@ -38,8 +38,7 @@ describe('validateCURPCrossCheck (A1)', () => {
     expect(result.discrepancies).toHaveLength(0);
   });
 
-  it('debe rechazar iniciales COGE sin filtro cuando los datos derivan CXGE', () => {
-    const curpSinFiltro = 'COGE941130HJCRND07';
+  it('debe aceptar iniciales COGE o CXGE con palabra inconveniente', () => {
     const dataCorrecta = {
       fechaNacimiento: '1994-11-30' as any,
       sexo: 'Masculino',
@@ -48,14 +47,12 @@ describe('validateCURPCrossCheck (A1)', () => {
       primerApellido: 'CORONEL',
       segundoApellido: 'GONZALEZ',
     };
-    const result = validateCURPCrossCheck(curpSinFiltro, dataCorrecta);
-    expect(result.isValid).toBe(false);
-    const inicialesDiscrepancy = result.discrepancies.find(
-      (d) => d.field === 'iniciales',
+    expect(validateCURPCrossCheck('COGE941130HJCRND07', dataCorrecta).isValid).toBe(
+      true,
     );
-    expect(inicialesDiscrepancy).toBeDefined();
-    expect(inicialesDiscrepancy?.expected).toBe('CXGE');
-    expect(inicialesDiscrepancy?.gotFromCurp).toBe('COGE');
+    expect(validateCURPCrossCheck('CXGE941130HJCRND07', dataCorrecta).isValid).toBe(
+      true,
+    );
   });
 
   it('debe pasar validación para Salgado Briseño Concepción', () => {
@@ -226,26 +223,40 @@ describe('validateCURPCrossCheck (A1)', () => {
     expect(result.discrepancies).toHaveLength(0);
   });
 
-  it('debe permitir entidadNacimiento NE o 00 sin validar', () => {
-    const dataConNE = {
+  it('debe exigir NE en posiciones 12-13 con entidadNacimiento 88', () => {
+    const dataExtranjero = {
       ...mockData,
-      entidadNacimiento: 'NE',
+      entidadNacimiento: '88',
     };
-    const result = validateCURPCrossCheck(curpGarciaLopezJuan, dataConNE);
+    const mismatch = validateCURPCrossCheck(curpGarciaLopezJuan, dataExtranjero);
+    const entidadMismatch = mismatch.discrepancies.find(
+      (d) => d.field === 'entidadNacimiento',
+    );
+    expect(entidadMismatch).toBeDefined();
+    expect(entidadMismatch?.expected).toBe('NE');
+    expect(entidadMismatch?.gotFromCurp).toBe('DF');
+
+    const curpConNe = 'GALJ900515HNERPN08';
+    const match = validateCURPCrossCheck(curpConNe, dataExtranjero);
     expect(
-      result.discrepancies.filter((d) => d.field === 'entidadNacimiento'),
+      match.discrepancies.filter((d) => d.field === 'entidadNacimiento'),
     ).toHaveLength(0);
   });
 
-  it('debe permitir entidadNacimiento 00 sin validar', () => {
-    const dataCon00 = {
-      ...mockData,
-      entidadNacimiento: '00',
-    };
-    const result = validateCURPCrossCheck(curpGarciaLopezJuan, dataCon00);
-    expect(
-      result.discrepancies.filter((d) => d.field === 'entidadNacimiento'),
-    ).toHaveLength(0);
+  it('debe exigir NE en posiciones 12-13 con entidadNacimiento NE o 00', () => {
+    const curpConNe = 'GALJ900515HNERPN08';
+    for (const entidadNacimiento of ['NE', '00'] as const) {
+      const data = { ...mockData, entidadNacimiento };
+      const mismatch = validateCURPCrossCheck(curpGarciaLopezJuan, data);
+      expect(
+        mismatch.discrepancies.find((d) => d.field === 'entidadNacimiento'),
+      ).toMatchObject({ expected: 'NE', gotFromCurp: 'DF' });
+
+      const match = validateCURPCrossCheck(curpConNe, data);
+      expect(
+        match.discrepancies.filter((d) => d.field === 'entidadNacimiento'),
+      ).toHaveLength(0);
+    }
   });
 
   it('debe retornar isValid=false si CURP tiene formato inválido', () => {
@@ -418,6 +429,40 @@ describe('validateCURPCrossCheck (A1)', () => {
     ).toHaveLength(0);
   });
 
+  it('debe cruzar sinApellidos cuando hay nombre y ambos apellidos vacíos', () => {
+    const curp = 'XXXJ900515HDFXXN08';
+    const data = {
+      fechaNacimiento: new Date('1990-05-15'),
+      sexo: 'Masculino',
+      entidadNacimiento: '09',
+      nombre: 'JUAN',
+    };
+    const result = validateCURPCrossCheck(curp, data);
+    expect(result.isValid).toBe(true);
+    expect(
+      result.discrepancies.filter(
+        (d) => d.field === 'iniciales' || d.field === 'consonantesInternas',
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('debe rechazar CURP con apellidos reales si demografía queda sin apellidos', () => {
+    const data = {
+      fechaNacimiento: new Date('1990-05-15'),
+      sexo: 'Masculino',
+      entidadNacimiento: '09',
+      nombre: 'JUAN',
+    };
+    const result = validateCURPCrossCheck(curpGarciaLopezJuan, data);
+    expect(result.isValid).toBe(false);
+    expect(
+      result.discrepancies.some((d) => d.field === 'iniciales'),
+    ).toBe(true);
+    expect(
+      result.discrepancies.some((d) => d.field === 'consonantesInternas'),
+    ).toBe(true);
+  });
+
   it('debe aceptar segundo apellido vacío con X en posiciones 3 y 15', () => {
     const curp = 'GAXJ900515HDFRXN08';
     const data = {
@@ -455,5 +500,31 @@ describe('validateCURPCrossCheck (A1)', () => {
     expect(
       result.discrepancies.filter((d) => d.field === 'sexo'),
     ).toHaveLength(0);
+  });
+
+  it('debe cruzar pos. 11 con sexoCURP=3 exigiendo X', () => {
+    const curpHombre = 'GALJ900515HDFRPN08';
+    const result = validateCURPCrossCheck(curpHombre, {
+      ...mockData,
+      sexoCURP: 3,
+    });
+    expect(result.isValid).toBe(false);
+    expect(result.discrepancies.find((d) => d.field === 'sexo')?.expected).toBe(
+      'X',
+    );
+  });
+
+  it('debe priorizar sexoCURP sobre sexo biológico en cruce', () => {
+    const curpMujer = 'SABC560626MDFLRN09';
+    const result = validateCURPCrossCheck(curpMujer, {
+      fechaNacimiento: '1956-06-26',
+      sexo: 'Masculino',
+      sexoCURP: 2,
+      entidadNacimiento: '09',
+      nombre: 'Concepción',
+      primerApellido: 'Salgado',
+      segundoApellido: 'Briseño',
+    });
+    expect(result.isValid).toBe(true);
   });
 });

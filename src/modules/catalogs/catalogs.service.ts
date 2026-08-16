@@ -423,6 +423,79 @@ export class CatalogsService implements OnModuleInit {
   }
 
   /**
+   * Resolve estado input (INEGI code or catalog description) to estado code.
+   */
+  resolveEstadoCode(value: string): string | null {
+    if (!value?.trim()) return null;
+
+    const trimmed = value.trim();
+    if (this.estadoCache.has(trimmed)) return trimmed;
+
+    const padded = trimmed.padStart(2, '0');
+    if (this.estadoCache.has(padded)) return padded;
+
+    const normalizedInput = normalizeCatalogDescription(trimmed);
+    for (const [code, entry] of this.estadoCache) {
+      if (
+        normalizeCatalogDescription(String(entry.description || '')) ===
+        normalizedInput
+      ) {
+        return code;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolve municipio input (INEGI code or catalog description) within an estado.
+   */
+  resolveMunicipioCode(
+    estadoInput: string,
+    municipioInput: string,
+  ): string | null {
+    if (!municipioInput?.trim()) return null;
+
+    const estadoCode = this.resolveEstadoCode(estadoInput);
+    if (!estadoCode) return null;
+
+    const normalizedEstadoCode = estadoCode.padStart(2, '0').toUpperCase();
+    const municipioMap = this.municipioCache.get(normalizedEstadoCode);
+    if (!municipioMap) return null;
+
+    const trimmed = municipioInput.trim();
+
+    if (trimmed.includes('-') && municipioMap.has(trimmed)) {
+      const parts = trimmed.split('-');
+      return parts[parts.length - 1].padStart(3, '0');
+    }
+
+    const paddedMun = trimmed.padStart(3, '0');
+    const fullCode = `${normalizedEstadoCode}-${paddedMun}`;
+    if (municipioMap.has(fullCode)) return paddedMun;
+
+    for (const entryCode of municipioMap.keys()) {
+      const parts = entryCode.split('-');
+      if (parts.length > 1 && parts[parts.length - 1] === paddedMun) {
+        return paddedMun;
+      }
+    }
+
+    const normalizedInput = normalizeCatalogDescription(trimmed);
+    for (const [entryCode, entry] of municipioMap) {
+      if (
+        normalizeCatalogDescription(String(entry.description || '')) ===
+        normalizedInput
+      ) {
+        const parts = entryCode.split('-');
+        return parts.length > 1 ? parts[parts.length - 1] : entryCode;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Validate INEGI geographic code (estado, municipio, or localidad)
    */
   async validateINEGI(
@@ -431,8 +504,10 @@ export class CatalogsService implements OnModuleInit {
     parentCode?: string,
   ): Promise<boolean> {
     switch (type) {
-      case 'estado':
-        return this.estadoCache.has(code);
+      case 'estado': {
+        const resolved = this.resolveEstadoCode(code);
+        return resolved !== null;
+      }
 
       case 'municipio':
         if (!parentCode) {
@@ -455,20 +530,21 @@ export class CatalogsService implements OnModuleInit {
           }
           return false;
         }
-        // Normalizar código de estado (2 dígitos)
-        const normalizedEstadoCode = parentCode
-          .toString()
+        const resolvedEstado = this.resolveEstadoCode(parentCode);
+        const resolvedMunicipio = resolvedEstado
+          ? this.resolveMunicipioCode(parentCode, code)
+          : null;
+        if (!resolvedEstado || !resolvedMunicipio) {
+          return false;
+        }
+        const normalizedEstadoCode = resolvedEstado
           .padStart(2, '0')
           .toUpperCase();
         const municipioMap = this.municipioCache.get(normalizedEstadoCode);
         if (!municipioMap) {
           return false;
         }
-        // Normalizar código de municipio (3 dígitos)
-        const normalizedMunicipioCode = code.toString().padStart(3, '0');
-        // Construir código completo: estado-municipio
-        const fullMunicipioCode = `${normalizedEstadoCode}-${normalizedMunicipioCode}`;
-        // Buscar el código completo en el cache
+        const fullMunicipioCode = `${normalizedEstadoCode}-${resolvedMunicipio.padStart(3, '0')}`;
         return municipioMap.has(fullMunicipioCode);
 
       case 'localidad':
@@ -865,20 +941,20 @@ export class CatalogsService implements OnModuleInit {
         continue;
       }
 
-      // Filter by sex (LSEX) if provided
+      // Filter by sex (LSEX: HOMBRE | MUJER | NO) if provided
       if (
         sexo !== undefined &&
         sexo !== null &&
         cie10Entry.lsex &&
         cie10Entry.lsex !== 'NO'
       ) {
-        // LSEX = "SI" typically means male-only, validate accordingly
-        // For now, we do basic filtering - more complex logic can be added
-        if (cie10Entry.lsex === 'SI' && sexo === 2) {
-          // Skip entries that are male-only when patient is female
+        const lsexUpper = String(cie10Entry.lsex).trim().toUpperCase();
+        if (lsexUpper === 'HOMBRE' && sexo === 2) {
           continue;
         }
-        // Add more LSEX validation logic as needed based on catalog format
+        if (lsexUpper === 'MUJER' && sexo === 1) {
+          continue;
+        }
       }
 
       // Filter by age (LINF/LSUP) if provided

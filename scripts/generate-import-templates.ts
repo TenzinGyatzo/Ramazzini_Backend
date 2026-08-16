@@ -21,8 +21,8 @@ const NOTE_FONT: Partial<ExcelJS.Font> = {
 const SIN_REGIMEN_COLUMNS: ColumnDef[] = [
   { key: 'numeroEmpleado', note: 'OPCIONAL\nNúmero de empleado (1-7 dígitos).' },
   { key: 'nss', note: 'OPCIONAL\nIdentificador de seguridad social (4-30 caracteres).' },
-  { key: 'primerApellido', note: 'OBLIGATORIO' },
-  { key: 'segundoApellido', note: 'OPCIONAL' },
+  { key: 'primerApellido', note: 'OPCIONAL' },
+  { key: 'segundoApellido', note: 'OPCIONAL (requiere primerApellido)' },
   { key: 'nombre', note: 'OBLIGATORIO' },
   {
     key: 'fechaNacimiento',

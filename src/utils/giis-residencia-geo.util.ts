@@ -1,3 +1,9 @@
+import {
+  GeoFormContext,
+  validateFirmanteResidenciaSentinels,
+  validatePaisEntidadCoherence,
+} from './geo-selector-rules.util';
+
 /** CATALOG_KEY cat_pais: México */
 export const PAIS_RESIDENCIA_MEXICO = 142;
 
@@ -56,6 +62,17 @@ export function isEntidadResidenciaEspecial(
 ): boolean {
   return ENTIDADES_RESIDENCIA_ESPECIALES.includes(
     normalizeEntidadResidencia(code) as (typeof ENTIDADES_RESIDENCIA_ESPECIALES)[number],
+  );
+}
+
+/** Trabajadores: entidad 00/99 exige CURP genérica XXXX999999XXXXXX99. */
+export function requiresGenericCurpForEntidadNacimiento(
+  entidad: string | undefined | null,
+): boolean {
+  const normalized = normalizeEntidadResidencia(entidad);
+  return (
+    normalized === GIIS_ENTIDAD_NO_ESPECIFICADO ||
+    normalized === GIIS_ENTIDAD_SE_IGNORA
   );
 }
 
@@ -135,6 +152,7 @@ export interface ResidenciaGeoGiisPayload {
  */
 export function validateResidenciaGeoGiisCoherence(
   payload: ResidenciaGeoGiisPayload,
+  geoContext: GeoFormContext = 'trabajador',
 ): string[] {
   const errors: string[] = [];
   const entidad = normalizeEntidadResidencia(payload.entidadResidencia);
@@ -145,6 +163,16 @@ export function validateResidenciaGeoGiisCoherence(
     paisRaw == null || Number.isNaN(Number(paisRaw)) ? null : Number(paisRaw);
 
   if (!entidad) return errors;
+
+  if (pais != null) {
+    errors.push(
+      ...validatePaisEntidadCoherence(pais, entidad, geoContext, 'residencia'),
+    );
+  }
+
+  if (geoContext === 'firmante') {
+    errors.push(...validateFirmanteResidenciaSentinels(entidad, municipio, localidad));
+  }
 
   const isMexico = pais === PAIS_RESIDENCIA_MEXICO;
   const isForeign = pais !== null && pais !== PAIS_RESIDENCIA_MEXICO;
@@ -174,14 +202,26 @@ export function validateResidenciaGeoGiisCoherence(
       entidad === RENAPO_ENTIDAD_EXTRANJERO
     ) {
       errors.push(
-        'Entidad 88 (NO APLICA) no aplica cuando el país de residencia es México (142)',
+        'Entidad 88 (NO APLICA) o NE (Extranjero) no aplica cuando el país de residencia es México (142)',
+      );
+      return errors;
+    }
+
+    if (
+      geoContext === 'firmante' &&
+      (entidad === GIIS_ENTIDAD_NO_ESPECIFICADO ||
+        entidad === GIIS_ENTIDAD_SE_IGNORA)
+    ) {
+      errors.push(
+        'Entidad 00 (NO ESPECIFICADO) y 99 (SE IGNORA) no están permitidas para firmantes con país México',
       );
       return errors;
     }
 
     const allowedMexicoEntidades = new Set([
-      GIIS_ENTIDAD_NO_ESPECIFICADO,
-      GIIS_ENTIDAD_SE_IGNORA,
+      ...(geoContext === 'trabajador'
+        ? [GIIS_ENTIDAD_NO_ESPECIFICADO, GIIS_ENTIDAD_SE_IGNORA]
+        : []),
       ...Array.from({ length: 32 }, (_, index) =>
         String(index + 1).padStart(2, '0'),
       ),
@@ -189,7 +229,9 @@ export function validateResidenciaGeoGiisCoherence(
 
     if (!allowedMexicoEntidades.has(entidad)) {
       errors.push(
-        'Con país México (142) la entidad debe ser 00, 99 o una entidad federativa (01-32)',
+        geoContext === 'firmante'
+          ? 'Con país México (142) la entidad debe ser una entidad federativa (01-32)'
+          : 'Con país México (142) la entidad debe ser 00, 99 o una entidad federativa (01-32)',
       );
     }
   }
@@ -220,6 +262,17 @@ export function validateResidenciaGeoGiisCoherence(
       return errors;
     }
 
+    if (
+      geoContext === 'firmante' &&
+      (municipio === GIIS_MUNICIPIO_NO_ESPECIFICADO ||
+        municipio === GIIS_MUNICIPIO_SE_IGNORA)
+    ) {
+      errors.push(
+        `Municipio ${municipio} no está permitido para firmantes`,
+      );
+      return errors;
+    }
+
     const expectedMunGeo = getGiisGeoForMunicipioResidencia(municipio);
     if (expectedMunGeo) {
       if (localidad && localidad !== expectedMunGeo.localidad) {
@@ -231,6 +284,12 @@ export function validateResidenciaGeoGiisCoherence(
     }
 
     if (localidad && isLocalidadGiisSentinel(localidad)) {
+      if (geoContext === 'firmante') {
+        errors.push(
+          `Localidad ${localidad} no está permitida para firmantes`,
+        );
+        return errors;
+      }
       const allowed = new Set([
         GIIS_LOCALIDAD_NO_ESPECIFICADO,
         GIIS_LOCALIDAD_SE_IGNORA,

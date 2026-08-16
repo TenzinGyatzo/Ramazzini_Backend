@@ -228,6 +228,7 @@ interface CertificadoExpedito {
 interface ProveedorSalud {
   nombre: string;
   pais: string;
+  regimenRegulatorio?: string;
   perfilProveedorSalud: string;
   logotipoEmpresa: {
     data: string;
@@ -381,7 +382,7 @@ export const certificadoExpeditoInforme = (
                     },
 
                 {
-                  text: `${formatearTituloYNombreFirmante(firmanteActivo)}${firmanteActivo.especialistaSaludTrabajo === 'Si' ? '' : '.'}`,
+                  text: `${formatearTituloYNombreFirmante(firmanteActivo, proveedorSalud.regimenRegulatorio)}${firmanteActivo.especialistaSaludTrabajo === 'Si' ? '' : '.'}`,
                   bold: true,
                 },
 
@@ -573,7 +574,7 @@ export const certificadoExpeditoInforme = (
         margin: [0, 10, 0, 0],
       },
       {
-        text: `${formatearTituloYNombreFirmante(firmanteActivo)}`,
+        text: `${formatearTituloYNombreFirmante(firmanteActivo, proveedorSalud.regimenRegulatorio)}`,
         fontSize: 12,
         bold: false,
         alignment: 'center',

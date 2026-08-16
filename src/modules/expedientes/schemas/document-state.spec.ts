@@ -3,6 +3,10 @@ import { EntrevistaPsicologicaSchema } from './entrevista-psicologica.schema';
 import { TrastornosEstadoAnimoSchema } from './trastornos-estado-animo.schema';
 import { CuestionarioProdromalBreveSchema } from './cuestionario-prodromal-breve.schema';
 import { TrastornoLimitePersonalidadSchema } from './trastorno-limite-personalidad.schema';
+import { AntidopingSchema } from './antidoping.schema';
+import { HistoriaClinicaSchema } from './historia-clinica.schema';
+import { AptitudPuestoSchema } from './aptitud-puesto.schema';
+import { CertificadoSchema } from './certificado.schema';
 
 describe('Document State Management - Schema Defaults', () => {
   describe('DocumentoEstado Enum', () => {
@@ -58,6 +62,19 @@ describe('Document State Management - Schema Defaults', () => {
         expect(schema.paths).toHaveProperty('finalizadoPor');
         expect(schema.paths).toHaveProperty('anuladoPor');
         expect(schema.paths).toHaveProperty('consentimientoDiarioId');
+      }
+    });
+
+    it('should expose optional fichaSnapshot on PDF document schemas', () => {
+      const pdfSchemas = [
+        AntidopingSchema,
+        HistoriaClinicaSchema,
+        AptitudPuestoSchema,
+        CertificadoSchema,
+        EntrevistaPsicologicaSchema,
+      ];
+      for (const schema of pdfSchemas) {
+        expect(schema.paths).toHaveProperty('fichaSnapshot');
       }
     });
   });

@@ -12,6 +12,7 @@ import { FirmanteHelper } from '../../expedientes/helpers/firmante-helper';
 import { loadGiisSchema } from '../schema-loader';
 import { mapNotaMedicaToCexRow, extractCieCode } from '../transformers/cex.mapper';
 import { resolveCexDiagCatalogFlags } from '../utils/cex-diag-catalog-flags.util';
+import { resolveCexPrestadorUserId } from '../utils/cex-prestador-user.util';
 import { CatalogsService } from '../../catalogs/catalogs.service';
 import { CexCatalogResolver } from '../../catalogs/cex-catalog.resolver';
 import {
@@ -34,7 +35,6 @@ import { Trabajador } from '../../trabajadores/schemas/trabajador.schema';
 import { giisExportConfig } from '../config/giis-export.config';
 import { evaluateCexLoadQuality } from './cex-load-quality.util';
 import { validateCexCodigoCIEDiagnostico1Row, validateCexCodigoCIEDiagnostico1Age } from './cex-cie-diagnostico1.validator';
-import { calculateAge } from '../../../utils/age-calculator.util';
 import { mapSexoToGiisBiologico } from '../../../utils/sexo-mapper.util';
 import { CatalogType, CIE10Entry } from '../../catalogs/interfaces/catalog-entry.interface';
 import { normalizeCie10CatalogKey } from '../../../utils/cie10-diagnostico-sis.util';
@@ -184,13 +184,7 @@ export class GiisValidationService {
       const rows: Record<string, string | number>[] = [];
       for (const nota of notas as any[]) {
         const trabajador = nota.idTrabajador || null;
-        const rawUser = nota.finalizadoPor ?? nota.updatedBy;
-        const userId =
-          rawUser != null
-            ? typeof rawUser === 'string'
-              ? rawUser
-              : (rawUser as Types.ObjectId).toString()
-            : '';
+        const userId = resolveCexPrestadorUserId(nota);
         const prestadorData = userId
           ? await this.firmanteHelper.getPrestadorDataFromUser(userId)
           : null;
@@ -254,10 +248,8 @@ export class GiisValidationService {
         const nota = notas[i] as any;
         const trab = nota?.idTrabajador;
         if (trab?.fechaNacimiento && nota?.fechaNotaMedica) {
-          const edad = calculateAge(
-            new Date(trab.fechaNacimiento),
-            new Date(nota.fechaNotaMedica),
-          );
+          const fechaNacimiento = new Date(trab.fechaNacimiento);
+          const fechaNotaMedica = new Date(nota.fechaNotaMedica);
           const catalogKey = normalizeCie10CatalogKey(
             String(rows[i].codigoCIEDiagnostico1 ?? ''),
           );
@@ -271,7 +263,8 @@ export class GiisValidationService {
               const ageCause = validateCexCodigoCIEDiagnostico1Age(
                 catalogKey,
                 entry,
-                edad,
+                fechaNacimiento,
+                fechaNotaMedica,
                 sexoBiologico,
               );
               if (ageCause) {

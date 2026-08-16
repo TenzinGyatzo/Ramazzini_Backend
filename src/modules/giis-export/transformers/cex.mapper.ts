@@ -14,7 +14,8 @@ import {
   calcularEdadEmbarazo,
   resolverCamposEmbarazoCex,
 } from '../../expedientes/validators/nota-medica-embarazo.validator';
-import { toGIISNumeric } from '../formatters/sexo.formatter';
+import { mapSexoToGiisBiologico } from '../../../utils/sexo-mapper.util';
+import { isTrabajadorSexoCurp } from '../../trabajadores/constants/trabajador-sexo-curp.constants';
 import { normalizeCie10CatalogKey } from '../../../utils/cie10-diagnostico-sis.util';
 import {
   aplicaConfirmacionDiagnostico1,
@@ -81,6 +82,7 @@ export interface TrabajadorLike {
   segundoApellido?: string;
   fechaNacimiento?: Date;
   sexo?: string;
+  sexoCURP?: number;
   entidadNacimiento?: string;
   paisNacimiento?: number;
   [key: string]: unknown;
@@ -249,25 +251,29 @@ export function mapNotaMedicaToCexRow(
     ? formatCURP(trabajador.curp) || CURP_GENERICA
     : CURP_GENERICA;
   const sexoRaw = (trabajador?.sexo as string) || '';
-  const sexoGiis = toGIISNumeric(sexoRaw);
-  const sexoCURP =
-    sexoGiis === '2' ? 2 : sexoGiis === '1' ? 1 : sexoGiis === '3' ? 3 : 1;
-  const sexoBiologico = sexoCURP;
-  const genero = sexoCURP;
+  const sexoBiologicoFromSexo = mapSexoToGiisBiologico(sexoRaw);
+  const sexoBiologico =
+    sexoBiologicoFromSexo === 1 ||
+    sexoBiologicoFromSexo === 2 ||
+    sexoBiologicoFromSexo === 3
+      ? sexoBiologicoFromSexo
+      : 1;
+  const sexoCURPFromField = trabajador?.sexoCURP;
+  const sexoCURP = isTrabajadorSexoCurp(sexoCURPFromField)
+    ? sexoCURPFromField
+    : sexoBiologico;
+  const generoFallback = sexoCURP;
 
   const codigo1Raw = extractCieCode(consulta.codigoCIE10Principal);
   const codigo1 = normalizeCie10CatalogKey(codigo1Raw) || codigo1Raw;
-  const comp = consulta.codigosCIE10Complementarios || [];
   const diag2NoAplica =
     consulta.primeraVezDiagnostico2 !== 0 &&
     consulta.primeraVezDiagnostico2 !== 1;
   const codigo2Raw = diag2NoAplica
     ? ''
-    : comp[0]
-      ? extractCieCode(comp[0])
-      : consulta.codigoCIEDiagnostico2
-        ? extractCieCode(consulta.codigoCIEDiagnostico2 as string)
-        : '';
+    : consulta.codigoCIEDiagnostico2
+      ? extractCieCode(consulta.codigoCIEDiagnostico2 as string)
+      : '';
   const codigo2 = diag2NoAplica ? '' : codigo2Raw || 'R69X';
 
   const curpPrestador = prestador?.curp
@@ -344,7 +350,7 @@ export function mapNotaMedicaToCexRow(
     seConsideraIndigena: -1,
     migrante: -1,
     paisProcedencia: -1,
-    genero: consulta.genero ?? genero ?? 0,
+    genero: consulta.genero ?? generoFallback ?? 0,
     derechohabiencia: consulta.derechohabiencia || '99',
     // CEX: fechaConsulta no posterior al día de registro; si es futura, normalizar a hoy
     fechaConsulta: (() => {

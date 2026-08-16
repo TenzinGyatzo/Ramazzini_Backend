@@ -83,6 +83,7 @@ import { WorkerFusionService } from '../trabajadores/worker-fusion.service';
 import { FirmanteHelper } from './helpers/firmante-helper';
 
 import { CexCatalogResolver } from '../catalogs/cex-catalog.resolver';
+import { FichaSnapshotService } from './services/ficha-snapshot.service';
 
 import { Types } from 'mongoose';
 
@@ -333,6 +334,7 @@ describe('ExpedientesService.countDocumentosByTrabajador', () => {
         { provide: FirmanteHelper, useValue: {} },
 
         { provide: CexCatalogResolver, useValue: {} },
+        { provide: FichaSnapshotService, useValue: { capturar: jest.fn() } },
 
       ],
 
