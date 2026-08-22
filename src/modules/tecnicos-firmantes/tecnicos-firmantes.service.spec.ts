@@ -11,6 +11,7 @@ import {
 } from '../../utils/regulatory-policy.service';
 import { CatalogsService } from '../catalogs/catalogs.service';
 import { GeographyValidator } from '../catalogs/validators/geography.validator';
+import { ClinicalAttentionQueryService } from '../expedientes/services/clinical-attention-query.service';
 
 describe('TecnicosFirmantesService', () => {
   let service: TecnicosFirmantesService;
@@ -105,6 +106,17 @@ describe('TecnicosFirmantesService', () => {
               .mockResolvedValue({ valid: true, errors: [] }),
           },
         },
+        {
+          provide: ClinicalAttentionQueryService,
+          useValue: {
+            hasFinalizedClinicalDocumentByUser: jest.fn().mockResolvedValue(false),
+            withFirmanteAttentionFlag: jest.fn(async (doc) =>
+              doc
+                ? { ...doc, tieneDocumentoClinicoFinalizado: false }
+                : doc,
+            ),
+          },
+        },
       ],
     }).compile();
 
@@ -121,8 +133,10 @@ describe('TecnicosFirmantesService', () => {
         notaAclaratoriaEnabled: false,
         cluesFieldVisible: false,
         dailyConsentEnabled: false,
+        confidentialityAgreementEnabled: false,
         workerIdentificationImmutable: false,
         auditTrailEnabled: false,
+        controlPrenatalEnabled: true,
       },
       validation: {
         curpFirmantes: 'optional',
@@ -145,8 +159,10 @@ describe('TecnicosFirmantesService', () => {
         notaAclaratoriaEnabled: true,
         cluesFieldVisible: true,
         dailyConsentEnabled: true,
+        confidentialityAgreementEnabled: true,
         workerIdentificationImmutable: true,
         auditTrailEnabled: true,
+        controlPrenatalEnabled: false,
       },
       validation: {
         curpFirmantes: 'required',

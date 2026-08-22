@@ -179,6 +179,14 @@ export class CreateNotaMedicaDto {
   trimestreGestacional?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @IsIn([0, 1], {
+    message: 'primeraVezUneme debe ser 0 (No) o 1 (Sí)',
+  })
+  primeraVezUneme?: number;
+
+  @IsOptional()
   @IsString({ message: 'El diagnóstico debe ser un string' })
   diagnostico: string; // Free-text diagnosis (backward compatibility)
 

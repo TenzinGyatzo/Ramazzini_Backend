@@ -183,6 +183,12 @@ export function mapRecordToEntry(
           municipio: record.MUNICIPIO as string | undefined,
           localidad: record.LOCALIDAD as string | undefined,
           estatus,
+          tipAbreviacion: record.tip_abreviacion
+            ? String(record.tip_abreviacion).trim().toUpperCase()
+            : undefined,
+          subAbreviacion: record.sub_abreviacion
+            ? String(record.sub_abreviacion).trim().toUpperCase()
+            : undefined,
           _csvRow: { ...record },
         } as CLUESEntry;
       }

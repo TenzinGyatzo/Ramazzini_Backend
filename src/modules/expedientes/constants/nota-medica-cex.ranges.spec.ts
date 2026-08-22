@@ -136,5 +136,14 @@ describe('nota-medica-cex.ranges', () => {
       expect(out.peso).toBeUndefined();
       expect(out.frecuenciaCardiaca).toBeUndefined();
     });
+
+    it('ignora primeraVezAnio enviado por el cliente', () => {
+      const out = normalizeNotaMedicaCexSentinels({
+        motivoConsulta: 'x',
+        primeraVezAnio: 1,
+      } as Record<string, unknown>);
+      expect(out.primeraVezAnio).toBeUndefined();
+      expect(out.motivoConsulta).toBe('x');
+    });
   });
 });

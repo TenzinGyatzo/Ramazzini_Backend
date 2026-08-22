@@ -107,6 +107,7 @@ import { Empresa, EmpresaSchema } from '../empresas/schemas/empresa.schema';
 import { UsersModule } from '../users/users.module';
 import { DeletionAuthModule } from 'src/utils/deletion-auth.module';
 import { OrganizationalAccessModule } from 'src/utils/organizational-access.module';
+import { ClinicalAttentionQueryModule } from '../expedientes/clinical-attention-query.module';
 
 @Module({
   imports: [
@@ -167,6 +168,7 @@ import { OrganizationalAccessModule } from 'src/utils/organizational-access.modu
     DeletionAuthModule,
     OrganizationalAccessModule,
     forwardRef(() => AuditModule),
+    ClinicalAttentionQueryModule,
   ],
   controllers: [TrabajadoresController, TransferenciasController],
   providers: [TrabajadoresService, WorkerFusionService],

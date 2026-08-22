@@ -13,6 +13,7 @@ import {
 } from '../proveedores-salud/schemas/proveedor-salud.schema';
 import { RegulatoryPolicyService } from 'src/utils/regulatory-policy.service';
 import { ProveedoresSaludModule } from '../proveedores-salud/proveedores-salud.module';
+import { ClinicalAttentionQueryModule } from '../expedientes/clinical-attention-query.module';
 import { AuditModule } from '../audit/audit.module';
 import { UsersModule } from '../users/users.module';
 
@@ -26,6 +27,7 @@ import { UsersModule } from '../users/users.module';
       { name: ProveedorSalud.name, schema: ProveedorSaludSchema },
     ]),
     ProveedoresSaludModule,
+    ClinicalAttentionQueryModule,
   ],
   controllers: [MedicosFirmantesController],
   providers: [MedicosFirmantesService, RegulatoryPolicyService],

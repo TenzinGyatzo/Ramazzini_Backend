@@ -86,6 +86,14 @@ export class NotaMedica extends Document {
   @Prop({ required: false })
   trimestreGestacional?: number; // -1=No aplica, 1=Primero, 2=Segundo, 3=Tercero
 
+  /** CEX primeraVezAnio: 0=No, 1=Sí. Se asigna al finalizar; el cliente no lo envía. */
+  @Prop({ required: false })
+  primeraVezAnio?: number;
+
+  /** CEX primeraVezUneme: 0=No, 1=Sí. Solo se persiste cuando el prompt aplica. */
+  @Prop({ required: false })
+  primeraVezUneme?: number;
+
   @Prop()
   diagnostico: string; // Free-text diagnosis (kept for backward compatibility)
 

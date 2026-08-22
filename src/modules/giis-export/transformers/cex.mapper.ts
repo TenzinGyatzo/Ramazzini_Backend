@@ -24,6 +24,7 @@ import {
   DiagCatalogFlags,
   toCexConfirmacionDiagnosticaValue,
 } from '../../../utils/confirmacion-diagnostica.util';
+import { resolvePrimeraVezUneme } from '../utils/primera-vez-uneme.util';
 
 export interface CexMapperContext {
   clues: string;
@@ -38,6 +39,8 @@ export interface CexMapperContext {
     confirmacion2?: DiagCatalogFlags | null;
     confirmacion3?: DiagCatalogFlags | null;
   };
+  /** ESTABLECIMIENTO SIS especializado (tip T/UNE y sub T02/UNE02/UNE04/UNE11). */
+  establecimientoEspecializado?: boolean;
 }
 
 /** NotaMedica-like: consulta externa document */
@@ -59,8 +62,10 @@ export interface ConsultaExternaLike {
   primeraVezDiagnostico3?: number; // 0=No, 1=Si
   codigoCIEDiagnostico3?: string;
   confirmacionDiagnostica3?: boolean;
-  /** 1 = primera consulta del trabajador en el año, 0 = ya existía otra (solo NotaMedica). */
+  /** 1 = primera consulta del trabajador en el año (persistido al finalizar). */
   primeraVezAnio?: number;
+  /** 0=No, 1=Sí. Capturado en nota cuando el establecimiento es especializado y es primera del año. */
+  primeraVezUneme?: number;
   genero?: number;
   derechohabiencia?: string;
   peso?: number;
@@ -403,7 +408,11 @@ export function mapNotaMedicaToCexRow(
     embarazadaSinDiabetes: 0,
     sintomaticoRespiratorioTb,
     primeraVezAnio: consulta.primeraVezAnio ?? 0,
-    primeraVezUneme: -1,
+    primeraVezUneme: resolvePrimeraVezUneme({
+      especializado: context.establecimientoEspecializado === true,
+      primeraVezAnio: consulta.primeraVezAnio ?? 0,
+      capturado: consulta.primeraVezUneme,
+    }),
     relacionTemporal: consulta.relacionTemporal ?? 0,
     codigoCIEDiagnostico1: codigo1 || 'R69X',
     confirmacionDiagnostica1: (() => {

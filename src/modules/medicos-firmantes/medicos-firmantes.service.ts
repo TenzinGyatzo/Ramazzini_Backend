@@ -18,6 +18,7 @@ import {
 import { validateFirmanteIdentificationImmutable } from 'src/utils/firmante-identification-immutability.util';
 import { assertValidPersonNameFields } from 'src/utils/name-validator.util';
 import { generateFolioFromWorkerData } from 'src/utils/folio-generator.util';
+import { ClinicalAttentionQueryService } from '../expedientes/services/clinical-attention-query.service';
 
 @Injectable()
 export class MedicosFirmantesService {
@@ -32,6 +33,7 @@ export class MedicosFirmantesService {
     private readonly regulatoryPolicyService: RegulatoryPolicyService,
     private readonly catalogsService: CatalogsService,
     private readonly geographyValidator: GeographyValidator,
+    private readonly clinicalAttentionQuery: ClinicalAttentionQueryService,
   ) {}
 
   private async getPolicyForUser(idUser: string) {
@@ -126,11 +128,13 @@ export class MedicosFirmantesService {
   }
 
   async findOne(id: string): Promise<MedicoFirmante> {
-    return this.medicoFirmanteModel.findById(id).exec();
+    const doc = await this.medicoFirmanteModel.findById(id).exec();
+    return this.clinicalAttentionQuery.withFirmanteAttentionFlag(doc) as Promise<MedicoFirmante>;
   }
 
   async findOneByUserId(idUser: string): Promise<MedicoFirmante> {
-    return this.medicoFirmanteModel.findOne({ idUser }).exec();
+    const doc = await this.medicoFirmanteModel.findOne({ idUser }).exec();
+    return this.clinicalAttentionQuery.withFirmanteAttentionFlag(doc) as Promise<MedicoFirmante>;
   }
 
   async update(
@@ -163,10 +167,17 @@ export class MedicosFirmantesService {
       if (idUser) {
         const policy = await this.getPolicyForUser(idUser);
         if (policy) {
+          const hasFinalizedClinicalDocument = policy.features
+            .workerIdentificationImmutable
+            ? await this.clinicalAttentionQuery.hasFinalizedClinicalDocumentByUser(
+                idUser,
+              )
+            : false;
           validateFirmanteIdentificationImmutable(
             updateMedicoFirmanteDto as Record<string, unknown>,
             existing,
             policy,
+            { hasFinalizedClinicalDocument },
           );
         }
         const merged = {

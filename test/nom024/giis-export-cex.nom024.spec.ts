@@ -589,4 +589,46 @@ describe('CEX mapper unit', () => {
       expect(row.trimestreGestacional).toBe(-1);
     });
   });
+
+  it('should export primeraVezUneme -1 when establishment is not specialized', () => {
+    const row = mapNotaMedicaToCexRow(
+      {
+        fechaNotaMedica: new Date('2025-01-15'),
+        codigoCIE10Principal: 'Z00',
+        relacionTemporal: 0,
+        primeraVezAnio: 1,
+        primeraVezUneme: 1,
+      },
+      cexContextBase,
+    );
+    expect(row.primeraVezUneme).toBe(-1);
+  });
+
+  it('should export primeraVezUneme 0 when specialized and not first of year', () => {
+    const row = mapNotaMedicaToCexRow(
+      {
+        fechaNotaMedica: new Date('2025-01-15'),
+        codigoCIE10Principal: 'Z00',
+        relacionTemporal: 0,
+        primeraVezAnio: 0,
+        primeraVezUneme: 1,
+      },
+      { ...cexContextBase, establecimientoEspecializado: true },
+    );
+    expect(row.primeraVezUneme).toBe(0);
+  });
+
+  it('should export captured primeraVezUneme when specialized and first of year', () => {
+    const row = mapNotaMedicaToCexRow(
+      {
+        fechaNotaMedica: new Date('2025-01-15'),
+        codigoCIE10Principal: 'Z00',
+        relacionTemporal: 0,
+        primeraVezAnio: 1,
+        primeraVezUneme: 1,
+      },
+      { ...cexContextBase, establecimientoEspecializado: true },
+    );
+    expect(row.primeraVezUneme).toBe(1);
+  });
 });

@@ -5,13 +5,14 @@ import { isGenericCURP } from './curp-validator.util';
 import { RegulatoryErrorCode } from './regulatory-error-codes';
 import { createRegulatoryError } from './regulatory-error-helper';
 
+/** Campos bloqueados con CURP real o con atención clínica finalizada. */
 export const WORKER_IMMUTABLE_IDENTIFICATION_FIELDS = [
   'curp',
   'nombre',
   'primerApellido',
   'segundoApellido',
   'fechaNacimiento',
-  'sexo',
+  'sexoCURP',
   'entidadNacimiento',
   'paisNacimiento',
 ] as const;
@@ -21,16 +22,18 @@ export const WORKER_CURP_CONFORMATION_FIELDS = [
   'primerApellido',
   'segundoApellido',
   'fechaNacimiento',
-  'sexo',
+  'sexoCURP',
   'entidadNacimiento',
+  'paisNacimiento',
 ] as const;
 
 export type WorkerImmutableIdentificationField =
-  (typeof WORKER_IMMUTABLE_IDENTIFICATION_FIELDS)[number];
+  | (typeof WORKER_IMMUTABLE_IDENTIFICATION_FIELDS)[number]
+  | 'sexo';
 
-export const PAIS_NACIMIENTO_MEXICO = 142;
-
-const MEXICAN_ENTIDAD_NACIMIENTO_PATTERN = /^(0[1-9]|[12][0-9]|3[0-2])$/;
+export interface WorkerIdentificationLockOptions {
+  hasFinalizedClinicalDocument?: boolean;
+}
 
 /** Snapshot mínimo del trabajador para validar inmutabilidad (compatible con documentos Mongoose). */
 export interface WorkerIdentificationCurrent {
@@ -40,71 +43,31 @@ export interface WorkerIdentificationCurrent {
   segundoApellido?: string;
   fechaNacimiento?: Date | string;
   sexo?: string;
+  sexoCURP?: number;
   entidadNacimiento?: string;
   paisNacimiento?: number;
   toObject?: () => Record<string, unknown>;
 }
 
-export function isMexicanEntidadNacimiento(code: string | undefined): boolean {
-  if (!code) return false;
-  return MEXICAN_ENTIDAD_NACIMIENTO_PATTERN.test(code.trim().toUpperCase());
-}
-
-function hasStoredPaisNacimiento(paisNacimiento: unknown): boolean {
-  return paisNacimiento !== null && paisNacimiento !== undefined && paisNacimiento !== '';
-}
-
 /**
- * paisNacimiento solo es inmutable si hay valor almacenado, CURP real,
- * país 142 (México) y entidad de nacimiento estatal MX (01-32).
- */
-export function isPaisNacimientoImmutable(
-  current: Pick<
-    WorkerIdentificationCurrent,
-    'curp' | 'paisNacimiento' | 'entidadNacimiento'
-  >,
-): boolean {
-  if (isGenericCURP(current.curp ?? '')) {
-    return false;
-  }
-
-  if (!hasStoredPaisNacimiento(current.paisNacimiento)) {
-    return false;
-  }
-
-  if (Number(current.paisNacimiento) !== PAIS_NACIMIENTO_MEXICO) {
-    return false;
-  }
-
-  return isMexicanEntidadNacimiento(current.entidadNacimiento);
-}
-
-/**
- * Campos de identificación que no pueden modificarse en update, según CURP almacenada.
- * Si la CURP almacenada es genérica, se eximen curp y campos de conformación CURP.
- * paisNacimiento solo se incluye si cumple isPaisNacimientoImmutable.
+ * Campos de identificación que no pueden modificarse en update.
+ * - CURP genérica y sin atención: ninguno.
+ * - CURP real y sin atención: lista común (sin sexo biológico).
+ * - Con atención: lista común más sexo biológico, aunque la CURP sea genérica.
  */
 export function getWorkerImmutableIdentificationFields(
-  current: Pick<
-    WorkerIdentificationCurrent,
-    'curp' | 'paisNacimiento' | 'entidadNacimiento'
-  >,
+  current: Pick<WorkerIdentificationCurrent, 'curp'>,
+  options?: WorkerIdentificationLockOptions,
 ): readonly WorkerImmutableIdentificationField[] {
-  let fields = [...WORKER_IMMUTABLE_IDENTIFICATION_FIELDS];
+  if (options?.hasFinalizedClinicalDocument) {
+    return [...WORKER_IMMUTABLE_IDENTIFICATION_FIELDS, 'sexo'];
+  }
 
   if (isGenericCURP(current.curp ?? '')) {
-    const exempt = new Set<string>([
-      'curp',
-      ...WORKER_CURP_CONFORMATION_FIELDS,
-    ]);
-    fields = fields.filter((f) => !exempt.has(f));
+    return [];
   }
 
-  if (!isPaisNacimientoImmutable(current)) {
-    fields = fields.filter((f) => f !== 'paisNacimiento');
-  }
-
-  return fields as WorkerImmutableIdentificationField[];
+  return [...WORKER_IMMUTABLE_IDENTIFICATION_FIELDS];
 }
 
 function normalizeOptionalString(value: unknown): string {
@@ -155,6 +118,8 @@ function getNormalizedFieldValue(
       return normalizePaisNacimiento(raw);
     case 'sexo':
       return normalizeOptionalString(raw);
+    case 'sexoCURP':
+      return raw == null || raw === '' ? '' : String(raw);
     default:
       return normalizeOptionalString(raw);
   }
@@ -180,12 +145,16 @@ export function validateWorkerIdentificationImmutable(
   updateDto: Partial<CreateTrabajadorDto>,
   current: WorkerIdentificationCurrent,
   policy: RegulatoryPolicy,
+  options?: WorkerIdentificationLockOptions,
 ): void {
   if (!policyFeatures.workerIdentificationImmutable(policy)) {
     return;
   }
 
-  const immutableFields = getWorkerImmutableIdentificationFields(current);
+  const immutableFields = getWorkerImmutableIdentificationFields(
+    current,
+    options,
+  );
   const dtoRecord = updateDto as Record<string, unknown>;
   const changedFields: string[] = [];
 

@@ -12,6 +12,8 @@ import {
   RegulatoryPolicy,
 } from '../../utils/regulatory-policy.service';
 import { WorkerFusionService } from './worker-fusion.service';
+import { AuditService } from '../audit/audit.service';
+import { ClinicalAttentionQueryService } from '../expedientes/services/clinical-attention-query.service';
 
 describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
   let service: TrabajadoresService;
@@ -131,6 +133,38 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
         },
         { provide: getModelToken('User'), useValue: createMockModel() },
         { provide: getModelToken('Empresa'), useValue: createMockModel() },
+        {
+          provide: getModelToken('NotaAclaratoria'),
+          useValue: createMockModel(),
+        },
+        {
+          provide: getModelToken('EntrevistaPsicologica'),
+          useValue: createMockModel(),
+        },
+        {
+          provide: getModelToken('TrastornosEstadoAnimo'),
+          useValue: createMockModel(),
+        },
+        {
+          provide: getModelToken('CuestionarioProdromalBreve'),
+          useValue: createMockModel(),
+        },
+        {
+          provide: getModelToken('TrastornoLimitePersonalidad'),
+          useValue: createMockModel(),
+        },
+        {
+          provide: getModelToken('EventoSeguimientoCardiometabolico'),
+          useValue: createMockModel(),
+        },
+        {
+          provide: getModelToken('InformeLongitudinalCardiometabolico'),
+          useValue: createMockModel(),
+        },
+        {
+          provide: getModelToken('ResultadoClinico'),
+          useValue: createMockModel(),
+        },
         { provide: NOM024ComplianceUtil, useValue: mockNom024Util },
         { provide: CatalogsService, useValue: mockCatalogsService },
         { provide: FilesService, useValue: mockFilesService },
@@ -147,6 +181,22 @@ describe('TrabajadoresService - NOM-024 Person Identification Fields', () => {
             findDuplicateInEmpresa: jest.fn().mockResolvedValue(null),
             getIdEmpresaFromCentro: jest.fn(),
             createDuplicateAlert: jest.fn(),
+          },
+        },
+        {
+          provide: AuditService,
+          useValue: { record: jest.fn() },
+        },
+        {
+          provide: ClinicalAttentionQueryService,
+          useValue: {
+            hasFinalizedClinicalDocumentForTrabajador: jest
+              .fn()
+              .mockResolvedValue(false),
+            hasFinalizedClinicalDocumentByUser: jest
+              .fn()
+              .mockResolvedValue(false),
+            withFirmanteAttentionFlag: jest.fn(async (doc) => doc),
           },
         },
       ],

@@ -12,6 +12,7 @@ import {
 } from '../../utils/regulatory-policy.service';
 import { CatalogsService } from '../catalogs/catalogs.service';
 import { GeographyValidator } from '../catalogs/validators/geography.validator';
+import { ClinicalAttentionQueryService } from '../expedientes/services/clinical-attention-query.service';
 
 describe('EnfermerasFirmantesService', () => {
   let service: EnfermerasFirmantesService;
@@ -130,6 +131,17 @@ describe('EnfermerasFirmantesService', () => {
         {
           provide: GeographyValidator,
           useValue: mockGeographyValidator,
+        },
+        {
+          provide: ClinicalAttentionQueryService,
+          useValue: {
+            hasFinalizedClinicalDocumentByUser: jest.fn().mockResolvedValue(false),
+            withFirmanteAttentionFlag: jest.fn(async (doc) =>
+              doc
+                ? { ...doc, tieneDocumentoClinicoFinalizado: false }
+                : doc,
+            ),
+          },
         },
       ],
     }).compile();

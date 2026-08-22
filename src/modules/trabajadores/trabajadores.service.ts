@@ -74,6 +74,7 @@ import { isTrabajadorSexoCurp } from './constants/trabajador-sexo-curp.constants
 import { AuditService } from '../audit/audit.service';
 import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
+import { ClinicalAttentionQueryService } from '../expedientes/services/clinical-attention-query.service';
 import { EventoSeguimientoCardiometabolico } from '../expedientes/schemas/evento-seguimiento-cardiometabolico.schema';
 import { InformeLongitudinalCardiometabolico } from '../expedientes/schemas/informe-longitudinal-cardiometabolico.schema';
 import {
@@ -140,6 +141,7 @@ export class TrabajadoresService {
     private workerFusionService: WorkerFusionService,
     @Inject(forwardRef(() => AuditService))
     private auditService: AuditService,
+    private clinicalAttentionQuery: ClinicalAttentionQueryService,
   ) {}
 
   /**
@@ -1818,6 +1820,11 @@ export class TrabajadoresService {
       return base;
     }
 
+    const tieneDocumentoClinicoFinalizado =
+      await this.clinicalAttentionQuery.hasFinalizedClinicalDocumentForTrabajador(
+        resolvedId,
+      );
+
     const riesgos = await this.riesgoTrabajoModel
       .find({ idTrabajador: resolvedId })
       .sort({ fechaRiesgo: -1 })
@@ -1826,6 +1833,7 @@ export class TrabajadoresService {
     return {
       ...base,
       riesgosTrabajo: riesgos,
+      tieneDocumentoClinicoFinalizado,
     };
   }
 
@@ -1911,10 +1919,17 @@ export class TrabajadoresService {
 
     const policy =
       await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
+    const hasFinalizedClinicalDocument = policy.features
+      .workerIdentificationImmutable
+      ? await this.clinicalAttentionQuery.hasFinalizedClinicalDocumentForTrabajador(
+          id,
+        )
+      : false;
     validateWorkerIdentificationImmutable(
       normalizedDto,
       trabajadorActual,
       policy,
+      { hasFinalizedClinicalDocument },
     );
     applyTrabajadorPersonNames(normalizedDto, policy?.regime);
 

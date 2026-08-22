@@ -79,16 +79,24 @@ describe('Firmante Identification Immutability (SIRES_NOM024)', () => {
   describe('getFirmanteImmutableIdentificationFields', () => {
     it('should return all identification fields when CURP is real', () => {
       const fields = getFirmanteImmutableIdentificationFields({ curp: REAL_CURP });
-      expect(fields).toEqual(FIRMANTE_IMMUTABLE_IDENTIFICATION_FIELDS);
+      expect(fields).toEqual([...FIRMANTE_IMMUTABLE_IDENTIFICATION_FIELDS]);
+      expect(fields).toContain('sexoCURP');
+      expect(fields).not.toContain('sexo');
     });
 
-    it('should exempt CURP conformation fields when CURP is generic', () => {
+    it('should lock nothing when CURP is generic and there is no attention', () => {
       const fields = getFirmanteImmutableIdentificationFields({
         curp: GENERIC_CURP,
       });
-      expect(fields).not.toContain('curp');
-      expect(fields).not.toContain('nombre');
-      expect(fields).not.toContain('primerApellido');
+      expect(fields).toEqual([]);
+    });
+
+    it('should lock identification fields after attention even with generic CURP', () => {
+      const fields = getFirmanteImmutableIdentificationFields(
+        { curp: GENERIC_CURP },
+        { hasFinalizedClinicalDocument: true },
+      );
+      expect(fields).toEqual([...FIRMANTE_IMMUTABLE_IDENTIFICATION_FIELDS]);
     });
   });
 
@@ -150,6 +158,27 @@ describe('Firmante Identification Immutability (SIRES_NOM024)', () => {
             primerApellido: 'RODRIGUEZ',
           },
           makeFirmante({ curp: GENERIC_CURP }),
+          siresPolicy,
+        ),
+      ).not.toThrow();
+    });
+
+    it('should reject identification changes after attention even with generic CURP', () => {
+      expect(() =>
+        validateFirmanteIdentificationImmutable(
+          { primerApellido: 'GARCIA' },
+          makeFirmante({ curp: GENERIC_CURP }),
+          siresPolicy,
+          { hasFinalizedClinicalDocument: true },
+        ),
+      ).toThrow(ForbiddenException);
+    });
+
+    it('should allow biological sexo changes with real CURP', () => {
+      expect(() =>
+        validateFirmanteIdentificationImmutable(
+          { sexo: 'Femenino' },
+          makeFirmante(),
           siresPolicy,
         ),
       ).not.toThrow();

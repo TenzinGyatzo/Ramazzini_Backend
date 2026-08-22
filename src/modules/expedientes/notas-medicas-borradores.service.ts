@@ -3,6 +3,8 @@ import {
   Inject,
   Injectable,
   UnauthorizedException,
+  BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -15,6 +17,17 @@ import { Empresa } from '../empresas/schemas/empresa.schema';
 import { WorkerFusionService } from '../trabajadores/worker-fusion.service';
 import { OrganizationalAccessService } from '../../utils/organizational-access.service';
 import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
+import { CatalogsService } from '../catalogs/catalogs.service';
+import { ProveedoresSaludService } from '../proveedores-salud/proveedores-salud.service';
+import { formatCLUES } from '../giis-export/formatters/field.formatter';
+import {
+  calendarYearBounds,
+  esPrimeraVezAnioSiNoHayOtraFinalizada,
+} from '../giis-export/utils/primera-vez-anio.util';
+import {
+  isCluesSentinelOrEmpty,
+  isEstablecimientoEspecializadoSis,
+} from '../giis-export/utils/primera-vez-uneme.util';
 import {
   BorradorPendienteItem,
   BorradorPendienteNivelUrgencia,
@@ -45,6 +58,8 @@ export class NotasMedicasBorradoresService {
     private readonly organizationalAccessService: OrganizationalAccessService,
     @Inject(forwardRef(() => RegulatoryPolicyService))
     private readonly regulatoryPolicyService: RegulatoryPolicyService,
+    private readonly catalogsService: CatalogsService,
+    private readonly proveedoresSaludService: ProveedoresSaludService,
   ) {}
 
   private buildEmptyResponse(): BorradoresPendientesResponse {
@@ -203,6 +218,104 @@ export class NotasMedicasBorradoresService {
     }
 
     return items;
+  }
+
+  async getContextoCex(params: {
+    userId: string;
+    trabajadorId: string;
+    fechaNotaMedica: string;
+    excludeDocumentoId?: string;
+  }): Promise<{
+    establecimientoEspecializado: boolean;
+    esPrimeraVezAnio: boolean;
+  }> {
+    const { userId, trabajadorId, fechaNotaMedica, excludeDocumentoId } =
+      params;
+
+    if (!Types.ObjectId.isValid(trabajadorId)) {
+      throw new BadRequestException('trabajadorId inválido');
+    }
+    if (
+      excludeDocumentoId &&
+      !Types.ObjectId.isValid(excludeDocumentoId)
+    ) {
+      throw new BadRequestException('excludeDocumentoId inválido');
+    }
+
+    const fecha = this.parseFechaNotaMedica(fechaNotaMedica);
+    if (!fecha) {
+      throw new BadRequestException('fechaNotaMedica inválida');
+    }
+
+    const user = await this.usersService.findById(userId, 'idProveedorSalud');
+    if (!user?.idProveedorSalud) {
+      throw new UnauthorizedException(
+        'Usuario sin proveedor de salud asociado',
+      );
+    }
+
+    const trabajador = await this.trabajadorModel.findById(trabajadorId).exec();
+    if (!trabajador) {
+      throw new ForbiddenException('Trabajador no encontrado');
+    }
+    const centro = await this.centroTrabajoModel
+      .findById(trabajador.idCentroTrabajo)
+      .select('idEmpresa')
+      .exec();
+    if (!centro) {
+      throw new ForbiddenException(
+        'No tiene permiso para acceder a este recurso',
+      );
+    }
+    await this.organizationalAccessService.assertUserCanAccessTrabajador(
+      userId,
+      String(centro.idEmpresa),
+      trabajadorId,
+    );
+
+    const proveedor = await this.proveedoresSaludService.findOne(
+      String(user.idProveedorSalud),
+    );
+    const cluesRaw = proveedor?.clues?.trim() ?? '';
+    const clues =
+      formatCLUES(cluesRaw) ||
+      (cluesRaw.length === 11 ? cluesRaw.toUpperCase() : '') ||
+      '9998';
+    const cluesEntry = isCluesSentinelOrEmpty(clues)
+      ? null
+      : await this.catalogsService.getCLUESEntry(clues);
+    const establecimientoEspecializado =
+      isEstablecimientoEspecializadoSis(cluesEntry);
+
+    const year = fecha.getFullYear();
+    const { start: startOfYear, end: endOfYear } = calendarYearBounds(year);
+    const notasDelAnio = await this.notaMedicaModel
+      .find({
+        estado: DocumentoEstado.FINALIZADO,
+        fechaNotaMedica: { $gte: startOfYear, $lte: endOfYear },
+        idTrabajador: new Types.ObjectId(trabajadorId),
+      })
+      .select('_id')
+      .lean()
+      .exec();
+
+    const esPrimeraVezAnio = esPrimeraVezAnioSiNoHayOtraFinalizada({
+      existingIds: notasDelAnio.map((n) => n._id),
+      candidateId: excludeDocumentoId ?? null,
+    });
+
+    return { establecimientoEspecializado, esPrimeraVezAnio };
+  }
+
+  private parseFechaNotaMedica(value: string): Date | null {
+    if (!value || typeof value !== 'string') return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim());
+    if (m) {
+      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
   }
 
   private async buildItem(

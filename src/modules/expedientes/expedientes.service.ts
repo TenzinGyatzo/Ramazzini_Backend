@@ -98,6 +98,10 @@ import { getDocumentoListSelect } from './constants/documento-list-projection';
 import { FichaSnapshotService } from './services/ficha-snapshot.service';
 import { FichaSnapshot } from './schemas/ficha-snapshot.schema';
 import {
+  calendarYearBounds,
+  valorPrimeraVezAnioSegunExistencia,
+} from '../giis-export/utils/primera-vez-anio.util';
+import {
   APTITUD_INFORME_VECINO_TYPES,
   getAptitudInformeVecinoSelect,
   type AptitudInformeVecinoType,
@@ -1807,6 +1811,12 @@ export class ExpedientesService {
     document.fechaFinalizacion = new Date();
     document.finalizadoPor = finalizadorId;
 
+    if (documentType === 'notaMedica') {
+      document.primeraVezAnio = await this.resolvePrimeraVezAnioAlFinalizar(
+        document,
+      );
+    }
+
     const fichaSnapshot = await this.tryCapturarFichaSnapshot({
       documentType,
       trabajadorId: idTrabajador,
@@ -1854,6 +1864,25 @@ export class ExpedientesService {
     }
 
     return savedDocument;
+  }
+
+  private async resolvePrimeraVezAnioAlFinalizar(
+    document: { _id: unknown; idTrabajador?: unknown; fechaNotaMedica?: Date },
+  ): Promise<0 | 1> {
+    const fecha = document.fechaNotaMedica
+      ? new Date(document.fechaNotaMedica)
+      : null;
+    if (!fecha || Number.isNaN(fecha.getTime()) || !document.idTrabajador) {
+      return 0;
+    }
+    const { start, end } = calendarYearBounds(fecha.getFullYear());
+    const hayOtra = await this.notaMedicaModel.exists({
+      _id: { $ne: document._id },
+      estado: DocumentoEstado.FINALIZADO,
+      idTrabajador: document.idTrabajador,
+      fechaNotaMedica: { $gte: start, $lte: end },
+    });
+    return valorPrimeraVezAnioSegunExistencia(!!hayOtra);
   }
 
   async uploadDocument(createDto: any): Promise<any> {

@@ -65,4 +65,15 @@ describe('CreateNotaMedicaDto CEX quantities', () => {
     const errGlu = await validate(dtoBadGlu);
     expect(errGlu.some((e) => e.property === 'tipoMedicion')).toBe(true);
   });
+
+  it('acepta primeraVezUneme 0 o 1 y rechaza -1', async () => {
+    const ok = await validate(baseDto({ primeraVezUneme: 1 }));
+    expect(ok.filter((e) => e.property === 'primeraVezUneme')).toHaveLength(0);
+
+    const okNo = await validate(baseDto({ primeraVezUneme: 0 }));
+    expect(okNo.filter((e) => e.property === 'primeraVezUneme')).toHaveLength(0);
+
+    const bad = await validate(baseDto({ primeraVezUneme: -1 }));
+    expect(bad.some((e) => e.property === 'primeraVezUneme')).toBe(true);
+  });
 });

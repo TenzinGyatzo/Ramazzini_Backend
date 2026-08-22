@@ -58,6 +58,10 @@ export interface CLUESEntry extends CatalogEntry {
   municipio?: string;
   localidad?: string;
   estatus?: string;
+  /** ESTABLECIMIENTO DE SALUD SIS: tip_abreviacion (p. ej. T, UNE). */
+  tipAbreviacion?: string;
+  /** ESTABLECIMIENTO DE SALUD SIS: sub_abreviacion (p. ej. T02, UNE04). */
+  subAbreviacion?: string;
 }
 
 /**

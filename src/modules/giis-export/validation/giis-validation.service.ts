@@ -5,7 +5,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Types } from 'mongoose';
 import { NotaMedica } from '../../expedientes/schemas/nota-medica.schema';
 import { DocumentoEstado } from '../../expedientes/enums/documento-estado.enum';
 import { FirmanteHelper } from '../../expedientes/helpers/firmante-helper';
@@ -39,6 +38,10 @@ import { mapSexoToGiisBiologico } from '../../../utils/sexo-mapper.util';
 import { CatalogType, CIE10Entry } from '../../catalogs/interfaces/catalog-entry.interface';
 import { normalizeCie10CatalogKey } from '../../../utils/cie10-diagnostico-sis.util';
 import { getTrabajadorIdsForProveedor } from '../utils/giis-proveedor-scope.util';
+import {
+  isCluesSentinelOrEmpty,
+  isEstablecimientoEspecializadoSis,
+} from '../utils/primera-vez-uneme.util';
 
 type Guide = 'CEX';
 
@@ -130,51 +133,17 @@ export class GiisValidationService {
         .populate('idTrabajador')
         .lean()
         .exec();
-      const startOfYear = new Date(year, 0, 1);
-      const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999);
-      const notasDelAnio =
-        trabajadorIds.length > 0
-          ? await this.notaMedicaModel
-              .find({
-                estado: DocumentoEstado.FINALIZADO,
-                fechaNotaMedica: { $gte: startOfYear, $lte: endOfYear },
-                idTrabajador: { $in: trabajadorIds },
-              })
-              .select('idTrabajador fechaNotaMedica _id')
-              .lean()
-              .exec()
-          : [];
-      const firstInYearIds = new Set<string>();
-      const byTrabajador = new Map<
-        string,
-        { fecha: Date; _id: Types.ObjectId }[]
-      >();
-      for (const n of notasDelAnio as any[]) {
-        const key =
-          n.idTrabajador &&
-          typeof n.idTrabajador === 'object' &&
-          (n.idTrabajador as any)._id
-            ? (n.idTrabajador as any)._id.toString()
-            : (n.idTrabajador ?? '').toString();
-        if (!key) continue;
-        if (!byTrabajador.has(key)) byTrabajador.set(key, []);
-        byTrabajador.get(key)!.push({
-          fecha: n.fechaNotaMedica,
-          _id: n._id,
-        });
-      }
-      for (const arr of byTrabajador.values()) {
-        arr.sort(
-          (a, b) =>
-            a.fecha.getTime() - b.fecha.getTime() ||
-            a._id.toString().localeCompare(b._id.toString()),
-        );
-        if (arr.length > 0) firstInYearIds.add(arr[0]._id.toString());
-      }
+
+      const cluesEntry = isCluesSentinelOrEmpty(clues)
+        ? null
+        : await this.catalogsService.getCLUESEntry(clues);
+      const establecimientoEspecializado =
+        isEstablecimientoEspecializadoSis(cluesEntry);
 
       const cexCodes = this.cexCatalogResolver.getCodes();
       const cexContextBase = {
         clues,
+        establecimientoEspecializado,
         cexDefaults: {
           tipoPersonal: cexCodes.tipoPersonal.medicoGeneral,
           servicioAtencion: cexCodes.servicioAtencion,
@@ -188,21 +157,19 @@ export class GiisValidationService {
         const prestadorData = userId
           ? await this.firmanteHelper.getPrestadorDataFromUser(userId)
           : null;
-        const primeraVezAnio = firstInYearIds.has(nota._id.toString()) ? 1 : 0;
-        const consultaWithPrimera = { ...nota, primeraVezAnio };
-        const codigo1 = extractCieCode(consultaWithPrimera.codigoCIE10Principal);
+        const codigo1 = extractCieCode(nota.codigoCIE10Principal);
         const diag2NoAplica =
-          consultaWithPrimera.primeraVezDiagnostico2 !== 0 &&
-          consultaWithPrimera.primeraVezDiagnostico2 !== 1;
+          nota.primeraVezDiagnostico2 !== 0 &&
+          nota.primeraVezDiagnostico2 !== 1;
         const codigo2 = diag2NoAplica
           ? ''
-          : extractCieCode(consultaWithPrimera.codigoCIEDiagnostico2 as string);
+          : extractCieCode(nota.codigoCIEDiagnostico2 as string);
         const diag3NoAplica =
-          consultaWithPrimera.primeraVezDiagnostico3 !== 0 &&
-          consultaWithPrimera.primeraVezDiagnostico3 !== 1;
+          nota.primeraVezDiagnostico3 !== 0 &&
+          nota.primeraVezDiagnostico3 !== 1;
         const codigo3 = diag3NoAplica
           ? ''
-          : extractCieCode(consultaWithPrimera.codigoCIEDiagnostico3 as string);
+          : extractCieCode(nota.codigoCIEDiagnostico3 as string);
         const diagCatalogFlags = await resolveCexDiagCatalogFlags(
           this.catalogsService,
           {
@@ -213,7 +180,7 @@ export class GiisValidationService {
         );
         rows.push(
           mapNotaMedicaToCexRow(
-            consultaWithPrimera,
+            nota,
             { ...cexContextBase, diagCatalogFlags },
             trabajador,
             prestadorData ?? undefined,

@@ -419,7 +419,9 @@ export class CatalogsService implements OnModuleInit {
       return null;
     }
 
-    return (cache.get(clues) as CLUESEntry) || null;
+    const key = clues?.trim().toUpperCase();
+    if (!key) return null;
+    return (cache.get(key) as CLUESEntry) || null;
   }
 
   /**

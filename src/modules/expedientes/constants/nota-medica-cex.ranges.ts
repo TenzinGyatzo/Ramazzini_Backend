@@ -296,6 +296,7 @@ export function normalizeNotaMedicaCexSentinels<T extends Record<string, any>>(
   dto: T,
 ): T {
   const out: Record<string, any> = { ...dto };
+  delete out.primeraVezAnio;
   const fields = Object.keys(NOTA_MEDICA_CEX_SENTINEL) as NotaMedicaCexField[];
   for (const field of fields) {
     if (field in out && (out[field] === null || out[field] === undefined)) {

@@ -10,7 +10,6 @@ export const FIRMANTE_IMMUTABLE_IDENTIFICATION_FIELDS = [
   'primerApellido',
   'segundoApellido',
   'fechaNacimiento',
-  'sexo',
   'sexoCURP',
   'entidadNacimiento',
   'paisNacimiento',
@@ -21,7 +20,6 @@ export const FIRMANTE_CURP_CONFORMATION_FIELDS = [
   'primerApellido',
   'segundoApellido',
   'fechaNacimiento',
-  'sexo',
   'sexoCURP',
   'entidadNacimiento',
   'paisNacimiento',
@@ -29,6 +27,10 @@ export const FIRMANTE_CURP_CONFORMATION_FIELDS = [
 
 export type FirmanteImmutableIdentificationField =
   (typeof FIRMANTE_IMMUTABLE_IDENTIFICATION_FIELDS)[number];
+
+export interface FirmanteIdentificationLockOptions {
+  hasFinalizedClinicalDocument?: boolean;
+}
 
 /** Snapshot mínimo del firmante para validar inmutabilidad (compatible con documentos Mongoose). */
 export interface FirmanteIdentificationCurrent {
@@ -45,25 +47,24 @@ export interface FirmanteIdentificationCurrent {
 }
 
 /**
- * Campos de identificación que no pueden modificarse en update, según CURP almacenada.
- * Si la CURP almacenada es genérica, se eximen curp y campos de conformación CURP.
+ * Campos de identificación que no pueden modificarse en update.
+ * - CURP genérica y sin atención: ninguno.
+ * - CURP real y sin atención: lista común.
+ * - Con atención: lista común, aunque la CURP sea genérica.
  */
 export function getFirmanteImmutableIdentificationFields(
   current: Pick<FirmanteIdentificationCurrent, 'curp'>,
+  options?: FirmanteIdentificationLockOptions,
 ): readonly FirmanteImmutableIdentificationField[] {
-  const all = [...FIRMANTE_IMMUTABLE_IDENTIFICATION_FIELDS];
-
-  if (isGenericCURP(current.curp ?? '')) {
-    const exempt = new Set<string>([
-      'curp',
-      ...FIRMANTE_CURP_CONFORMATION_FIELDS,
-    ]);
-    return all.filter(
-      (f) => !exempt.has(f),
-    ) as FirmanteImmutableIdentificationField[];
+  if (options?.hasFinalizedClinicalDocument) {
+    return [...FIRMANTE_IMMUTABLE_IDENTIFICATION_FIELDS];
   }
 
-  return all;
+  if (isGenericCURP(current.curp ?? '')) {
+    return [];
+  }
+
+  return [...FIRMANTE_IMMUTABLE_IDENTIFICATION_FIELDS];
 }
 
 function normalizeOptionalString(value: unknown): string {
@@ -112,8 +113,6 @@ function getNormalizedFieldValue(
     case 'segundoApellido':
     case 'entidadNacimiento':
       return normalizeUpperString(raw);
-    case 'sexo':
-      return normalizeOptionalString(raw);
     case 'sexoCURP':
       return raw == null || raw === '' ? '' : String(raw);
     default:
@@ -136,18 +135,22 @@ function hasFieldChanged(
 
 /**
  * Rechaza actualizaciones a campos de identificación inmutables en régimen SIRES.
- * Reutiliza workerIdentificationImmutable de la policy (misma regla post-alta).
+ * Reutiliza workerIdentificationImmutable de la policy.
  */
 export function validateFirmanteIdentificationImmutable(
   updateDto: Record<string, unknown>,
   current: FirmanteIdentificationCurrent,
   policy: RegulatoryPolicy,
+  options?: FirmanteIdentificationLockOptions,
 ): void {
   if (!policyFeatures.workerIdentificationImmutable(policy)) {
     return;
   }
 
-  const immutableFields = getFirmanteImmutableIdentificationFields(current);
+  const immutableFields = getFirmanteImmutableIdentificationFields(
+    current,
+    options,
+  );
   const changedFields: string[] = [];
 
   for (const field of immutableFields) {

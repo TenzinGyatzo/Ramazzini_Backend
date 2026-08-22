@@ -96,6 +96,12 @@ export const EXPEDIENTE_DOCUMENT_MODEL_NAMES = new Set<string>([
   'DocumentoExterno',
 ]);
 
+/** Colecciones de documentos clínicos con `estado` / `finalizadoPor` (expediente). */
+export const CLINICAL_DOCUMENT_COLLECTION_NAMES: string[] =
+  WORKER_LINKED_COLLECTIONS.filter((c) =>
+    EXPEDIENTE_DOCUMENT_MODEL_NAMES.has(c.modelName),
+  ).map((c) => c.collectionName);
+
 /** Human-readable labels for non-expediente linked records shown in fusion preview. */
 export const LINKED_RECORD_LABELS: Record<string, string> = {
   SeguimientoProgramadoCardiometabolico: 'Seguimiento programado cardiometabólico',
