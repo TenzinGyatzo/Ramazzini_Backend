@@ -28,6 +28,7 @@ import { trastornosEstadoAnimoInforme } from './documents/trastornos-estado-anim
 import { dashboardInforme } from './documents/dashboard.informe';
 import { eventoSeguimientoCardiometabolicoInforme } from './documents/evento-seguimiento-cardiometabolico.informe';
 import { informeLongitudinalCardiometabolicoInforme } from './documents/informe-longitudinal-cardiometabolico.informe';
+import { informeLongitudinalAudiometricoInforme } from './documents/informe-longitudinal-audiometrico.informe';
 import { EmpresasService } from '../empresas/empresas.service';
 import { TrabajadoresService } from '../trabajadores/trabajadores.service';
 import { ExpedientesService } from '../expedientes/expedientes.service';
@@ -103,6 +104,8 @@ export class InformesService {
     eventoSeguimientoCardiometabolico: 'Evento de Seguimiento Cardiometabólico',
     informeLongitudinalCardiometabolico:
       'Informe Longitudinal Cardiometabólico',
+    informeLongitudinalAudiometrico:
+      'Informe longitudinal de seguimiento audiométrico',
     documentoExterno: 'Documento Externo',
     // Tipos plurales (para compatibilidad con frontend)
     notasMedicas: 'Nota Médica',
@@ -527,6 +530,14 @@ export class InformesService {
             finalizadorId,
             undefined,
           );
+        case 'informeLongitudinalAudiometrico':
+          return await this.getInformeLongitudinalAudiometrico(
+            empresaId,
+            trabajadorId,
+            documentId,
+            finalizadorId,
+            undefined,
+          );
         default:
           console.warn(
             `regenerarInformeAlFinalizar: Tipo de documento ${normalizedType} no soportado`,
@@ -720,6 +731,14 @@ export class InformesService {
           finalizadorId,
           footerFirmantesData,
         );
+      case 'informeLongitudinalAudiometrico':
+        return await this.getInformeLongitudinalAudiometrico(
+          empresaId,
+          trabajadorId,
+          documentId,
+          finalizadorId,
+          footerFirmantesData,
+        );
       default:
         console.warn(
           `regenerarInformeAlFinalizar: Tipo de documento ${normalizedType} no soportado`,
@@ -782,6 +801,8 @@ export class InformesService {
         'fechaEventoSeguimientoCardiometabolico',
       informeLongitudinalCardiometabolico:
         'fechaInformeLongitudinalCardiometabolico',
+      informeLongitudinalAudiometrico:
+        'fechaInformeLongitudinalAudiometrico',
       entrevistaPsicologica: 'fechaEntrevistaPsicologica',
       trastornosEstadoAnimo: 'fechaTrastornosEstadoAnimo',
       cuestionarioProdromalBreve: 'fechaCuestionarioProdromalBreve',
@@ -6081,6 +6102,183 @@ export class InformesService {
 
     return rutaCompleta;
   
+    });
+  }
+
+  async getInformeLongitudinalAudiometrico(
+    empresaId: string,
+    trabajadorId: string,
+    informeLongitudinalAudiometricoId: string,
+    userId: string,
+    footerFirmantesData?: FooterFirmantesData,
+    graficasOverride?: {
+      graficaAudiogramaOidoDerecho?: string;
+      graficaAudiogramaOidoIzquierdo?: string;
+    },
+  ): Promise<string> {
+    return this.withPdfGenerationStatus('informeLongitudinalAudiometrico', informeLongitudinalAudiometricoId, async () => {
+    const empresa = await this.empresasService.findOne(empresaId);
+    const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
+
+    const informe = await this.expedientesService.findDocumentLean(
+      'informeLongitudinalAudiometrico',
+      informeLongitudinalAudiometricoId,
+    );
+    const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
+      informe,
+      trabajador,
+      empresa,
+      informe.fechaInformeLongitudinalAudiometrico,
+    );
+
+    let footerData: FooterFirmantesData | undefined = footerFirmantesData;
+    if (
+      !footerData &&
+      (informe.estado === DocumentoEstado.FINALIZADO || informe.estado === DocumentoEstado.ANULADO)
+    ) {
+      const creadorId = (informe.createdBy?._id || informe.createdBy)?.toString() || userId;
+      const finalizadorId = (informe.finalizadoPor?._id || informe.finalizadoPor)?.toString() || userId;
+      if (creadorId !== finalizadorId) {
+        const { elaborador, finalizador } =
+          await this.obtenerDatosFirmantesElaboradorYFinalizador(creadorId, finalizadorId);
+        footerData = { elaborador, finalizador, esDocumentoFinalizado: true };
+      }
+    }
+
+    const firmanteUserId =
+      informe.estado === DocumentoEstado.BORRADOR
+        ? (informe.createdBy?._id || informe.createdBy)?.toString() || userId
+        : informe.estado === DocumentoEstado.FINALIZADO || informe.estado === DocumentoEstado.ANULADO
+          ? (informe.finalizadoPor?._id || informe.finalizadoPor)?.toString() || userId
+          : userId;
+
+    const medicoFirmante = await this.medicosFirmantesService.findOneByUserId(firmanteUserId);
+    const datosMedicoFirmante = this.mapMedicoFirmante(
+      medicoFirmante
+        ? {
+            nombre: medicoFirmante.nombre,
+            primerApellido: medicoFirmante.primerApellido,
+            segundoApellido: medicoFirmante.segundoApellido,
+            tituloProfesional: medicoFirmante.tituloProfesional,
+            universidad: medicoFirmante.universidad,
+            numeroCedulaProfesional: medicoFirmante.numeroCedulaProfesional,
+            especialistaSaludTrabajo: medicoFirmante.especialistaSaludTrabajo,
+            numeroCedulaEspecialista: medicoFirmante.numeroCedulaEspecialista,
+            nombreCredencialAdicional: medicoFirmante.nombreCredencialAdicional,
+            numeroCredencialAdicional: medicoFirmante.numeroCredencialAdicional,
+            firma: (medicoFirmante.firma as { data: string; contentType: string }) || null,
+          }
+        : null,
+    );
+
+    const enfermeraFirmante = await this.enfermerasFirmantesService.findOneByUserId(firmanteUserId);
+    const datosEnfermeraFirmante = enfermeraFirmante
+      ? {
+          nombre: enfermeraFirmante.nombre || '',
+          primerApellido: enfermeraFirmante.primerApellido || '',
+          segundoApellido: enfermeraFirmante.segundoApellido || '',
+          sexo: enfermeraFirmante.sexo || '',
+          sexoCURP: enfermeraFirmante.sexoCURP,
+          tituloProfesional: enfermeraFirmante.tituloProfesional || '',
+          numeroCedulaProfesional: enfermeraFirmante.numeroCedulaProfesional || '',
+          nombreCredencialAdicional: enfermeraFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional: enfermeraFirmante.numeroCredencialAdicional || '',
+          firma: (enfermeraFirmante.firma as { data: string; contentType: string }) || null,
+        }
+      : {
+          nombre: '',
+          primerApellido: '',
+          segundoApellido: '',
+          sexo: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const tecnicoFirmante = await this.tecnicosFirmantesService.findOneByUserId(firmanteUserId);
+    const datosTecnicoFirmante = tecnicoFirmante
+      ? {
+          nombre: tecnicoFirmante.nombre || '',
+          primerApellido: tecnicoFirmante.primerApellido || '',
+          segundoApellido: tecnicoFirmante.segundoApellido || '',
+          sexo: tecnicoFirmante.sexo || '',
+          sexoCURP: tecnicoFirmante.sexoCURP,
+          tituloProfesional: tecnicoFirmante.tituloProfesional || '',
+          numeroCedulaProfesional: tecnicoFirmante.numeroCedulaProfesional || '',
+          nombreCredencialAdicional: tecnicoFirmante.nombreCredencialAdicional || '',
+          numeroCredencialAdicional: tecnicoFirmante.numeroCredencialAdicional || '',
+          firma: (tecnicoFirmante.firma as { data: string; contentType: string }) || null,
+        }
+      : {
+          nombre: '',
+          primerApellido: '',
+          segundoApellido: '',
+          sexo: '',
+          tituloProfesional: '',
+          numeroCedulaProfesional: '',
+          nombreCredencialAdicional: '',
+          numeroCredencialAdicional: '',
+          firma: null,
+        };
+
+    const proveedorInforme =
+      await this.proveedorInformeResolver.resolveDatosProveedorSaludParaInforme({
+        userId,
+        trabajadorId: String(trabajadorId),
+      });
+
+    const fecha = convertirFechaADDMMAAAA(informe.fechaInformeLongitudinalAudiometrico)
+      .replace(/\//g, '-')
+      .replace(/\\/g, '-');
+    const nombreArchivo = `Informe Longitudinal Audiometrico ${fecha}.pdf`;
+    const rutaDirectorio = path.resolve(informe.rutaPDF);
+    if (!fs.existsSync(rutaDirectorio)) {
+      fs.mkdirSync(rutaDirectorio, { recursive: true });
+    }
+    const rutaCompleta = path.join(rutaDirectorio, nombreArchivo);
+
+    const datosInforme = {
+      fechaInformeLongitudinalAudiometrico: informe.fechaInformeLongitudinalAudiometrico,
+      periodoInicio: informe.periodoInicio,
+      periodoFin: informe.periodoFin,
+      numeroAudiometriasIncluidas: informe.numeroAudiometriasIncluidas,
+      criterioComparacion: informe.criterioComparacion,
+      versionCriterio: informe.versionCriterio,
+      audiometriaBasalConcentrada: informe.audiometriaBasalConcentrada,
+      audiometriasSubsecuentesConcentradas: informe.audiometriasSubsecuentesConcentradas,
+      antecedenteExposicionRuido: informe.antecedenteExposicionRuido,
+      matrizDeltas: informe.matrizDeltas,
+      resumenCronologico: informe.resumenCronologico,
+      advertencias: informe.advertencias,
+      interpretacionLongitudinal: informe.interpretacionLongitudinal,
+      recomendacionesSeguimientoAudiometrico: informe.recomendacionesSeguimientoAudiometrico,
+      graficaAudiogramaOidoDerecho:
+        graficasOverride?.graficaAudiogramaOidoDerecho || informe.graficaAudiogramaOidoDerecho,
+      graficaAudiogramaOidoIzquierdo:
+        graficasOverride?.graficaAudiogramaOidoIzquierdo || informe.graficaAudiogramaOidoIzquierdo,
+    };
+
+    const firmantesInforme = this.applyFirmantesSnapshot(informe, {
+      datosMedicoFirmante,
+      datosEnfermeraFirmante,
+      datosTecnicoFirmante,
+      footerData,
+    });
+
+    const docDefinition = informeLongitudinalAudiometricoInforme(
+      nombreEmpresa,
+      datosTrabajador,
+      datosInforme,
+      firmantesInforme.datosMedicoFirmante,
+      firmantesInforme.datosEnfermeraFirmante,
+      firmantesInforme.datosTecnicoFirmante,
+      proveedorInforme.datos,
+      firmantesInforme.footerData,
+    );
+    await this.printer.createPdf(docDefinition, rutaCompleta);
+    return rutaCompleta;
     });
   }
 

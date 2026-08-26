@@ -50,6 +50,8 @@ import { EventoSeguimientoCardiometabolico } from './schemas/evento-seguimiento-
 
 import { InformeLongitudinalCardiometabolico } from './schemas/informe-longitudinal-cardiometabolico.schema';
 
+import { InformeLongitudinalAudiometrico } from './schemas/informe-longitudinal-audiometrico.schema';
+
 import { Deteccion } from './schemas/deteccion.schema';
 
 import { Trabajador } from '../trabajadores/schemas/trabajador.schema';
@@ -242,6 +244,8 @@ describe('ExpedientesService.countDocumentosByTrabajador', () => {
     EventoSeguimientoCardiometabolico,
 
     InformeLongitudinalCardiometabolico,
+
+    InformeLongitudinalAudiometrico,
 
     Deteccion,
 

@@ -31,6 +31,7 @@ import { CuestionarioProdromalBreve } from './schemas/cuestionario-prodromal-bre
 import { TrastornoLimitePersonalidad } from './schemas/trastorno-limite-personalidad.schema';
 import { EventoSeguimientoCardiometabolico } from './schemas/evento-seguimiento-cardiometabolico.schema';
 import { InformeLongitudinalCardiometabolico } from './schemas/informe-longitudinal-cardiometabolico.schema';
+import { InformeLongitudinalAudiometrico } from './schemas/informe-longitudinal-audiometrico.schema';
 import { FilesService } from '../files/files.service';
 import { convertirFechaISOaDDMMYYYY } from 'src/utils/dates';
 import path from 'path';
@@ -161,6 +162,8 @@ export class ExpedientesService {
     private eventoSeguimientoCardiometabolicoModel: Model<EventoSeguimientoCardiometabolico>,
     @InjectModel(InformeLongitudinalCardiometabolico.name)
     private informeLongitudinalCardiometabolicoModel: Model<InformeLongitudinalCardiometabolico>,
+    @InjectModel(InformeLongitudinalAudiometrico.name)
+    private informeLongitudinalAudiometricoModel: Model<InformeLongitudinalAudiometrico>,
     @InjectModel(ResultadoClinico.name)
     private resultadoClinicoModel: Model<ResultadoClinico>,
     @InjectModel(CentroTrabajo.name)
@@ -209,6 +212,8 @@ export class ExpedientesService {
         this.eventoSeguimientoCardiometabolicoModel,
       informeLongitudinalCardiometabolico:
         this.informeLongitudinalCardiometabolicoModel,
+      informeLongitudinalAudiometrico:
+        this.informeLongitudinalAudiometricoModel,
     };
 
     this.dateFields = {
@@ -236,6 +241,8 @@ export class ExpedientesService {
         'fechaEventoSeguimientoCardiometabolico',
       informeLongitudinalCardiometabolico:
         'fechaInformeLongitudinalCardiometabolico',
+      informeLongitudinalAudiometrico:
+        'fechaInformeLongitudinalAudiometrico',
     };
 
     this.documentTypeToStoreKey = {
@@ -262,6 +269,7 @@ export class ExpedientesService {
       eventoSeguimientoCardiometabolico: 'eventoSeguimientoCardiometabolico',
       informeLongitudinalCardiometabolico:
         'informeLongitudinalCardiometabolico',
+      informeLongitudinalAudiometrico: 'informeLongitudinalAudiometrico',
     };
   }
 

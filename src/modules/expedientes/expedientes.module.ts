@@ -82,6 +82,10 @@ import {
   InformeLongitudinalCardiometabolicoSchema,
 } from './schemas/informe-longitudinal-cardiometabolico.schema';
 import {
+  InformeLongitudinalAudiometrico,
+  InformeLongitudinalAudiometricoSchema,
+} from './schemas/informe-longitudinal-audiometrico.schema';
+import {
   Trabajador,
   TrabajadorSchema,
 } from '../trabajadores/schemas/trabajador.schema';
@@ -177,6 +181,10 @@ import { FichaSnapshotService } from './services/ficha-snapshot.service';
       {
         name: InformeLongitudinalCardiometabolico.name,
         schema: InformeLongitudinalCardiometabolicoSchema,
+      },
+      {
+        name: InformeLongitudinalAudiometrico.name,
+        schema: InformeLongitudinalAudiometricoSchema,
       },
       { name: ResultadoClinico.name, schema: ResultadoClinicoSchema },
     ]),

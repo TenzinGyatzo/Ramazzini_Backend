@@ -68,6 +68,8 @@ import { CreateEventoSeguimientoCardiometabolicoDto } from './dto/create-evento-
 import { UpdateEventoSeguimientoCardiometabolicoDto } from './dto/update-evento-seguimiento-cardiometabolico.dto';
 import { CreateInformeLongitudinalCardiometabolicoDto } from './dto/create-informe-longitudinal-cardiometabolico.dto';
 import { UpdateInformeLongitudinalCardiometabolicoDto } from './dto/update-informe-longitudinal-cardiometabolico.dto';
+import { CreateInformeLongitudinalAudiometricoDto } from './dto/create-informe-longitudinal-audiometrico.dto';
+import { UpdateInformeLongitudinalAudiometricoDto } from './dto/update-informe-longitudinal-audiometrico.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import path from 'path';
@@ -118,6 +120,7 @@ export class ExpedientesController {
     trastornoLimitePersonalidad: CreateTrastornoLimitePersonalidadDto,
     eventoSeguimientoCardiometabolico: CreateEventoSeguimientoCardiometabolicoDto,
     informeLongitudinalCardiometabolico: CreateInformeLongitudinalCardiometabolicoDto,
+    informeLongitudinalAudiometrico: CreateInformeLongitudinalAudiometricoDto,
   };
 
   private updateDtos = {
@@ -143,6 +146,7 @@ export class ExpedientesController {
     trastornoLimitePersonalidad: UpdateTrastornoLimitePersonalidadDto,
     eventoSeguimientoCardiometabolico: UpdateEventoSeguimientoCardiometabolicoDto,
     informeLongitudinalCardiometabolico: UpdateInformeLongitudinalCardiometabolicoDto,
+    informeLongitudinalAudiometrico: UpdateInformeLongitudinalAudiometricoDto,
   };
 
   private async assertDocumentPermissionForRequest(

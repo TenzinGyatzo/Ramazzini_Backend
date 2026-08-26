@@ -33,6 +33,7 @@ export const WORKER_LINKED_COLLECTIONS: WorkerLinkedCollectionConfig[] = [
   { modelName: 'TrastornoLimitePersonalidad', collectionName: 'trastornolimitepersonalidads', fkField: 'idTrabajador', fileField: 'rutaPDF' },
   { modelName: 'EventoSeguimientoCardiometabolico', collectionName: 'eventoseguimientocardiometabolicos', fkField: 'idTrabajador', fileField: 'rutaPDF' },
   { modelName: 'InformeLongitudinalCardiometabolico', collectionName: 'informelongitudinalcardiometabolicos', fkField: 'idTrabajador', fileField: 'rutaPDF' },
+  { modelName: 'InformeLongitudinalAudiometrico', collectionName: 'informelongitudinalaudiometricos', fkField: 'idTrabajador', fileField: 'rutaPDF' },
   { modelName: 'SeguimientoProgramadoCardiometabolico', collectionName: 'seguimientoprogramadocardiometabolicos', fkField: 'idTrabajador', fileField: 'rutaPDF' },
   { modelName: 'Deteccion', collectionName: 'deteccions', fkField: 'idTrabajador' },
   { modelName: 'DocumentoExterno', collectionName: 'documentoexternos', fkField: 'idTrabajador', fileField: 'rutaDocumento' },
@@ -69,6 +70,7 @@ export const EXPEDIENTE_MODEL_NAME_TO_DOCUMENT_TYPE: Record<string, string> = {
   TrastornoLimitePersonalidad: 'trastornoLimitePersonalidad',
   EventoSeguimientoCardiometabolico: 'eventoSeguimientoCardiometabolico',
   InformeLongitudinalCardiometabolico: 'informeLongitudinalCardiometabolico',
+  InformeLongitudinalAudiometrico: 'informeLongitudinalAudiometrico',
 };
 
 export const EXPEDIENTE_DOCUMENT_MODEL_NAMES = new Set<string>([
@@ -93,6 +95,7 @@ export const EXPEDIENTE_DOCUMENT_MODEL_NAMES = new Set<string>([
   'TrastornoLimitePersonalidad',
   'EventoSeguimientoCardiometabolico',
   'InformeLongitudinalCardiometabolico',
+  'InformeLongitudinalAudiometrico',
   'DocumentoExterno',
 ]);
 

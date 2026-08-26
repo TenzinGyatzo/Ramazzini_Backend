@@ -137,6 +137,7 @@ export const DOCUMENT_TYPES_BY_PERMISSION: Record<
     'trastornoLimitePersonalidad',
     'eventoSeguimientoCardiometabolico',
     'informeLongitudinalCardiometabolico',
+    'informeLongitudinalAudiometrico',
     'seguimientoProgramadoCardiometabolico',
   ],
 };

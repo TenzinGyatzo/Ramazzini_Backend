@@ -661,4 +661,45 @@ export class InformesController {
       .status(200)
       .json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
   }
+
+  @Get('informeLongitudinalAudiometrico/:empresaId/:trabajadorId/:informeLongitudinalAudiometricoId/:userId')
+  async getInformeLongitudinalAudiometrico(
+    @Param('empresaId') empresaId: string,
+    @Param('trabajadorId') trabajadorId: string,
+    @Param('informeLongitudinalAudiometricoId') informeLongitudinalAudiometricoId: string,
+    @Param('userId') userId: string,
+    @Res() res: Response,
+  ) {
+    const rutaPDF = await this.informesService.getInformeLongitudinalAudiometrico(
+      empresaId,
+      trabajadorId,
+      informeLongitudinalAudiometricoId,
+      userId,
+    );
+    return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
+  }
+
+  @Post('informeLongitudinalAudiometrico/:empresaId/:trabajadorId/:informeLongitudinalAudiometricoId/:userId')
+  async getInformeLongitudinalAudiometricoWithGraphs(
+    @Param('empresaId') empresaId: string,
+    @Param('trabajadorId') trabajadorId: string,
+    @Param('informeLongitudinalAudiometricoId') informeLongitudinalAudiometricoId: string,
+    @Param('userId') userId: string,
+    @Body()
+    body: {
+      graficaAudiogramaOidoDerecho?: string;
+      graficaAudiogramaOidoIzquierdo?: string;
+    },
+    @Res() res: Response,
+  ) {
+    const rutaPDF = await this.informesService.getInformeLongitudinalAudiometrico(
+      empresaId,
+      trabajadorId,
+      informeLongitudinalAudiometricoId,
+      userId,
+      undefined,
+      body,
+    );
+    return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
+  }
 }
