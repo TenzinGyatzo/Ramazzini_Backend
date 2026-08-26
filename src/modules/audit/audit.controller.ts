@@ -41,9 +41,9 @@ export class AuditController {
     const proveedorSaludId = String(user.idProveedorSalud);
     const policy =
       await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
-    if (policy.regime !== 'SIRES_NOM024') {
+    if (!policy.features?.auditTrailEnabled) {
       throw new ForbiddenException(
-        'El trail de auditoría solo está disponible para proveedores SIRES_NOM024.',
+        'El trail de auditoría no está habilitado para este proveedor.',
       );
     }
     return proveedorSaludId;

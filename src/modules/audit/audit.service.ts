@@ -92,6 +92,7 @@ export class AuditService {
         proveedorSaludId: e.proveedorSaludId?.toString() ?? null,
         actorId: e.actorId ?? null,
         actorSnapshot: e.actorSnapshot ?? null,
+        regime: e.regime ?? null,
         timestamp:
           e.timestamp instanceof Date ? e.timestamp.toISOString() : e.timestamp,
         actionType: e.actionType,
@@ -105,14 +106,14 @@ export class AuditService {
     }
 
     const header =
-      'timestamp,actorId,actorUsername,actorEmail,actorRole,actionType,resourceType,resourceId,hashEvento,hashEventoAnterior\n';
+      'timestamp,actorId,actorUsername,actorEmail,actorRole,regime,actionType,resourceType,resourceId,hashEvento,hashEventoAnterior\n';
     const lines = events.map((e: any) => {
       const ts =
         e.timestamp instanceof Date ? e.timestamp.toISOString() : e.timestamp;
       const a = (v: unknown) =>
         v == null ? '' : String(v).replace(/"/g, '""');
       const snap = e.actorSnapshot ?? {};
-      return `"${ts}","${a(e.actorId)}","${a(snap.username)}","${a(snap.email)}","${a(snap.role)}","${a(e.actionType)}","${a(e.resourceType)}","${a(e.resourceId)}","${a(e.hashEvento)}","${a(e.hashEventoAnterior)}"`;
+      return `"${ts}","${a(e.actorId)}","${a(snap.username)}","${a(snap.email)}","${a(snap.role)}","${a(e.regime)}","${a(e.actionType)}","${a(e.resourceType)}","${a(e.resourceId)}","${a(e.hashEvento)}","${a(e.hashEventoAnterior)}"`;
     });
     return Buffer.from(header + lines.join('\n'), 'utf8');
   }
@@ -184,14 +185,16 @@ export class AuditService {
     const proveedorSaludIdStr =
       params.proveedorSaludId != null ? String(params.proveedorSaludId) : null;
 
+    let regimeSnapshot: 'SIRES_NOM024' | 'SIN_REGIMEN' | null = null;
     if (proveedorSaludIdStr != null) {
       const policy =
         await this.regulatoryPolicyService.getRegulatoryPolicy(
           proveedorSaludIdStr,
         );
-      if (policy.regime !== 'SIRES_NOM024') {
+      if (!policy.features?.auditTrailEnabled) {
         return;
       }
+      regimeSnapshot = policy.regime ?? null;
     }
 
     if (!isAuditTrailPersistEnabled()) {
@@ -259,6 +262,7 @@ export class AuditService {
             : null,
         actorId: actorIdStr,
         actorSnapshot,
+        regime: regimeSnapshot,
         timestamp,
         actionType: params.actionType,
         resourceType: params.resourceType ?? null,

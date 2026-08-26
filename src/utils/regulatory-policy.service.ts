@@ -19,7 +19,7 @@ export interface RegulatoryPolicy {
     dailyConsentEnabled: boolean; // Consentimiento informado diario
     confidentialityAgreementEnabled: boolean; // Acuerdo de confidencialidad y uso de información
     workerIdentificationImmutable: boolean; // Identificación trabajador inmutable post-alta
-    auditTrailEnabled: boolean; // Trail de auditoría NOM-024 (consulta/exportación)
+    auditTrailEnabled: boolean; // Trail de auditoría (consulta/exportación/registro)
     controlPrenatalEnabled: boolean; // Documento Control Prenatal (solo SIN_REGIMEN)
   };
   validation: {
@@ -141,7 +141,7 @@ export class RegulatoryPolicyService {
 
   /**
    * Crea una política para régimen SIN_REGIMEN
-   * Todas las features regulatorias deshabilitadas
+   * Features regulatorias SIRES deshabilitadas; trail de auditoría habilitado
    */
   private createSinRegimenPolicy(): RegulatoryPolicy {
     return {
@@ -157,7 +157,7 @@ export class RegulatoryPolicyService {
         dailyConsentEnabled: false,
         confidentialityAgreementEnabled: false,
         workerIdentificationImmutable: false,
-        auditTrailEnabled: false,
+        auditTrailEnabled: true,
         controlPrenatalEnabled: true,
       },
       validation: {

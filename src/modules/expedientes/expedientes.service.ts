@@ -1162,6 +1162,11 @@ export class ExpedientesService {
       trabajadorId: params.trabajadorId ?? null,
       actorId: params.actorId,
     });
+    const policy =
+      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
+    if (policy.regime !== 'SIRES_NOM024') {
+      return;
+    }
     await this.auditService.record({
       proveedorSaludId,
       actorId: params.actorId,
@@ -1180,6 +1185,51 @@ export class ExpedientesService {
           : null,
       },
       eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
+    });
+  }
+
+  private async recordDocFinalized(params: {
+    documentType: string;
+    documentId: string;
+    trabajadorId?: string | null;
+    actorId: string;
+    estadoAnterior: DocumentoEstado;
+    fechaFinalizacion?: Date | null;
+    motivo?: string;
+    proveedorSaludId?: string | null;
+    actorSnapshot?: { username: string; email: string; role: string } | null;
+  }): Promise<void> {
+    const proveedorSaludId = await this.resolveProveedorSaludIdOrFail({
+      trabajadorId: params.trabajadorId ?? null,
+      actorId: params.actorId,
+      proveedorSaludId: params.proveedorSaludId,
+    });
+    const policy =
+      await this.regulatoryPolicyService.getRegulatoryPolicy(proveedorSaludId);
+    if (policy.regime !== 'SIRES_NOM024') {
+      return;
+    }
+    await this.auditService.record({
+      proveedorSaludId,
+      actorId: params.actorId,
+      actionType: AuditActionType.DOC_FINALIZE,
+      resourceType: params.documentType,
+      resourceId: params.documentId,
+      payload: {
+        estadoAnterior: params.estadoAnterior,
+        estadoNuevo: DocumentoEstado.FINALIZADO,
+        documentType: params.documentType,
+        documentId: params.documentId,
+        ...(params.trabajadorId ? { trabajadorId: params.trabajadorId } : {}),
+        fechaFinalizacion: params.fechaFinalizacion
+          ? params.fechaFinalizacion.toISOString()
+          : null,
+        ...(params.motivo ? { motivo: params.motivo } : {}),
+      },
+      eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
+      ...(params.actorSnapshot !== undefined && {
+        actorSnapshot: params.actorSnapshot,
+      }),
     });
   }
 
@@ -1778,26 +1828,19 @@ export class ExpedientesService {
     }
 
     const estadoAnterior = document.estado;
-
-    const payload: Record<string, unknown> = {
-      estadoAnterior,
-      estadoNuevo: DocumentoEstado.FINALIZADO,
-      documentType,
-      documentId: id,
-      ...(idTrabajador && { idTrabajador }),
-      ...(opciones?.motivo && { motivo: opciones.motivo }),
-    };
+    const fechaFinalizacion = new Date();
 
     // Audit (Clase 1: if this fails, finalization does not proceed)
-    await this.auditService.record({
-      proveedorSaludId: proveedorSaludId ?? null,
+    await this.recordDocFinalized({
+      documentType,
+      documentId: id,
+      trabajadorId: idTrabajador,
       actorId: userId,
-      actionType: AuditActionType.DOC_FINALIZE,
-      resourceType: documentType,
-      resourceId: id,
-      payload,
-      eventClass: AuditEventClass.CLASS_1_HARD_FAIL,
-      ...(actorSnapshot !== undefined && { actorSnapshot }),
+      estadoAnterior,
+      fechaFinalizacion,
+      motivo: opciones?.motivo,
+      proveedorSaludId,
+      actorSnapshot,
     });
 
     const creadorId = document.createdBy?.toString() || userId;
@@ -1816,7 +1859,7 @@ export class ExpedientesService {
 
     // Update document state
     document.estado = DocumentoEstado.FINALIZADO;
-    document.fechaFinalizacion = new Date();
+    document.fechaFinalizacion = fechaFinalizacion;
     document.finalizadoPor = finalizadorId;
 
     if (documentType === 'notaMedica') {
@@ -2634,10 +2677,21 @@ export class ExpedientesService {
         );
       }
 
+      const fechaAnulacion = new Date();
+      await this.recordDocAnulated({
+        documentType,
+        documentId: document._id.toString(),
+        trabajadorId,
+        actorId: actorUserId,
+        estadoAnterior: DocumentoEstado.FINALIZADO,
+        razonAnulacion,
+        fechaAnulacion,
+      });
+
       // Aplicar soft delete (anulación) independientemente de si es MX o no
       // para mantener consistencia cuando se usa el modal de anulación
       document.estado = DocumentoEstado.ANULADO;
-      document.fechaAnulacion = new Date();
+      document.fechaAnulacion = fechaAnulacion;
       document.anuladoPor = actorUserId;
       document.razonAnulacion = razonAnulacion;
 
@@ -2649,16 +2703,6 @@ export class ExpedientesService {
           document.idTrabajador.toString(),
         );
       }
-
-      await this.recordDocAnulated({
-        documentType,
-        documentId: document._id.toString(),
-        trabajadorId: document.idTrabajador?.toString?.() ?? null,
-        actorId: actorUserId,
-        estadoAnterior: DocumentoEstado.FINALIZADO,
-        razonAnulacion,
-        fechaAnulacion: document.fechaAnulacion ?? null,
-      });
 
       return { deleted: false, anulado: true };
     }
@@ -3267,8 +3311,19 @@ export class ExpedientesService {
           'Se requiere userId y razonAnulacion para anular una detección finalizada',
         );
       }
+      const fechaAnulacion = new Date();
+      const trabajadorId = deteccion.idTrabajador?.toString?.() ?? null;
+      await this.recordDocAnulated({
+        documentType: 'deteccion',
+        documentId: deteccion._id.toString(),
+        trabajadorId,
+        actorId: userId,
+        estadoAnterior: DocumentoEstado.FINALIZADO,
+        razonAnulacion,
+        fechaAnulacion,
+      });
       deteccion.estado = DocumentoEstado.ANULADO;
-      deteccion.fechaAnulacion = new Date();
+      deteccion.fechaAnulacion = fechaAnulacion;
       deteccion.anuladoPor = userId as any;
       deteccion.razonAnulacion = razonAnulacion;
       await deteccion.save();
@@ -3277,15 +3332,6 @@ export class ExpedientesService {
           deteccion.idTrabajador.toString(),
         );
       }
-      await this.recordDocAnulated({
-        documentType: 'deteccion',
-        documentId: deteccion._id.toString(),
-        trabajadorId: deteccion.idTrabajador?.toString?.() ?? null,
-        actorId: userId,
-        estadoAnterior: DocumentoEstado.FINALIZADO,
-        razonAnulacion,
-        fechaAnulacion: deteccion.fechaAnulacion ?? null,
-      });
       return { deleted: false, anulado: true };
     }
 
@@ -3342,8 +3388,20 @@ export class ExpedientesService {
       }
     }
 
+    const trabajadorId = deteccion.idTrabajador?.toString?.() ?? null;
+    const fechaFinalizacion = new Date();
+    await this.recordDocFinalized({
+      documentType: 'deteccion',
+      documentId: id,
+      trabajadorId,
+      actorId: userId,
+      estadoAnterior: deteccion.estado,
+      fechaFinalizacion,
+      proveedorSaludId,
+    });
+
     deteccion.estado = DocumentoEstado.FINALIZADO;
-    deteccion.fechaFinalizacion = new Date();
+    deteccion.fechaFinalizacion = fechaFinalizacion;
     deteccion.finalizadoPor = userId as any;
 
     const savedDeteccion = await deteccion.save();

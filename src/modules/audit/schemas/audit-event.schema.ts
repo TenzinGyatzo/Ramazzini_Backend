@@ -22,6 +22,15 @@ export class AuditEvent extends Document {
   })
   actorSnapshot: { username?: string; email?: string; role?: string } | null;
 
+  /** Régimen del proveedor al momento del evento (no forma parte del hash). */
+  @Prop({
+    type: String,
+    enum: ['SIRES_NOM024', 'SIN_REGIMEN'],
+    required: false,
+    default: null,
+  })
+  regime: 'SIRES_NOM024' | 'SIN_REGIMEN' | null;
+
   @Prop({ required: true })
   timestamp: Date;
 

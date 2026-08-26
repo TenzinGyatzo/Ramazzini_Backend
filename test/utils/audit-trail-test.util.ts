@@ -20,3 +20,14 @@ export const mockRegulatoryPolicyServiceSires = {
     }),
   },
 };
+
+export const mockRegulatoryPolicyServiceSinRegimen = {
+  provide: RegulatoryPolicyService,
+  useValue: {
+    getRegulatoryPolicy: jest.fn().mockResolvedValue({
+      regime: 'SIN_REGIMEN',
+      features: { auditTrailEnabled: true },
+      validation: {},
+    }),
+  },
+};
