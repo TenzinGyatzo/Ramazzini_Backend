@@ -6,9 +6,11 @@ Hay **dos líneas de folio** (edition tracks). El trámite y la certificación a
 
 | Línea | Régimen | Folio vigente | Registro |
 | ----- | ------- | ------------- | -------- |
-| SIRES / certificación | `SIRES_NOM024` | ver registro | [CHANGELOG-SIRES.md](CHANGELOG-SIRES.md) |
-| Comercial / sin régimen SIRES | `SIN_REGIMEN` | ver registro | [CHANGELOG-RAMAZZINI.md](CHANGELOG-RAMAZZINI.md) |
+| SIRES / certificación | `SIRES_NOM024` | `v1.0.3` en producción; `v1.0.4` pendiente de despliegue | [CHANGELOG-SIRES.md](CHANGELOG-SIRES.md) |
+| Comercial / sin régimen SIRES | `SIN_REGIMEN` | `v2.0.0` pendiente de primer despliegue | [CHANGELOG-RAMAZZINI.md](CHANGELOG-RAMAZZINI.md) |
 
 Este índice **no** es fuente de la versión exhibida. `frontend/package.json` y `backend/package.json` `"version"` son la versión npm del paquete, no el folio de edición.
+
+**Pendiente de despliegue (mismo binario, dos folios):** al liberar, fechar `v1.0.4` y `v2.0.0`, pasar **Versión vigente de la línea SIRES** a `v1.0.4` y reconstruir el frontend para inyectar los folios.
 
 **Incremento:** cambio solo SIRES → solo `CHANGELOG-SIRES.md`. Cambio solo `SIN_REGIMEN` → solo `CHANGELOG-RAMAZZINI.md`. Cambio de núcleo compartido → ambos parches, misma fecha, referencia cruzada («mismo cambio de código, dos folios de edición»).

@@ -38,7 +38,7 @@ export interface RegulatoryPolicy {
  *
  * Reglas:
  * - SIRES_NOM024: Todas las features regulatorias habilitadas (timeout, inmutabilidad, UI SIRES)
- * - SIN_REGIMEN: Todas las features regulatorias deshabilitadas
+ * - SIN_REGIMEN: Features SIRES deshabilitadas; auditoría y acuerdo de confidencialidad habilitados
  * - Fallback: Si falta régimen, asumir SIN_REGIMEN (comportamiento más permisivo)
  */
 @Injectable()
@@ -141,7 +141,7 @@ export class RegulatoryPolicyService {
 
   /**
    * Crea una política para régimen SIN_REGIMEN
-   * Features regulatorias SIRES deshabilitadas; trail de auditoría habilitado
+   * Features SIRES deshabilitadas; auditoría y acuerdo de confidencialidad habilitados
    */
   private createSinRegimenPolicy(): RegulatoryPolicy {
     return {
@@ -155,7 +155,7 @@ export class RegulatoryPolicyService {
         notaAclaratoriaEnabled: false,
         cluesFieldVisible: false,
         dailyConsentEnabled: false,
-        confidentialityAgreementEnabled: false,
+        confidentialityAgreementEnabled: true,
         workerIdentificationImmutable: false,
         auditTrailEnabled: true,
         controlPrenatalEnabled: true,
