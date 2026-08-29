@@ -303,3 +303,4 @@ InformeLongitudinalAudiometricoSchema.index({
   idTrabajador: 1,
   fechaInformeLongitudinalAudiometrico: -1,
 });
+InformeLongitudinalAudiometricoSchema.index({ createdBy: 1, createdAt: -1 });

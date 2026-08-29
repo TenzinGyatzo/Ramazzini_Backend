@@ -35,6 +35,7 @@ import { AcuerdoConfidencialidadModule } from './modules/acuerdo-confidencialida
 import { AuditModule } from './modules/audit/audit.module';
 import { ResultadosClinicosModule } from './modules/resultados-clinicos/resultados-clinicos.module';
 import { ExpedienteColaboracionModule } from './modules/expediente-colaboracion/expediente-colaboracion.module';
+import { InicioModule } from './modules/inicio/inicio.module';
 
 @Module({
   imports: [
@@ -89,6 +90,7 @@ import { ExpedienteColaboracionModule } from './modules/expediente-colaboracion/
     ResultadosClinicosModule,
     SessionActivityModule,
     ExpedienteColaboracionModule,
+    InicioModule,
   ],
   providers: [
     {

@@ -106,3 +106,4 @@ export const NotaAclaratoriaSchema = SchemaFactory.createForClass(
   NotaAclaratoria,
 ).set('timestamps', true);
 NotaAclaratoriaSchema.plugin(fichaSnapshotPlugin);
+NotaAclaratoriaSchema.index({ createdBy: 1, createdAt: -1 });

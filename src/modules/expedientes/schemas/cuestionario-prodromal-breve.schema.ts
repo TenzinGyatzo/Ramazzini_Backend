@@ -205,3 +205,4 @@ export class CuestionarioProdromalBreve extends Document {
 export const CuestionarioProdromalBreveSchema =
   SchemaFactory.createForClass(CuestionarioProdromalBreve).set('timestamps', true);
 CuestionarioProdromalBreveSchema.plugin(fichaSnapshotPlugin);
+CuestionarioProdromalBreveSchema.index({ createdBy: 1, createdAt: -1 });

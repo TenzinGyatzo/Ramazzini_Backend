@@ -276,3 +276,4 @@ export const EventoSeguimientoCardiometabolicoSchema = SchemaFactory.createForCl
 EventoSeguimientoCardiometabolicoSchema.plugin(fichaSnapshotPlugin);
 
 EventoSeguimientoCardiometabolicoSchema.index({ idTrabajador: 1, fechaEventoSeguimientoCardiometabolico: -1 });
+EventoSeguimientoCardiometabolicoSchema.index({ createdBy: 1, createdAt: -1 });

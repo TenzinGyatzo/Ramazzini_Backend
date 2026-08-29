@@ -182,3 +182,4 @@ export const PrevioEspirometriaSchema = SchemaFactory.createForClass(
   PrevioEspirometria,
 ).set('timestamps', true);
 PrevioEspirometriaSchema.plugin(fichaSnapshotPlugin);
+PrevioEspirometriaSchema.index({ createdBy: 1, createdAt: -1 });

@@ -251,3 +251,4 @@ export const EntrevistaPsicologicaSchema = SchemaFactory.createForClass(
   EntrevistaPsicologica,
 ).set('timestamps', true);
 EntrevistaPsicologicaSchema.plugin(fichaSnapshotPlugin);
+EntrevistaPsicologicaSchema.index({ createdBy: 1, createdAt: -1 });

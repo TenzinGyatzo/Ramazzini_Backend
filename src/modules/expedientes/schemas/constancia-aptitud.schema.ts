@@ -70,3 +70,4 @@ export const ConstanciaAptitudSchema = SchemaFactory.createForClass(
   ConstanciaAptitud,
 ).set('timestamps', true);
 ConstanciaAptitudSchema.plugin(fichaSnapshotPlugin);
+ConstanciaAptitudSchema.index({ createdBy: 1, createdAt: -1 });

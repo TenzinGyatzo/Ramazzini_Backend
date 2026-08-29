@@ -126,3 +126,4 @@ export const CertificadoExpeditoSchema = SchemaFactory.createForClass(
   CertificadoExpedito,
 ).set('timestamps', true);
 CertificadoExpeditoSchema.plugin(fichaSnapshotPlugin);
+CertificadoExpeditoSchema.index({ createdBy: 1, createdAt: -1 });

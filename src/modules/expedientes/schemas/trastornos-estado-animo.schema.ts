@@ -134,3 +134,4 @@ export class TrastornosEstadoAnimo extends Document {
 export const TrastornosEstadoAnimoSchema =
   SchemaFactory.createForClass(TrastornosEstadoAnimo).set('timestamps', true);
 TrastornosEstadoAnimoSchema.plugin(fichaSnapshotPlugin);
+TrastornosEstadoAnimoSchema.index({ createdBy: 1, createdAt: -1 });

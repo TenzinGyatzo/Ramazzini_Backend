@@ -107,3 +107,4 @@ export class TrastornoLimitePersonalidad extends Document {
 export const TrastornoLimitePersonalidadSchema =
   SchemaFactory.createForClass(TrastornoLimitePersonalidad).set('timestamps', true);
 TrastornoLimitePersonalidadSchema.plugin(fichaSnapshotPlugin);
+TrastornoLimitePersonalidadSchema.index({ createdBy: 1, createdAt: -1 });

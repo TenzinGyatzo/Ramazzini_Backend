@@ -178,3 +178,4 @@ export const HistoriaOtologicaSchema = SchemaFactory.createForClass(
   HistoriaOtologica,
 ).set('timestamps', true);
 HistoriaOtologicaSchema.plugin(fichaSnapshotPlugin);
+HistoriaOtologicaSchema.index({ createdBy: 1, createdAt: -1 });

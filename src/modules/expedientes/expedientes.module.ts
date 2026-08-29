@@ -204,6 +204,6 @@ import { FichaSnapshotService } from './services/ficha-snapshot.service';
     EnfermerasFirmantesModule,
     TecnicosFirmantesModule,
   ],
-  exports: [ExpedientesService],
+  exports: [ExpedientesService, NotasMedicasBorradoresService],
 })
 export class ExpedientesModule {}

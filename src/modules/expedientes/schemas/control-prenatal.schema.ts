@@ -331,3 +331,4 @@ ControlPrenatalSchema.index({
   idTrabajador: 1,
   fechaInicioControlPreNatal: -1,
 });
+ControlPrenatalSchema.index({ createdBy: 1, createdAt: -1 });

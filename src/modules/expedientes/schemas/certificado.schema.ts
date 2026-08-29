@@ -74,3 +74,4 @@ export const CertificadoSchema = SchemaFactory.createForClass(Certificado).set(
   true,
 );
 CertificadoSchema.plugin(fichaSnapshotPlugin);
+CertificadoSchema.index({ createdBy: 1, createdAt: -1 });

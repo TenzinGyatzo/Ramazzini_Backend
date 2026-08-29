@@ -378,3 +378,4 @@ InformeLongitudinalCardiometabolicoSchema.index({
   idTrabajador: 1,
   fechaInformeLongitudinalCardiometabolico: -1,
 });
+InformeLongitudinalCardiometabolicoSchema.index({ createdBy: 1, createdAt: -1 });

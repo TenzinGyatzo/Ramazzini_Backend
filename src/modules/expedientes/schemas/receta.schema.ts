@@ -80,3 +80,4 @@ export const RecetaSchema = SchemaFactory.createForClass(Receta).set(
   true,
 );
 RecetaSchema.plugin(fichaSnapshotPlugin);
+RecetaSchema.index({ createdBy: 1, createdAt: -1 });
