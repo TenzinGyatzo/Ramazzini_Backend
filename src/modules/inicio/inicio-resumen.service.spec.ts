@@ -180,6 +180,14 @@ describe('InicioResumenService', () => {
         ];
         return chain(all.filter((row) => ids.includes(String(row._id))));
       }),
+      exists: jest.fn().mockImplementation(async (query) => {
+        const inIds = ((query.idCentroTrabajo?.$in as Types.ObjectId[]) ?? []).map(
+          String,
+        );
+        const workerCentros = [CENTRO_ID, OTHER_CENTRO_ID];
+        const found = workerCentros.some((id) => inIds.includes(id));
+        return found ? { _id: oid(TRABAJADOR_ID) } : null;
+      }),
     };
     centroTrabajoModel = {
       find: jest.fn().mockImplementation(() =>
@@ -352,6 +360,7 @@ describe('InicioResumenService', () => {
 
     const resumen = await service.getResumen(USER_ID);
     expect(resumen.hasActivity).toBe(false);
+    expect(resumen.hasTrabajadores).toBe(true);
     expect(resumen.hoy.documentosCreados).toBe(0);
   });
 
@@ -554,6 +563,7 @@ describe('InicioResumenService', () => {
 
     const resumen = await service.getResumen(USER_ID);
     expect(resumen.hasActivity).toBe(false);
+    expect(resumen.hasTrabajadores).toBe(true);
     expect(resumen.hoy.documentosCreados).toBe(0);
     expect(resumen.clientesRecientes).toEqual([]);
     expect(resumen.expedientesRecientes).toEqual([]);
@@ -583,6 +593,40 @@ describe('InicioResumenService', () => {
     usersService.findById.mockResolvedValue(medicoUser());
     const resumen = await service.getResumen(USER_ID);
     expect(resumen.dateKey).toBe('2026-08-28');
+  });
+
+  it('marca hasTrabajadores si hay trabajador en alcance aunque no haya documentos hoy', async () => {
+    usersService.findById.mockResolvedValue(medicoUser());
+    const resumen = await service.getResumen(USER_ID);
+    expect(resumen.hasActivity).toBe(false);
+    expect(resumen.hasTrabajadores).toBe(true);
+    expect(resumen.consejo).not.toBeNull();
+    expect(resumen.consejo?.texto).toBeTruthy();
+    expect(trabajadorModel.exists).toHaveBeenCalled();
+  });
+
+  it('marca hasTrabajadores en false si no hay trabajadores en el alcance', async () => {
+    usersService.findById.mockResolvedValue({
+      ...medicoUser(),
+      centrosTrabajoAsignados: [oid('507f1f77bcf86cd799439099')],
+    });
+    const resumen = await service.getResumen(USER_ID);
+    expect(resumen.hasActivity).toBe(false);
+    expect(resumen.hasTrabajadores).toBe(false);
+    const query = trabajadorModel.exists.mock.calls[0]?.[0];
+    const inIds = (query?.idCentroTrabajo?.$in ?? []).map(String);
+    expect(inIds).toEqual(['507f1f77bcf86cd799439099']);
+    expect(inIds).not.toContain(OTHER_CENTRO_ID);
+  });
+
+  it('el médico sin centro asignado no cuenta trabajadores de otro centro', async () => {
+    usersService.findById.mockResolvedValue({
+      ...medicoUser(),
+      centrosTrabajoAsignados: [],
+    });
+    const resumen = await service.getResumen(USER_ID);
+    expect(resumen.hasTrabajadores).toBe(false);
+    expect(trabajadorModel.exists).not.toHaveBeenCalled();
   });
 
   it('lista documentos de hoy, omite ayer y anulados, y coincide con el indicador', async () => {
@@ -809,5 +853,26 @@ describe('InicioResumenService', () => {
     expect(list.items[0]?.estado).toBeUndefined();
     expect(list.items[0]?.finalizadoPorUsername).toBeUndefined();
     expect(list.items[0]?.creadorUsername).toBe('Dr. Juan');
+  });
+
+  it('expone el nombre real de un documento externo', async () => {
+    usersService.findById.mockResolvedValue(medicoUser());
+    collections.documentoexternos = [
+      {
+        _id: oid('507f1f77bcf86cd799439081'),
+        idTrabajador: oid(TRABAJADOR_ID),
+        createdBy: oid(USER_ID),
+        updatedBy: oid(USER_ID),
+        createdAt: new Date('2026-08-28T16:00:00.000Z'),
+        updatedAt: new Date('2026-08-28T16:00:00.000Z'),
+        estado: DocumentoEstado.FINALIZADO,
+        nombreDocumento: 'Laboratorio 2026.pdf',
+      },
+    ];
+
+    const list = await service.listHoyDocumentos(USER_ID);
+    const externo = list.items.find((item) => item.tipoDocumento === 'documentoExterno');
+    expect(externo?.nombreDocumento).toBe('Laboratorio 2026.pdf');
+    expect(externo?.etiquetaTipo).toBe('Documento externo');
   });
 });

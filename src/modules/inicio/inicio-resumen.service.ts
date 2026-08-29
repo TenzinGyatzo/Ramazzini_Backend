@@ -54,6 +54,7 @@ interface RawDoc {
   updatedAt?: Date;
   estado?: string;
   finalizadoPor?: Types.ObjectId;
+  nombreDocumento?: string;
   collectionName: string;
   documentType: string;
   etiqueta: string;
@@ -242,21 +243,19 @@ export class InicioResumenService {
       expedientesRecientes.length > 0 ||
       atencion.length > 0;
 
-    const tip = hasActivity
-      ? selectInicioTip({
-          userId,
-          dateKey,
-          regimen,
-          role: user.role,
-          activityScope,
-          recentDocumentTypes: expedientesRecientes.map(
-            (item) => item.tipoDocumento,
-          ),
-          hasNmStaleAtencion: atencion.some(
-            (grupo) => grupo.tipo === 'borrador_nm_propio',
-          ),
-        })
-      : null;
+    const tip = selectInicioTip({
+      userId,
+      dateKey,
+      regimen,
+      role: user.role,
+      activityScope,
+      recentDocumentTypes: expedientesRecientes.map(
+        (item) => item.tipoDocumento,
+      ),
+      hasNmStaleAtencion: atencion.some(
+        (grupo) => grupo.tipo === 'borrador_nm_propio',
+      ),
+    });
 
     let consejo: InicioResumenResponse['consejo'] = null;
     if (tip) {
@@ -277,8 +276,17 @@ export class InicioResumenService {
       }
     }
 
+    const hasTrabajadores = hasActivity
+      ? true
+      : await this.hasTrabajadoresEnAlcance(
+          user,
+          proveedorSaludId,
+          isPrincipal,
+        );
+
     return {
       hasActivity,
+      hasTrabajadores,
       activityScope,
       regimen,
       dateKey,
@@ -289,6 +297,55 @@ export class InicioResumenService {
       pendientes: regimen === 'SIRES_NOM024' ? pendientes : [],
       consejo,
     };
+  }
+
+  private async hasTrabajadoresEnAlcance(
+    user: {
+      permisos?: { accesoCompletoEmpresasCentros?: boolean };
+      centrosTrabajoAsignados?: unknown[];
+    },
+    proveedorSaludId: string,
+    isPrincipal: boolean,
+  ): Promise<boolean> {
+    let centroIds: string[] = [];
+
+    if (isPrincipal || user.permisos?.accesoCompletoEmpresasCentros) {
+      const empresas = await this.empresaModel
+        .find({ idProveedorSalud: new Types.ObjectId(proveedorSaludId) })
+        .select('_id')
+        .lean()
+        .exec();
+      const empresaIds = empresas
+        .map((empresa) => String((empresa as any)._id ?? ''))
+        .filter((id) => Types.ObjectId.isValid(id));
+      if (empresaIds.length === 0) {
+        return false;
+      }
+      const centros = await this.centroTrabajoModel
+        .find({
+          idEmpresa: {
+            $in: empresaIds.map((id) => new Types.ObjectId(id)),
+          },
+        })
+        .select('_id')
+        .lean()
+        .exec();
+      centroIds = centros.map((centro) => String((centro as any)._id ?? ''));
+    } else {
+      centroIds = (user.centrosTrabajoAsignados ?? []).map((id) => String(id));
+    }
+
+    const objectIds = [...new Set(centroIds.filter(Boolean))]
+      .filter((id) => Types.ObjectId.isValid(id))
+      .map((id) => new Types.ObjectId(id));
+    if (objectIds.length === 0) {
+      return false;
+    }
+
+    const found = await this.trabajadorModel.exists({
+      idCentroTrabajo: { $in: objectIds },
+    });
+    return Boolean(found);
   }
 
   async listHoyTrabajadores(
@@ -398,6 +455,10 @@ export class InicioResumenService {
           createdAt: (doc.createdAt ?? new Date(0)).toISOString(),
           creadorUsername: scope.usernames.get(String(doc.createdBy ?? '')),
         };
+        if (doc.documentType === 'documentoExterno') {
+          const nombre = doc.nombreDocumento?.trim();
+          if (nombre) item.nombreDocumento = nombre;
+        }
         if (scope.regimen === 'SIRES_NOM024') {
           if (doc.estado === DocumentoEstado.FINALIZADO) {
             item.estado = 'finalizado';
@@ -675,6 +736,7 @@ export class InicioResumenService {
             updatedAt: 1,
             estado: 1,
             finalizadoPor: 1,
+            nombreDocumento: 1,
           },
         })
         .sort(sort)
@@ -691,6 +753,10 @@ export class InicioResumenService {
           updatedAt: row.updatedAt ? new Date(row.updatedAt) : undefined,
           estado: row.estado as string | undefined,
           finalizadoPor: row.finalizadoPor as Types.ObjectId | undefined,
+          nombreDocumento:
+            typeof row.nombreDocumento === 'string'
+              ? row.nombreDocumento
+              : undefined,
           collectionName: type.collectionName,
           documentType: type.documentType,
           etiqueta: type.etiqueta,

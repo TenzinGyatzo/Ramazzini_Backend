@@ -87,6 +87,7 @@ export interface InicioHoyDocumentoItem {
   idDocumento: string;
   tipoDocumento: string;
   etiquetaTipo: string;
+  nombreDocumento?: string;
   idEmpresa: string;
   idCentroTrabajo: string;
   idTrabajador: string;
@@ -110,6 +111,7 @@ export interface InicioHoyCentroItem {
 
 export interface InicioResumenResponse {
   hasActivity: boolean;
+  hasTrabajadores: boolean;
   activityScope: InicioActivityScope;
   regimen: InicioRegimen;
   dateKey: string;
