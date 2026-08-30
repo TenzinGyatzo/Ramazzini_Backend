@@ -8,6 +8,10 @@ import {
   Param,
   Delete,
   BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
   ValidationPipe,
   UseInterceptors,
   UploadedFile,
@@ -71,13 +75,14 @@ import { UpdateInformeLongitudinalCardiometabolicoDto } from './dto/update-infor
 import { CreateInformeLongitudinalAudiometricoDto } from './dto/create-informe-longitudinal-audiometrico.dto';
 import { UpdateInformeLongitudinalAudiometricoDto } from './dto/update-informe-longitudinal-audiometrico.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import path from 'path';
-import { existsSync, mkdirSync } from 'fs';
-import { convertirFechaISOaDDMMYYYY } from '../../utils/dates';
+import { memoryStorage } from 'multer';
 import { TreatmentConsentGuard } from '../../utils/guards/treatment-consent.guard';
 import { RequireTreatmentConsent } from '../../utils/decorators/require-treatment-consent.decorator';
 import { assertDocumentPermission } from './utils/assert-document-permission.util';
+import {
+  MAX_EXTERNAL_DOCUMENT_BYTES,
+  assertTrabajadorIdsConsistent,
+} from './utils/clinical-directory-path';
 import {
   TREATMENT_CONSENT_REQUEST_KEY,
   TreatmentConsentRequestContext,
@@ -161,6 +166,7 @@ export class ExpedientesController {
   @UseGuards(TreatmentConsentGuard)
   @RequireTreatmentConsent({ action: 'CREATE_DOCUMENT' })
   async createDocument(
+    @Param('trabajadorId') trabajadorId: string,
     @Param('documentType') documentType: string,
     @Body() createDto: any,
     @Req() req: AuthenticatedRequest,
@@ -188,10 +194,20 @@ export class ExpedientesController {
       const document = await this.expedientesService.createDocument(
         documentType,
         dtoInstance,
+        req.userId,
+        trabajadorId,
         consentCtx,
       );
       return { message: `${documentType} creado exitosamente`, data: document };
     } catch (error) {
+      if (
+        error instanceof ForbiddenException ||
+        error instanceof NotFoundException ||
+        error instanceof UnauthorizedException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
       console.error('Error detallado:', error);
       throw new BadRequestException(`Error al crear el ${documentType}`);
     }
@@ -201,103 +217,115 @@ export class ExpedientesController {
   @UseInterceptors(
     FileInterceptor('file', {
       limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB límite
-        fieldSize: 10 * 1024 * 1024, // 10MB límite para campos
+        fileSize: MAX_EXTERNAL_DOCUMENT_BYTES,
+        fieldSize: MAX_EXTERNAL_DOCUMENT_BYTES,
       },
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          const dirPath = path.resolve(
-            process.env.EXPEDIENTES_DIR || '',
-            req.body.rutaDocumento,
-          );
-
-          try {
-            if (!req.body.rutaDocumento) {
-              console.error(
-                'Error: rutaDocumento no está definida en req.body.',
-              );
-              throw new Error('La rutaDocumento no está definida en req.body.');
-            }
-
-            if (!existsSync(dirPath)) {
-              mkdirSync(dirPath, { recursive: true });
-            } else {
-            }
-          } catch (error) {
-            console.error('Error al procesar la ruta destino:', error.message);
-            return cb(error, dirPath);
-          }
-
-          cb(null, dirPath);
-        },
-        filename: (req, file, cb) => {
-          const nombreDocumento = req.body.nombreDocumento || 'documento'; // Valor predeterminado si no se proporciona
-          const fechaDocumento = convertirFechaISOaDDMMYYYY(
-            req.body.fechaDocumento,
-          );
-          const extension = path.extname(file.originalname);
-          const uniqueFilename =
-            `${nombreDocumento} ${fechaDocumento}${extension}`.replace(
-              /[<>:"\/\\|?*]/g,
-              '-',
-            );
-
-          cb(null, uniqueFilename);
-        },
-      }),
+      storage: memoryStorage(),
     }),
   )
   async uploadDocument(
     @Param('trabajadorId') trabajadorId: string,
     @Body() createDocumentoExternoDto: CreateDocumentoExternoDto,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    @UploadedFile() _file: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File,
     @Req() req: AuthenticatedRequest,
   ) {
+    if (!file?.buffer || file.buffer.length === 0) {
+      throw new BadRequestException('El archivo es requerido');
+    }
+
     await this.assertDocumentPermissionForRequest(req, 'documentoExterno');
+
+    if (!isValidObjectId(trabajadorId)) {
+      throw new BadRequestException('El ID de trabajador no es válido');
+    }
+
+    assertTrabajadorIdsConsistent(
+      trabajadorId,
+      createDocumentoExternoDto.idTrabajador,
+    );
+    createDocumentoExternoDto.idTrabajador = trabajadorId;
 
     try {
       const document = await this.expedientesService.uploadDocument(
         createDocumentoExternoDto,
+        file,
+        trabajadorId,
+        req.userId,
       );
       return {
         message: 'Documento externo creado exitosamente',
         data: document,
       };
     } catch (error) {
-      console.error('Error detallado durante uploadDocument:', error.message);
-      throw new BadRequestException(
-        'Error al crear el documento externo',
-        error,
+      if (
+        error instanceof ConflictException ||
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException ||
+        error instanceof NotFoundException ||
+        error instanceof UnauthorizedException
+      ) {
+        throw error;
+      }
+      console.error(
+        'Error detallado durante uploadDocument:',
+        error instanceof Error ? error.message : error,
       );
+      throw new BadRequestException('Error al crear el documento externo');
     }
   }
 
   @Get('altura-disponible')
-  async getAlturaDisponible(@Param('trabajadorId') trabajadorId: string) {
+  async getAlturaDisponible(
+    @Param('trabajadorId') trabajadorId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
     try {
-      const alturaData =
-        await this.expedientesService.getAlturaDisponible(trabajadorId);
+      const alturaData = await this.expedientesService.getAlturaDisponible(
+        trabajadorId,
+        req.userId,
+      );
       return {
         message: 'Altura consultada exitosamente',
         data: alturaData,
       };
     } catch (error) {
+      if (
+        error instanceof ForbiddenException ||
+        error instanceof NotFoundException ||
+        error instanceof UnauthorizedException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
       console.error('Error al consultar altura:', error);
       throw new BadRequestException('Error al consultar la altura disponible');
     }
   }
 
   @Get('historiaClinica/motivo-examen-reciente')
-  async getMotivoExamenReciente(@Param('trabajadorId') trabajadorId: string) {
+  async getMotivoExamenReciente(
+    @Param('trabajadorId') trabajadorId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
     try {
       const motivoExamenData =
-        await this.expedientesService.getMotivoExamenReciente(trabajadorId);
+        await this.expedientesService.getMotivoExamenReciente(
+          trabajadorId,
+          req.userId,
+        );
       return {
         message: 'MotivoExamen consultado exitosamente',
         data: motivoExamenData,
       };
     } catch (error) {
+      if (
+        error instanceof ForbiddenException ||
+        error instanceof NotFoundException ||
+        error instanceof UnauthorizedException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
       console.error('Error al consultar motivoExamen:', error);
       throw new BadRequestException(
         'Error al consultar el motivoExamen reciente',
@@ -306,16 +334,25 @@ export class ExpedientesController {
   }
 
   @Get('todos')
-  async findAllDocuments(@Param('trabajadorId') trabajadorId: string) {
-    return this.expedientesService.findAllDocuments(trabajadorId);
+  async findAllDocuments(
+    @Param('trabajadorId') trabajadorId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.expedientesService.findAllDocuments(trabajadorId, req.userId);
   }
 
   @Get('conteos')
-  async countDocumentos(@Param('trabajadorId') trabajadorId: string) {
+  async countDocumentos(
+    @Param('trabajadorId') trabajadorId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
     if (!isValidObjectId(trabajadorId)) {
       throw new BadRequestException('El ID del trabajador no es válido');
     }
-    return this.expedientesService.countDocumentosByTrabajador(trabajadorId);
+    return this.expedientesService.countDocumentosByTrabajador(
+      trabajadorId,
+      req.userId,
+    );
   }
 
   /**
@@ -325,12 +362,14 @@ export class ExpedientesController {
   @Get('aptitud-vecinos')
   async findAptitudInformeVecinos(
     @Param('trabajadorId') trabajadorId: string,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!isValidObjectId(trabajadorId)) {
       throw new BadRequestException('El ID del trabajador no es válido');
     }
     return this.expedientesService.findDocumentsForAptitudInformeVecinos(
       trabajadorId,
+      req.userId,
     );
   }
 
@@ -338,10 +377,12 @@ export class ExpedientesController {
   async findDocuments(
     @Param('trabajadorId') trabajadorId: string,
     @Param('documentType') documentType: string,
+    @Req() req: AuthenticatedRequest,
   ) {
     const documents = await this.expedientesService.findDocuments(
       documentType,
       trabajadorId,
+      req.userId,
     );
 
     if (!documents || documents.length === 0) {
@@ -357,6 +398,7 @@ export class ExpedientesController {
   async findDocument(
     @Param('documentType') documentType: string,
     @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!isValidObjectId(id)) {
       throw new BadRequestException('El ID proporcionado no es valido');
@@ -364,6 +406,7 @@ export class ExpedientesController {
     const document = await this.expedientesService.findDocument(
       documentType,
       id,
+      req.userId,
     );
     if (!document) {
       return {
@@ -413,17 +456,26 @@ export class ExpedientesController {
         updatedDocument = await this.expedientesService.upsertDocumentoExterno(
           id,
           dtoInstance,
+          req.userId,
         );
       } else {
         updatedDocument = await this.expedientesService.updateOrCreateDocument(
           documentType,
           id,
           dtoInstance,
+          req.userId,
         );
       }
 
       return { message: `${documentType} actualizado`, data: updatedDocument };
     } catch (error) {
+      if (
+        error instanceof ForbiddenException ||
+        error instanceof NotFoundException ||
+        error instanceof UnauthorizedException
+      ) {
+        throw error;
+      }
       // Si el error ya es un BadRequestException con un mensaje estructurado, propagarlo
       if (error instanceof BadRequestException) {
         // Si tiene un response con message, code, ruleId, etc., propagarlo tal cual
@@ -434,6 +486,7 @@ export class ExpedientesController {
             throw error; // Propagar el error original con toda su estructura
           }
         }
+        throw error;
       }
       // Para otros errores, log y usar mensaje genérico
       console.error('Error detallado:', error);
@@ -449,6 +502,7 @@ export class ExpedientesController {
   async getDocumentPdfStatus(
     @Param('documentType') documentType: string,
     @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!isValidObjectId(id)) {
       throw new BadRequestException('El ID proporcionado no es válido');
@@ -466,6 +520,7 @@ export class ExpedientesController {
     const document = await this.expedientesService.getDocumentPdfStatus(
       documentType,
       id,
+      req.userId,
     );
     if (!document) {
       return {
@@ -503,6 +558,7 @@ export class ExpedientesController {
       documentType,
       id,
       PdfStatus.GENERATING,
+      req.userId,
     );
     return { message: 'pdfStatus generating', documentType, id };
   }
@@ -630,14 +686,18 @@ export class ExpedientesController {
     skipIfNoTrabajadorId: true,
   })
   async createDeteccion(
+    @Param('trabajadorId') trabajadorId: string,
     @Body() createDeteccionDto: CreateDeteccionDto,
     @Req() req: AuthenticatedRequest,
   ) {
     await this.assertDocumentPermissionForRequest(req, 'deteccion');
 
     try {
-      const deteccion =
-        await this.expedientesService.createDeteccion(createDeteccionDto);
+      const deteccion = await this.expedientesService.createDeteccion(
+        createDeteccionDto,
+        req.userId,
+        trabajadorId,
+      );
       return { message: 'Detección creada exitosamente', data: deteccion };
     } catch (error) {
       throw error;
@@ -645,11 +705,17 @@ export class ExpedientesController {
   }
 
   @Get('deteccion/:id')
-  async findDeteccion(@Param('id') id: string) {
+  async findDeteccion(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
     if (!isValidObjectId(id)) {
       throw new BadRequestException('El ID proporcionado no es válido');
     }
-    const deteccion = await this.expedientesService.findDeteccion(id);
+    const deteccion = await this.expedientesService.findDeteccion(
+      id,
+      req.userId,
+    );
     if (!deteccion) {
       return {
         message: `No se encontró la detección con id ${id}`,
@@ -661,12 +727,16 @@ export class ExpedientesController {
   @Get('detecciones/:trabajadorId')
   async findDeteccionesByTrabajador(
     @Param('trabajadorId') trabajadorId: string,
+    @Req() req: AuthenticatedRequest,
   ) {
     if (!isValidObjectId(trabajadorId)) {
       throw new BadRequestException('El ID del trabajador no es válido');
     }
     const detecciones =
-      await this.expedientesService.findDeteccionesByTrabajador(trabajadorId);
+      await this.expedientesService.findDeteccionesByTrabajador(
+        trabajadorId,
+        req.userId,
+      );
     return detecciones;
   }
 
@@ -698,6 +768,7 @@ export class ExpedientesController {
       const updatedDeteccion = await this.expedientesService.updateDeteccion(
         id,
         dtoInstance,
+        req.userId,
       );
       return {
         message: 'Detección actualizada exitosamente',

@@ -60,13 +60,15 @@ export class CreateDocumentoExternoDto {
   idTrabajador: string;
 
   @ApiProperty({
-    description: 'Ruta hacía el documento externo',
+    required: false,
+    description:
+      'Ruta hacia el documento externo. Ignorada en subida: el servidor la deriva.',
     example:
       'expedientes-medicos/Expedientes Medicos/AGRICULTURE/Parcelas Del Este/Juan Pérez López.pdf',
   })
+  @IsOptional()
   @IsString({ message: 'La ruta del documento debe ser un string' })
-  @IsNotEmpty({ message: 'La ruta deldocumento no puede estar vacía' })
-  rutaDocumento: string;
+  rutaDocumento?: string;
 
   @ApiProperty({
     description: 'El ID del usuario que creó este registro',

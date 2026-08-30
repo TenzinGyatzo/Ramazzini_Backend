@@ -2,6 +2,7 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   UnauthorizedException,
   Inject,
   forwardRef,
@@ -86,6 +87,7 @@ import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
 import { UsersService } from '../users/users.service';
 import { WorkerFusionService } from '../trabajadores/worker-fusion.service';
+import { OrganizationalAccessService } from '../../utils/organizational-access.service';
 import {
   EXPEDIENTE_DOCUMENT_MODEL_NAMES,
   EXPEDIENTE_MODEL_NAME_TO_DOCUMENT_TYPE,
@@ -97,6 +99,14 @@ import { resolveTrabajadorProveedorChain } from '../../utils/helpers/treatment-c
 import type { TreatmentConsentRequestContext } from '../../utils/helpers/treatment-consent-request.context';
 import { getDocumentoListSelect } from './constants/documento-list-projection';
 import { FichaSnapshotService } from './services/ficha-snapshot.service';
+import {
+  MAX_EXTERNAL_DOCUMENT_BYTES,
+  assertTrabajadorIdsConsistent,
+  buildClinicalDirectoryPath,
+  buildExternalDocumentFilename,
+  getWriteBase,
+  resolveAndContain,
+} from './utils/clinical-directory-path';
 import { FichaSnapshot } from './schemas/ficha-snapshot.schema';
 import {
   calendarYearBounds,
@@ -182,6 +192,7 @@ export class ExpedientesService {
     private readonly auditService: AuditService,
     private readonly usersService: UsersService,
     private readonly workerFusionService: WorkerFusionService,
+    private readonly organizationalAccessService: OrganizationalAccessService,
     private readonly firmanteHelper: FirmanteHelper,
     private readonly cexCatalogResolver: CexCatalogResolver,
     private readonly fichaSnapshotService: FichaSnapshotService,
@@ -271,6 +282,95 @@ export class ExpedientesService {
         'informeLongitudinalCardiometabolico',
       informeLongitudinalAudiometrico: 'informeLongitudinalAudiometrico',
     };
+  }
+
+  private requireActorUserId(actorUserId?: string): string {
+    if (!actorUserId) {
+      throw new UnauthorizedException(
+        'Se requiere un usuario autenticado para acceder a este recurso',
+      );
+    }
+    return actorUserId;
+  }
+
+  private resolveDocumentModel(documentType: string): Model<any> | undefined {
+    if (documentType === 'deteccion') {
+      return this.deteccionModel;
+    }
+    return this.models[documentType];
+  }
+
+  /**
+   * Canónico del trabajador → OAS. Devuelve el id canónico autorizado.
+   * No consulta historial de fusión: si A no existe, OAS(A) → 404.
+   */
+  private async assertActorCanAccessTrabajador(
+    actorUserId: string,
+    trabajadorId: string,
+  ): Promise<string> {
+    const userId = this.requireActorUserId(actorUserId);
+    const canonicalId =
+      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+    await this.organizationalAccessService.assertUserCanAccessTrabajadorId(
+      userId,
+      canonicalId,
+    );
+    return canonicalId;
+  }
+
+  /**
+   * Stub {_id, idTrabajador} sin populate clínico → OAS del trabajador real.
+   * Si el documento no existe, devuelve null para que el caller conserve
+   * el contrato actual (GET 200+mensaje; mutación 400).
+   */
+  private async assertActorCanAccessDocument(
+    actorUserId: string,
+    documentType: string,
+    id: string,
+  ): Promise<{ _id?: unknown; idTrabajador?: unknown } | null> {
+    const userId = this.requireActorUserId(actorUserId);
+    const model = this.resolveDocumentModel(documentType);
+    if (!model) {
+      throw new BadRequestException(
+        `Tipo de documento ${documentType} no soportado`,
+      );
+    }
+
+    const query = model.findById(id);
+    if (typeof query.select === 'function') {
+      query.select('_id idTrabajador');
+    }
+    let stub: { _id?: unknown; idTrabajador?: unknown } | null = null;
+    if (typeof query.lean === 'function') {
+      const leanQuery = query.lean();
+      const raw =
+        leanQuery && typeof leanQuery.exec === 'function'
+          ? await leanQuery.exec()
+          : await leanQuery;
+      stub = Array.isArray(raw) ? raw[0] ?? null : raw;
+    } else if (typeof query.exec === 'function') {
+      stub = await query.exec();
+    } else {
+      stub = await query;
+    }
+
+    if (!stub) {
+      return null;
+    }
+
+    const trabajadorId =
+      stub.idTrabajador != null
+        ? (stub.idTrabajador as { toString?: () => string }).toString?.() ??
+          String(stub.idTrabajador)
+        : '';
+    if (!trabajadorId) {
+      throw new BadRequestException(
+        `Documento con ID ${id} no tiene trabajador asociado`,
+      );
+    }
+
+    await this.assertActorCanAccessTrabajador(userId, trabajadorId);
+    return stub;
   }
 
   /**
@@ -705,6 +805,8 @@ export class ExpedientesService {
   async createDocument(
     documentType: string,
     createDto: any,
+    actorUserId: string,
+    trabajadorIdFromUrl: string,
     consentCtx?: TreatmentConsentRequestContext | null,
   ): Promise<any> {
     const model = this.models[documentType];
@@ -714,6 +816,15 @@ export class ExpedientesService {
         `Tipo de documento ${documentType} no soportado`,
       );
     }
+
+    assertTrabajadorIdsConsistent(trabajadorIdFromUrl, createDto?.idTrabajador);
+    createDto.idTrabajador = trabajadorIdFromUrl;
+
+    const canonicalFromUrl = await this.assertActorCanAccessTrabajador(
+      actorUserId,
+      trabajadorIdFromUrl,
+    );
+    createDto.idTrabajador = canonicalFromUrl;
 
     // NOM-024: Resolver a trabajador canónico (fusión de registros)
     // Reutiliza el canónico del TreatmentConsentGuard si ya se resolvió en el request.
@@ -792,7 +903,11 @@ export class ExpedientesService {
 
     if (documentType === 'notaAclaratoria') {
       createValidationTasks.push(() =>
-        this.assertNotaAclaratoriaCreateAllowed(createDto, regimeCtx),
+        this.assertNotaAclaratoriaCreateAllowed(
+          createDto,
+          actorUserId,
+          regimeCtx,
+        ),
       );
     }
 
@@ -893,6 +1008,7 @@ export class ExpedientesService {
 
   private async assertNotaAclaratoriaCreateAllowed(
     createDto: any,
+    actorUserId: string,
     regimeCtx?: DocumentRegimeContext | null,
   ): Promise<void> {
     if (!regimeCtx?.trabajador) {
@@ -918,6 +1034,7 @@ export class ExpedientesService {
       createDto.documentoOrigenTipo,
       createDto.documentoOrigenId,
       'estado',
+      actorUserId,
     );
     if (!documentoOrigen) {
       throw new BadRequestException('Documento origen no encontrado');
@@ -1470,6 +1587,7 @@ export class ExpedientesService {
     documentType: string,
     id: string,
     updateDto: any,
+    actorUserId: string,
   ): Promise<any> {
     const model = this.models[documentType];
     const dateField = this.dateFields[documentType];
@@ -1480,8 +1598,37 @@ export class ExpedientesService {
       );
     }
 
+    const accessStub = await this.assertActorCanAccessDocument(
+      actorUserId,
+      documentType,
+      id,
+    );
+    if (!accessStub) {
+      throw new BadRequestException(`Documento con ID ${id} no encontrado`);
+    }
+
+    const persistedCanonical =
+      await this.workerFusionService.getCanonicalTrabajadorId(
+        String(
+          (accessStub.idTrabajador as { toString?: () => string })?.toString?.() ??
+            accessStub.idTrabajador,
+        ),
+      );
+
+    if (updateDto?.idTrabajador) {
+      const bodyCanonical =
+        await this.workerFusionService.getCanonicalTrabajadorId(
+          updateDto.idTrabajador,
+        );
+      if (bodyCanonical !== persistedCanonical) {
+        throw new BadRequestException(
+          'No se permite reasignar el documento a otro trabajador',
+        );
+      }
+    }
+
     const newFecha = parseISO(updateDto[dateField]); // Convertimos a Date
-    let trabajadorId = updateDto.idTrabajador;
+    let trabajadorId = persistedCanonical;
 
     if (!newFecha) {
       throw new BadRequestException(
@@ -1489,13 +1636,6 @@ export class ExpedientesService {
       );
     }
 
-    if (!trabajadorId) {
-      throw new BadRequestException('El campo idTrabajador es requerido');
-    }
-
-    // NOM-024: Resolver a trabajador canónico (fusión de registros)
-    trabajadorId =
-      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
     updateDto.idTrabajador = trabajadorId;
 
     const regimeCtx = await this.resolveDocumentRegimeContext(trabajadorId);
@@ -1805,6 +1945,15 @@ export class ExpedientesService {
       );
     }
 
+    const accessStub = await this.assertActorCanAccessDocument(
+      userId,
+      documentType,
+      id,
+    );
+    if (!accessStub) {
+      throw new BadRequestException(`Documento con ID ${id} no encontrado`);
+    }
+
     const document = await model.findById(id).exec();
 
     if (!document) {
@@ -1936,20 +2085,53 @@ export class ExpedientesService {
     return valorPrimeraVezAnioSegunExistencia(!!hayOtra);
   }
 
-  async uploadDocument(createDto: any): Promise<any> {
-    const model = this.models['documentoExterno'];
+  async uploadDocument(
+    createDto: any,
+    file: Express.Multer.File,
+    trabajadorIdFromUrl: string,
+    actorUserId: string,
+  ): Promise<any> {
+    if (!file?.buffer || file.buffer.length === 0) {
+      throw new BadRequestException('El archivo es requerido');
+    }
 
-    // NOM-024: Resolver a trabajador canónico (fusión de registros)
-    if (createDto.idTrabajador) {
-      createDto.idTrabajador =
-        await this.workerFusionService.getCanonicalTrabajadorId(
-          createDto.idTrabajador,
-        );
+    if (file.buffer.length > MAX_EXTERNAL_DOCUMENT_BYTES) {
+      throw new BadRequestException(
+        'El archivo excede el tamaño máximo permitido',
+      );
+    }
+
+    const canonicalId = await this.assertActorCanAccessTrabajador(
+      actorUserId,
+      trabajadorIdFromUrl,
+    );
+
+    const chain = await resolveTrabajadorProveedorChain(
+      canonicalId,
+      this.trabajadorModel,
+      this.centroTrabajoModel,
+      this.empresaModel,
+    );
+
+    const empresaNombre = chain.empresa?.nombreComercial;
+    const centroNombre = chain.centroTrabajo?.nombreCentro;
+    const trabajadorNombre = chain.trabajador?.nombre;
+
+    if (
+      !chain.trabajador ||
+      !chain.centroTrabajo ||
+      !chain.empresa ||
+      !empresaNombre ||
+      !centroNombre ||
+      !trabajadorNombre
+    ) {
+      throw new BadRequestException(
+        'No se pudo resolver la ubicación del expediente del trabajador',
+      );
     }
 
     const fechaDocumento = createDto.fechaDocumento;
     const nombreDocumento = createDto.nombreDocumento;
-    const trabajadorId = createDto.idTrabajador;
 
     if (!fechaDocumento) {
       throw new BadRequestException(
@@ -1961,37 +2143,90 @@ export class ExpedientesService {
       throw new BadRequestException('El campo nombreDocumento es requerido');
     }
 
-    if (!trabajadorId) {
-      throw new BadRequestException('El campo idTrabajador es requerido');
-    }
-
-    const regimeCtx = await this.resolveDocumentRegimeContext(trabajadorId);
+    const regimeCtx = await this.resolveDocumentRegimeContext(canonicalId);
 
     await this.validateDocumentDateE1(
-      trabajadorId,
+      canonicalId,
       fechaDocumento,
       'documentoExterno',
       regimeCtx,
     );
 
-    // ✅ SIEMPRE crear una nueva entidad para evitar archivos huérfanos
-    // Esto permite que cada archivo tenga su propio registro y se pueda gestionar individualmente
-    const createdDocument = new model(createDto);
-    const result = await createdDocument.save();
+    const rutaRelativa = buildClinicalDirectoryPath(
+      empresaNombre,
+      centroNombre,
+      trabajadorNombre,
+      String(canonicalId),
+    );
+    const writeBase = getWriteBase();
+    const absoluteDir = resolveAndContain(writeBase, rutaRelativa);
+    const filename = buildExternalDocumentFilename(
+      nombreDocumento,
+      fechaDocumento,
+      file.originalname || '',
+    );
+    const absoluteFile = resolveAndContain(
+      writeBase,
+      path.join(rutaRelativa, filename),
+    );
 
-    // ✅ Actualizar el updatedAt del trabajador
-    await this.actualizarUpdatedAtTrabajador(trabajadorId);
+    await fs.mkdir(absoluteDir, { recursive: true });
 
-    return result;
+    let createdByThisRequest = false;
+    try {
+      await fs.writeFile(absoluteFile, file.buffer, { flag: 'wx' });
+      createdByThisRequest = true;
+    } catch (error: any) {
+      if (error?.code === 'EEXIST') {
+        throw new ConflictException(
+          'Ya existe un archivo con el mismo nombre en esta fecha',
+        );
+      }
+      throw error;
+    }
+
+    createDto.rutaDocumento = rutaRelativa;
+    createDto.idTrabajador = canonicalId;
+
+    const model = this.models['documentoExterno'];
+    try {
+      const createdDocument = new model(createDto);
+      const result = await createdDocument.save();
+
+      try {
+        await this.actualizarUpdatedAtTrabajador(canonicalId);
+      } catch (updatedAtError) {
+        console.warn(
+          'No se pudo actualizar updatedAt del trabajador tras subir documento externo:',
+          updatedAtError,
+        );
+      }
+
+      return result;
+    } catch (error) {
+      if (createdByThisRequest) {
+        try {
+          await fs.unlink(absoluteFile);
+        } catch (unlinkError) {
+          console.warn(
+            'No se pudo eliminar el archivo huérfano de documento externo:',
+            unlinkError,
+          );
+        }
+      }
+      throw error;
+    }
   }
 
   async findDocuments(
     documentType: string,
     trabajadorId: string,
+    actorUserId: string,
   ): Promise<any[]> {
-    // NOM-024: Resolver a trabajador canónico (fusión de registros)
-    const canonicalId =
-      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+    const canonicalId = await this.assertActorCanAccessTrabajador(
+      actorUserId,
+      trabajadorId,
+    );
 
     const model = this.models[documentType];
     if (!model) {
@@ -2185,7 +2420,10 @@ export class ExpedientesService {
     });
   }
 
-  async countDocumentosByTrabajador(trabajadorId: string): Promise<{
+  async countDocumentosByTrabajador(
+    trabajadorId: string,
+    actorUserId: string,
+  ): Promise<{
     conteos: Record<string, number>;
     total: number;
     resultadosClinicosConteos: Record<string, number>;
@@ -2196,7 +2434,11 @@ export class ExpedientesService {
       throw new BadRequestException('El ID del trabajador no es válido');
     }
 
-    const workerId = new Types.ObjectId(trabajadorId);
+    const canonicalId = await this.assertActorCanAccessTrabajador(
+      actorUserId,
+      trabajadorId,
+    );
+    const workerId = new Types.ObjectId(canonicalId);
 
     const allDocumentConfigs = WORKER_LINKED_COLLECTIONS.filter((config) =>
       EXPEDIENTE_DOCUMENT_MODEL_NAMES.has(config.modelName),
@@ -2205,7 +2447,7 @@ export class ExpedientesService {
     // regimeCtx + docs ($unionWith) + RC ($facet) en paralelo → ~3 round-trips
     // en lugar de ~1 policy chain + N aggregations por tipo + RC.
     const [regimeCtx, documentStats, rcFacetRows] = await Promise.all([
-      this.resolveDocumentRegimeContext(trabajadorId),
+      this.resolveDocumentRegimeContext(canonicalId),
       this.countAllDocumentStatsForWorker(allDocumentConfigs, workerId),
       this.resultadoClinicoModel
         .aggregate<{
@@ -2287,9 +2529,14 @@ export class ExpedientesService {
     };
   }
 
-  async findAllDocuments(trabajadorId: string): Promise<Record<string, any[]>> {
-    const canonicalId =
-      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+  async findAllDocuments(
+    trabajadorId: string,
+    actorUserId: string,
+  ): Promise<Record<string, any[]>> {
+    const canonicalId = await this.assertActorCanAccessTrabajador(
+      actorUserId,
+      trabajadorId,
+    );
 
     const documentTypes = Object.keys(this.models);
     const [entries, includeControlPrenatal] = await Promise.all([
@@ -2324,7 +2571,16 @@ export class ExpedientesService {
     documentType: string,
     id: string,
     status: PdfStatus,
+    actorUserId: string,
   ): Promise<void> {
+    const accessStub = await this.assertActorCanAccessDocument(
+      actorUserId,
+      documentType,
+      id,
+    );
+    if (!accessStub) {
+      return;
+    }
     const model = this.models[documentType];
     if (!model) {
       throw new BadRequestException(
@@ -2341,15 +2597,33 @@ export class ExpedientesService {
   async getDocumentPdfStatus(
     documentType: string,
     id: string,
+    actorUserId: string,
   ): Promise<{ _id?: unknown; pdfStatus?: PdfStatus | null; rutaPDF?: string | null } | null> {
-    return this.findDocumentSelect(documentType, id, 'pdfStatus rutaPDF');
+    return this.findDocumentSelect(
+      documentType,
+      id,
+      'pdfStatus rutaPDF',
+      actorUserId,
+    );
   }
 
   /**
    * Documento filled para UI (GET detalle/edición): populate de users + consentimiento/RC.
    * No usar en PDF/checks internos — preferir findDocumentLean / findDocumentSelect.
    */
-  async findDocument(documentType: string, id: string): Promise<any> {
+  async findDocument(
+    documentType: string,
+    id: string,
+    actorUserId: string,
+  ): Promise<any> {
+    const accessStub = await this.assertActorCanAccessDocument(
+      actorUserId,
+      documentType,
+      id,
+    );
+    if (!accessStub) {
+      return null;
+    }
     const model = this.models[documentType];
     if (!model) {
       throw new BadRequestException(
@@ -2392,10 +2666,19 @@ export class ExpedientesService {
   async findDocumentLean(
     documentType: string,
     id: string,
+    actorUserId: string,
     options?: {
       populateRefs?: Array<{ path: string; select: string }>;
     },
   ): Promise<any> {
+    const accessStub = await this.assertActorCanAccessDocument(
+      actorUserId,
+      documentType,
+      id,
+    );
+    if (!accessStub) {
+      return null;
+    }
     const model = this.models[documentType];
     if (!model) {
       throw new BadRequestException(
@@ -2417,7 +2700,16 @@ export class ExpedientesService {
     documentType: string,
     id: string,
     select: string,
+    actorUserId: string,
   ): Promise<any> {
+    const accessStub = await this.assertActorCanAccessDocument(
+      actorUserId,
+      documentType,
+      id,
+    );
+    if (!accessStub) {
+      return null;
+    }
     const model = this.models[documentType];
     if (!model) {
       throw new BadRequestException(
@@ -2435,11 +2727,13 @@ export class ExpedientesService {
     documentType: string,
     trabajadorId: string,
     select: string,
+    actorUserId: string,
     options?: { canonicalTrabajadorId?: string },
   ): Promise<any[]> {
-    const canonicalId =
-      options?.canonicalTrabajadorId ??
-      (await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId));
+    const canonicalId = await this.assertActorCanAccessTrabajador(
+      actorUserId,
+      options?.canonicalTrabajadorId ?? trabajadorId,
+    );
 
     const model = this.models[documentType];
     if (!model) {
@@ -2462,9 +2756,12 @@ export class ExpedientesService {
    */
   async findDocumentsForAptitudInformeVecinos(
     trabajadorId: string,
+    actorUserId: string,
   ): Promise<Record<AptitudInformeVecinoType, any[]>> {
-    const canonicalId =
-      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+    const canonicalId = await this.assertActorCanAccessTrabajador(
+      actorUserId,
+      trabajadorId,
+    );
 
     const entries = await Promise.all(
       APTITUD_INFORME_VECINO_TYPES.map(async (documentType) => {
@@ -2472,6 +2769,7 @@ export class ExpedientesService {
           documentType,
           trabajadorId,
           getAptitudInformeVecinoSelect(documentType),
+          actorUserId,
           { canonicalTrabajadorId: canonicalId },
         );
         return [documentType, docs] as const;
@@ -2487,6 +2785,7 @@ export class ExpedientesService {
   async upsertDocumentoExterno(
     id: string | null,
     updateDto: any,
+    actorUserId: string,
   ): Promise<any> {
     const model = this.models.documentoExterno;
     const dateField = 'fechaDocumento';
@@ -2496,6 +2795,44 @@ export class ExpedientesService {
         'El modelo documentoExterno no está definido',
       );
     }
+
+    if (id) {
+      const accessStub = await this.assertActorCanAccessDocument(
+        actorUserId,
+        'documentoExterno',
+        id,
+      );
+      if (accessStub) {
+        const persistedCanonical =
+          await this.workerFusionService.getCanonicalTrabajadorId(
+            String(
+              (accessStub.idTrabajador as { toString?: () => string })
+                ?.toString?.() ?? accessStub.idTrabajador,
+            ),
+          );
+        if (updateDto?.idTrabajador) {
+          const bodyCanonical =
+            await this.workerFusionService.getCanonicalTrabajadorId(
+              updateDto.idTrabajador,
+            );
+          if (bodyCanonical !== persistedCanonical) {
+            throw new BadRequestException(
+              'No se permite reasignar el documento a otro trabajador',
+            );
+          }
+        }
+        updateDto.idTrabajador = persistedCanonical;
+      }
+    }
+
+    if (!updateDto.idTrabajador) {
+      throw new BadRequestException('El campo idTrabajador es requerido');
+    }
+
+    updateDto.idTrabajador = await this.assertActorCanAccessTrabajador(
+      actorUserId,
+      updateDto.idTrabajador,
+    );
 
     const newFecha = updateDto[dateField];
     const trabajadorId = updateDto.idTrabajador;
@@ -2651,6 +2988,14 @@ export class ExpedientesService {
         'Se requiere un usuario autenticado para eliminar documentos',
       );
     }
+    const accessStub = await this.assertActorCanAccessDocument(
+      actorUserId,
+      documentType,
+      id,
+    );
+    if (!accessStub) {
+      throw new BadRequestException(`Documento con ID ${id} no encontrado`);
+    }
     const model = this.models[documentType];
     if (!model) {
       throw new BadRequestException(
@@ -2802,9 +3147,12 @@ export class ExpedientesService {
 
   async getAlturaDisponible(
     trabajadorId: string,
+    actorUserId: string,
   ): Promise<{ altura: number | null; fuente: string | null }> {
-    const canonicalId =
-      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+    const canonicalId = await this.assertActorCanAccessTrabajador(
+      actorUserId,
+      trabajadorId,
+    );
     try {
       // 1. Buscar en exploración física (más reciente)
       const exploracionFisica = await this.exploracionFisicaModel
@@ -2840,9 +3188,12 @@ export class ExpedientesService {
 
   async getMotivoExamenReciente(
     trabajadorId: string,
+    actorUserId: string,
   ): Promise<{ motivoExamen: string | null }> {
-    const canonicalId =
-      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+    const canonicalId = await this.assertActorCanAccessTrabajador(
+      actorUserId,
+      trabajadorId,
+    );
     try {
       const historiaClinica = await this.historiaClinicaModel
         .findOne({ idTrabajador: canonicalId })
@@ -3175,13 +3526,16 @@ export class ExpedientesService {
   /**
    * GIIS-B019: Create Detección record
    */
-  async createDeteccion(createDto: any): Promise<any> {
-    if (createDto.idTrabajador) {
-      createDto.idTrabajador =
-        await this.workerFusionService.getCanonicalTrabajadorId(
-          createDto.idTrabajador,
-        );
-    }
+  async createDeteccion(
+    createDto: any,
+    actorUserId: string,
+    trabajadorIdFromUrl: string,
+  ): Promise<any> {
+    assertTrabajadorIdsConsistent(trabajadorIdFromUrl, createDto?.idTrabajador);
+    createDto.idTrabajador = await this.assertActorCanAccessTrabajador(
+      actorUserId,
+      trabajadorIdFromUrl,
+    );
 
     await this.validateDeteccionRules(createDto, createDto.idTrabajador);
 
@@ -3208,12 +3562,43 @@ export class ExpedientesService {
   /**
    * GIIS-B019: Update Detección record
    */
-  async updateDeteccion(id: string, updateDto: any): Promise<any> {
+  async updateDeteccion(
+    id: string,
+    updateDto: any,
+    actorUserId: string,
+  ): Promise<any> {
+    const accessStub = await this.assertActorCanAccessDocument(
+      actorUserId,
+      'deteccion',
+      id,
+    );
+    if (!accessStub) {
+      throw new BadRequestException(`Detección con ID ${id} no encontrada`);
+    }
+
     const existingDeteccion = await this.deteccionModel.findById(id).exec();
 
     if (!existingDeteccion) {
       throw new BadRequestException(`Detección con ID ${id} no encontrada`);
     }
+
+    const persistedCanonical =
+      await this.workerFusionService.getCanonicalTrabajadorId(
+        existingDeteccion.idTrabajador?.toString?.() ??
+          String(existingDeteccion.idTrabajador),
+      );
+    if (updateDto?.idTrabajador) {
+      const bodyCanonical =
+        await this.workerFusionService.getCanonicalTrabajadorId(
+          updateDto.idTrabajador,
+        );
+      if (bodyCanonical !== persistedCanonical) {
+        throw new BadRequestException(
+          'No se permite reasignar el documento a otro trabajador',
+        );
+      }
+    }
+    updateDto.idTrabajador = persistedCanonical;
 
     // Check immutability based on regulatory policy
     const proveedorSaludId =
@@ -3265,16 +3650,29 @@ export class ExpedientesService {
   /**
    * GIIS-B019: Find Detección by ID
    */
-  async findDeteccion(id: string): Promise<any> {
+  async findDeteccion(id: string, actorUserId: string): Promise<any> {
+    const accessStub = await this.assertActorCanAccessDocument(
+      actorUserId,
+      'deteccion',
+      id,
+    );
+    if (!accessStub) {
+      return null;
+    }
     return this.deteccionModel.findById(id).exec();
   }
 
   /**
    * GIIS-B019: Find all Detecciones for a trabajador
    */
-  async findDeteccionesByTrabajador(trabajadorId: string): Promise<any[]> {
-    const canonicalId =
-      await this.workerFusionService.getCanonicalTrabajadorId(trabajadorId);
+  async findDeteccionesByTrabajador(
+    trabajadorId: string,
+    actorUserId: string,
+  ): Promise<any[]> {
+    const canonicalId = await this.assertActorCanAccessTrabajador(
+      actorUserId,
+      trabajadorId,
+    );
     return this.deteccionModel
       .find({ idTrabajador: canonicalId })
       .sort({ fechaDeteccion: -1 })
@@ -3289,6 +3687,15 @@ export class ExpedientesService {
     userId?: string,
     razonAnulacion?: string,
   ): Promise<{ deleted: boolean; anulado?: boolean }> {
+    const accessStub = await this.assertActorCanAccessDocument(
+      userId ?? '',
+      'deteccion',
+      id,
+    );
+    if (!accessStub) {
+      throw new BadRequestException(`Detección con ID ${id} no encontrada`);
+    }
+
     const deteccion = await this.deteccionModel.findById(id).exec();
     if (!deteccion) {
       throw new BadRequestException(`Detección con ID ${id} no encontrada`);
@@ -3343,6 +3750,15 @@ export class ExpedientesService {
    * GIIS-B019: Finalize Detección
    */
   async finalizarDeteccion(id: string, userId: string): Promise<any> {
+    const accessStub = await this.assertActorCanAccessDocument(
+      userId,
+      'deteccion',
+      id,
+    );
+    if (!accessStub) {
+      throw new BadRequestException(`Detección con ID ${id} no encontrada`);
+    }
+
     const deteccion = await this.deteccionModel.findById(id).exec();
 
     if (!deteccion) {

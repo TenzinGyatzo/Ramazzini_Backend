@@ -8,6 +8,7 @@ import {
   Res,
   Req,
   BadRequestException,
+  HttpException,
   UseInterceptors,
 } from '@nestjs/common';
 import { InformeAccessInterceptor } from './informe-access.interceptor';
@@ -69,12 +70,24 @@ export class InformesController {
     return { ok: true };
   }
 
+  /** Identidad autenticada (JWT). Nunca el userId de URL/body/query. */
+  private getInformeActorUserId(req: Request): string {
+    return getUserIdFromRequest(req);
+  }
+
+  private rethrowInformeHttpException(error: unknown): void {
+    if (error instanceof HttpException) {
+      throw error;
+    }
+  }
+
   @Get('antidoping/:empresaId/:trabajadorId/:antidopingId/:userId')
   async getInformeAntidoping(
     @Param('empresaId') empresaId: string,
     @Param('trabajadorId') trabajadorId: string,
     @Param('antidopingId') antidopingId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     try {
@@ -83,6 +96,7 @@ export class InformesController {
         trabajadorId,
         antidopingId,
         userId,
+        this.getInformeActorUserId(req),
       );
       return res
         .status(200)
@@ -92,6 +106,7 @@ export class InformesController {
         '[getInformeAntidoping] Error al generar el informe antidoping:',
         error,
       );
+      this.rethrowInformeHttpException(error);
       return res
         .status(500)
         .json({ message: 'Error al generar el informe antidoping', error });
@@ -104,6 +119,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('aptitudId') aptitudId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
     @Query('includeResultadosClinicos') includeResultadosClinicos?: string,
   ) {
@@ -112,6 +128,7 @@ export class InformesController {
       trabajadorId,
       aptitudId,
       userId,
+        this.getInformeActorUserId(req),
       undefined,
       includeResultadosClinicos !== 'false',
     );
@@ -126,6 +143,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('audiometriaId') audiometriaId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
     @Query('grafica') graficaAudiometria?: string,
   ) {
@@ -134,6 +152,7 @@ export class InformesController {
       trabajadorId,
       audiometriaId,
       userId,
+        this.getInformeActorUserId(req),
       graficaAudiometria,
     );
     return res
@@ -147,6 +166,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('audiometriaId') audiometriaId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Body() body: { grafica?: string },
     @Res() res: Response,
   ) {
@@ -155,6 +175,7 @@ export class InformesController {
       trabajadorId,
       audiometriaId,
       userId,
+        this.getInformeActorUserId(req),
       body.grafica,
     );
     return res
@@ -168,6 +189,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('certificadoId') certificadoId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const rutaPDF = await this.informesService.getInformeCertificado(
@@ -175,6 +197,7 @@ export class InformesController {
       trabajadorId,
       certificadoId,
       userId,
+        this.getInformeActorUserId(req),
     );
     return res
       .status(200)
@@ -189,6 +212,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('certificadoExpeditoId') certificadoExpeditoId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const rutaPDF = await this.informesService.getInformeCertificadoExpedito(
@@ -196,6 +220,7 @@ export class InformesController {
       trabajadorId,
       certificadoExpeditoId,
       userId,
+        this.getInformeActorUserId(req),
     );
     return res
       .status(200)
@@ -208,6 +233,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('examenVistaId') examenVistaId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const rutaPDF = await this.informesService.getInformeExamenVista(
@@ -215,6 +241,7 @@ export class InformesController {
       trabajadorId,
       examenVistaId,
       userId,
+        this.getInformeActorUserId(req),
     );
     return res
       .status(200)
@@ -229,6 +256,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('exploracionFisicaId') exploracionFisicaId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const rutaPDF = await this.informesService.getInformeExploracionFisica(
@@ -236,6 +264,7 @@ export class InformesController {
       trabajadorId,
       exploracionFisicaId,
       userId,
+        this.getInformeActorUserId(req),
     );
     return res
       .status(200)
@@ -248,6 +277,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('historiaClinicaId') historiaClinicaId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const rutaPDF = await this.informesService.getInformeHistoriaClinica(
@@ -255,6 +285,7 @@ export class InformesController {
       trabajadorId,
       historiaClinicaId,
       userId,
+        this.getInformeActorUserId(req),
     );
     return res
       .status(200)
@@ -267,6 +298,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('notaMedicaId') notaMedicaId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     try {
@@ -275,6 +307,7 @@ export class InformesController {
         trabajadorId,
         notaMedicaId,
         userId,
+        this.getInformeActorUserId(req),
       );
       return res
         .status(200)
@@ -294,6 +327,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('notaAclaratoriaId') notaAclaratoriaId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     try {
@@ -302,6 +336,7 @@ export class InformesController {
         trabajadorId,
         notaAclaratoriaId,
         userId,
+        this.getInformeActorUserId(req),
       );
       return res
         .status(200)
@@ -325,6 +360,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('constanciaAptitudId') constanciaAptitudId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const rutaPDF = await this.informesService.getInformeConstanciaAptitud(
@@ -332,6 +368,7 @@ export class InformesController {
       trabajadorId,
       constanciaAptitudId,
       userId,
+        this.getInformeActorUserId(req),
     );
     return res
       .status(200)
@@ -344,6 +381,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('controlPrenatalId') controlPrenatalId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     try {
@@ -352,6 +390,7 @@ export class InformesController {
         trabajadorId,
         controlPrenatalId,
         userId,
+        this.getInformeActorUserId(req),
       );
       return res
         .status(200)
@@ -373,6 +412,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('historiaOtologicaId') historiaOtologicaId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     try {
@@ -381,6 +421,7 @@ export class InformesController {
         trabajadorId,
         historiaOtologicaId,
         userId,
+        this.getInformeActorUserId(req),
       );
       return res
         .status(200)
@@ -402,6 +443,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('previoEspirometriaId') previoEspirometriaId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     try {
@@ -410,6 +452,7 @@ export class InformesController {
         trabajadorId,
         previoEspirometriaId,
         userId,
+        this.getInformeActorUserId(req),
       );
       return res
         .status(200)
@@ -428,6 +471,7 @@ export class InformesController {
     @Param('empresaId') empresaId: string,
     @Param('trabajadorId') trabajadorId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     try {
@@ -435,6 +479,7 @@ export class InformesController {
         empresaId,
         trabajadorId,
         userId,
+        this.getInformeActorUserId(req),
       );
 
       res.set({
@@ -449,6 +494,7 @@ export class InformesController {
         '[getInformeDashboard] Error al generar el informe del dashboard:',
         error,
       );
+      this.rethrowInformeHttpException(error);
       res.status(500).json({ message: 'Error al generar el PDF' });
     }
   }
@@ -458,6 +504,7 @@ export class InformesController {
     @Param('empresaId') empresaId: string,
     @Param('trabajadorId') trabajadorId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     try {
@@ -465,6 +512,7 @@ export class InformesController {
         empresaId,
         trabajadorId,
         userId,
+        this.getInformeActorUserId(req),
       );
 
       res.set({
@@ -479,6 +527,7 @@ export class InformesController {
         '[descargarInformeDashboard] Error al generar el PDF:',
         error,
       );
+      this.rethrowInformeHttpException(error);
       res.status(500).json({ message: 'Error al generar el informe' });
     }
   }
@@ -489,6 +538,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('recetaId') recetaId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     try {
@@ -497,6 +547,7 @@ export class InformesController {
         trabajadorId,
         recetaId,
         userId,
+        this.getInformeActorUserId(req),
       );
       return res
         .status(200)
@@ -519,6 +570,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('entrevistaPsicologicaId') entrevistaPsicologicaId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const rutaPDF = await this.informesService.getInformeEntrevistaPsicologica(
@@ -526,6 +578,7 @@ export class InformesController {
       trabajadorId,
       entrevistaPsicologicaId,
       userId,
+        this.getInformeActorUserId(req),
     );
     return res
       .status(200)
@@ -540,6 +593,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('trastornosEstadoAnimoId') trastornosEstadoAnimoId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const rutaPDF = await this.informesService.getInformeTrastornosEstadoAnimo(
@@ -547,6 +601,7 @@ export class InformesController {
       trabajadorId,
       trastornosEstadoAnimoId,
       userId,
+        this.getInformeActorUserId(req),
     );
     return res
       .status(200)
@@ -561,6 +616,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('cuestionarioProdromalBreveId') cuestionarioProdromalBreveId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const rutaPDF =
@@ -569,6 +625,7 @@ export class InformesController {
         trabajadorId,
         cuestionarioProdromalBreveId,
         userId,
+        this.getInformeActorUserId(req),
       );
     return res
       .status(200)
@@ -584,6 +641,7 @@ export class InformesController {
     @Param('trastornoLimitePersonalidadId')
     trastornoLimitePersonalidadId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const rutaPDF =
@@ -592,6 +650,7 @@ export class InformesController {
         trabajadorId,
         trastornoLimitePersonalidadId,
         userId,
+        this.getInformeActorUserId(req),
       );
     return res
       .status(200)
@@ -605,6 +664,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('eventoSeguimientoCardiometabolicoId') eventoSeguimientoCardiometabolicoId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const rutaPDF = await this.informesService.getInformeEventoSeguimientoCardiometabolico(
@@ -612,6 +672,7 @@ export class InformesController {
       trabajadorId,
       eventoSeguimientoCardiometabolicoId,
       userId,
+        this.getInformeActorUserId(req),
     );
     return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
   }
@@ -622,6 +683,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('informeLongitudinalCardiometabolicoId') informeLongitudinalCardiometabolicoId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const rutaPDF = await this.informesService.getInformeLongitudinalCardiometabolico(
@@ -629,6 +691,7 @@ export class InformesController {
       trabajadorId,
       informeLongitudinalCardiometabolicoId,
       userId,
+        this.getInformeActorUserId(req),
     );
     return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
   }
@@ -639,6 +702,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('informeLongitudinalCardiometabolicoId') informeLongitudinalCardiometabolicoId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Body()
     body: {
       graficaEvolucionGlucemica?: string;
@@ -654,6 +718,7 @@ export class InformesController {
         trabajadorId,
         informeLongitudinalCardiometabolicoId,
         userId,
+        this.getInformeActorUserId(req),
         undefined,
         body,
       );
@@ -668,6 +733,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('informeLongitudinalAudiometricoId') informeLongitudinalAudiometricoId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const rutaPDF = await this.informesService.getInformeLongitudinalAudiometrico(
@@ -675,6 +741,7 @@ export class InformesController {
       trabajadorId,
       informeLongitudinalAudiometricoId,
       userId,
+        this.getInformeActorUserId(req),
     );
     return res.status(200).json({ message: 'PDF generado exitosamente', ruta: rutaPDF });
   }
@@ -685,6 +752,7 @@ export class InformesController {
     @Param('trabajadorId') trabajadorId: string,
     @Param('informeLongitudinalAudiometricoId') informeLongitudinalAudiometricoId: string,
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Body()
     body: {
       graficaAudiogramaOidoDerecho?: string;
@@ -697,6 +765,7 @@ export class InformesController {
       trabajadorId,
       informeLongitudinalAudiometricoId,
       userId,
+        this.getInformeActorUserId(req),
       undefined,
       body,
     );

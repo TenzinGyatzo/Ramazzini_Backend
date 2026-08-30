@@ -54,6 +54,12 @@ describe('ExpedientesService — DOC_FINALIZE / DOC_ANULATE', () => {
         features: { auditTrailEnabled: true },
       }),
     };
+    (service as any).organizationalAccessService = {
+      assertUserCanAccessTrabajadorId: jest.fn().mockResolvedValue(undefined),
+    };
+    (service as any).workerFusionService = {
+      getCanonicalTrabajadorId: jest.fn(async (id: string) => id),
+    };
   });
 
   describe('finalizarDocumento', () => {

@@ -17,7 +17,7 @@ describe('ExpedientesController — removeDocument (H-08)', () => {
     const controller = new ExpedientesController(
       { removeDocument } as unknown as ExpedientesService,
       {} as never,
-      {} as never,
+      { findById: jest.fn().mockResolvedValue({ role: 'Principal', permisos: {} }) } as never,
     );
 
     await controller.removeDocument(

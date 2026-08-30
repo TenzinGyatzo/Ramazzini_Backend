@@ -13,6 +13,7 @@ import {
   RegulatoryPolicy,
 } from '../../utils/regulatory-policy.service';
 import { NOM024ComplianceUtil } from '../../utils/nom024-compliance.util';
+import { OrganizationalAccessService } from '../../utils/organizational-access.service';
 import { FilesService } from '../files/files.service';
 import { CatalogsService } from '../catalogs/catalogs.service';
 import { InformesService } from '../informes/informes.service';
@@ -205,10 +206,22 @@ describe('ExpedientesService - Regulatory Policy Enforcement', () => {
           provide: Cie10CatalogLookupService,
           useValue: mockCie10CatalogLookupService,
         },
+        {
+          provide: OrganizationalAccessService,
+          useValue: {
+            assertUserCanAccessTrabajadorId: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<ExpedientesService>(ExpedientesService);
+    (service as any).organizationalAccessService = {
+      assertUserCanAccessTrabajadorId: jest.fn().mockResolvedValue(undefined),
+    };
+    (service as any).workerFusionService = {
+      getCanonicalTrabajadorId: jest.fn(async (id: string) => id),
+    };
   });
 
   describe('Notas Aclaratorias - Regulatory Policy', () => {
@@ -294,6 +307,8 @@ describe('ExpedientesService - Regulatory Policy Enforcement', () => {
       const result = await service.createDocument(
         'notaAclaratoria',
         createNotaAclaratoriaDto,
+        'user123',
+        createNotaAclaratoriaDto.idTrabajador,
       );
 
       expect(result).toBeDefined();
@@ -318,6 +333,8 @@ describe('ExpedientesService - Regulatory Policy Enforcement', () => {
       const result = await service.createDocument(
         'notaAclaratoria',
         createNotaAclaratoriaDto,
+        'user123',
+        createNotaAclaratoriaDto.idTrabajador,
       );
 
       expect(result).toBeDefined();
@@ -329,7 +346,7 @@ describe('ExpedientesService - Regulatory Policy Enforcement', () => {
       );
 
       await expect(
-        service.createDocument('notaAclaratoria', createNotaAclaratoriaDto),
+        service.createDocument('notaAclaratoria', createNotaAclaratoriaDto, 'user123', createNotaAclaratoriaDto.idTrabajador),
       ).rejects.toThrow(ForbiddenException);
 
       expect(
@@ -351,7 +368,7 @@ describe('ExpedientesService - Regulatory Policy Enforcement', () => {
       });
 
       await expect(
-        service.createDocument('notaAclaratoria', createNotaAclaratoriaDto),
+        service.createDocument('notaAclaratoria', createNotaAclaratoriaDto, 'user123', createNotaAclaratoriaDto.idTrabajador),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -404,7 +421,7 @@ describe('ExpedientesService - Regulatory Policy Enforcement', () => {
       });
 
       await expect(
-        service.updateOrCreateDocument('notaMedica', documentoId, updateDto),
+        service.updateOrCreateDocument('notaMedica', documentoId, updateDto, 'user123'),
       ).rejects.toThrow(ForbiddenException);
 
       expect(
@@ -431,7 +448,7 @@ describe('ExpedientesService - Regulatory Policy Enforcement', () => {
       });
 
       await expect(
-        service.updateOrCreateDocument('notaMedica', documentoId, updateDto),
+        service.updateOrCreateDocument('notaMedica', documentoId, updateDto, 'user123'),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -466,6 +483,7 @@ describe('ExpedientesService - Regulatory Policy Enforcement', () => {
         'notaMedica',
         documentoId,
         updateDto,
+        'user123',
       );
 
       expect(result).toBeDefined();
@@ -519,11 +537,11 @@ describe('ExpedientesService - Regulatory Policy Enforcement', () => {
       };
 
       await expect(
-        service.createDocument('notaMedica', createDto),
+        service.createDocument('notaMedica', createDto, 'user123', createDto.idTrabajador),
       ).rejects.toThrow(BadRequestException);
 
       await expect(
-        service.createDocument('notaMedica', createDto),
+        service.createDocument('notaMedica', createDto, 'user123', createDto.idTrabajador),
       ).rejects.toThrow('Código CIE-10 principal es obligatorio');
     });
 
@@ -548,7 +566,7 @@ describe('ExpedientesService - Regulatory Policy Enforcement', () => {
       };
 
       await expect(
-        service.createDocument('notaMedica', createDto),
+        service.createDocument('notaMedica', createDto, 'user123', createDto.idTrabajador),
       ).rejects.toThrow();
 
       expect(

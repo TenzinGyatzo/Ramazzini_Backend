@@ -13,6 +13,7 @@ import { CatalogsService } from '../catalogs/catalogs.service';
 import { InformesService } from '../informes/informes.service';
 import { FichaSnapshotService } from './services/ficha-snapshot.service';
 import { RegulatoryPolicyService } from '../../utils/regulatory-policy.service';
+import { OrganizationalAccessService } from '../../utils/organizational-access.service';
 
 describe('ExpedientesService - Document Immutability Enforcement', () => {
   let service: ExpedientesService;
@@ -138,10 +139,20 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
           provide: FichaSnapshotService,
           useValue: { capturar: jest.fn().mockResolvedValue(null) },
         },
+        {
+          provide: OrganizationalAccessService,
+          useValue: { assertUserCanAccessTrabajadorId: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
     service = module.get<ExpedientesService>(ExpedientesService);
+    (service as any).organizationalAccessService = {
+      assertUserCanAccessTrabajadorId: jest.fn().mockResolvedValue(undefined),
+    };
+    (service as any).workerFusionService = {
+      getCanonicalTrabajadorId: jest.fn(async (id: string) => id),
+    };
   });
 
   describe('Document State Management', () => {
@@ -350,10 +361,10 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         save: mockNotaMedicaModel.save,
       }));
 
-      await expect(service.createDocument('notaMedica', dto)).rejects.toThrow(
+      await expect(service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador)).rejects.toThrow(
         BadRequestException,
       );
-      await expect(service.createDocument('notaMedica', dto)).rejects.toThrow(
+      await expect(service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador)).rejects.toThrow(
         'La fecha del documento no puede ser futura',
       );
     });
@@ -383,7 +394,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         .mockResolvedValue(undefined);
       service['recordDocDraftCreated'] = jest.fn().mockResolvedValue(undefined);
 
-      const result = await service.createDocument('notaMedica', dto);
+      const result = await service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador);
       expect(result).toBeDefined();
       expect(result._id).toBe('nota123');
     });
@@ -408,7 +419,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         save: mockAntidopingModel.save,
       }));
 
-      await expect(service.createDocument('antidoping', dto)).rejects.toThrow(
+      await expect(service.createDocument('antidoping', dto, 'user123', dto.idTrabajador)).rejects.toThrow(
         'La fecha del documento no puede ser futura',
       );
     });
@@ -435,10 +446,10 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         save: mockNotaMedicaModel.save,
       }));
 
-      await expect(service.createDocument('notaMedica', dto)).rejects.toThrow(
+      await expect(service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador)).rejects.toThrow(
         BadRequestException,
       );
-      await expect(service.createDocument('notaMedica', dto)).rejects.toThrow(
+      await expect(service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador)).rejects.toThrow(
         'La fecha del documento no puede ser anterior a la fecha de nacimiento del trabajador',
       );
     });
@@ -472,7 +483,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         .mockResolvedValue(undefined);
       service['recordDocDraftCreated'] = jest.fn().mockResolvedValue(undefined);
 
-      const result = await service.createDocument('notaMedica', dto);
+      const result = await service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador);
       expect(result).toBeDefined();
       expect(result._id).toBe('nota123');
     });
@@ -506,7 +517,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         .mockResolvedValue(undefined);
       service['recordDocDraftCreated'] = jest.fn().mockResolvedValue(undefined);
 
-      const result = await service.createDocument('notaMedica', dto);
+      const result = await service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador);
       expect(result).toBeDefined();
     });
   });
@@ -570,12 +581,12 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         save: mockNotaMedicaModel.save,
       }));
 
-      await expect(service.createDocument('notaMedica', dto)).rejects.toThrow(
+      await expect(service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador)).rejects.toThrow(
         BadRequestException,
       );
 
       try {
-        await service.createDocument('notaMedica', dto);
+        await service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador);
       } catch (error: any) {
         expect(error.response.code).toBe('VALIDATION_ERROR');
         expect(error.response.ruleId).toBe('B4');
@@ -608,12 +619,12 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         save: mockNotaMedicaModel.save,
       }));
 
-      await expect(service.createDocument('notaMedica', dto)).rejects.toThrow(
+      await expect(service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador)).rejects.toThrow(
         BadRequestException,
       );
 
       try {
-        await service.createDocument('notaMedica', dto);
+        await service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador);
       } catch (error: any) {
         expect(error.response.ruleId).toBe('B4');
         expect(error.response.details[0].duplicatedCode).toBe('A30');
@@ -644,7 +655,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         .fn()
         .mockResolvedValue(undefined);
 
-      const result = await service.createDocument('notaMedica', dto);
+      const result = await service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador);
       expect(result).toBeDefined();
       expect(result._id).toBe('nota123');
     });
@@ -659,6 +670,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         codigoCIE10Principal: 'A30',
         codigosCIE10Complementarios: ['B20'],
         estado: DocumentoEstado.BORRADOR,
+        idTrabajador: 'trabajador123',
       };
 
       const updateDto = {
@@ -681,7 +693,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
       });
 
       await expect(
-        service.updateOrCreateDocument('notaMedica', 'nota123', updateDto),
+        service.updateOrCreateDocument('notaMedica', 'nota123', updateDto, 'user123'),
       ).rejects.toThrow(BadRequestException);
 
       try {
@@ -689,6 +701,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
           'notaMedica',
           'nota123',
           updateDto,
+          'user123',
         );
       } catch (error: any) {
         expect(error.response.ruleId).toBe('B4');
@@ -706,6 +719,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         codigoCIE10Principal: 'A30',
         codigosCIE10Complementarios: ['B20'],
         estado: DocumentoEstado.BORRADOR,
+        idTrabajador: 'trabajador123',
       };
 
       const updateDto = {
@@ -735,6 +749,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         'notaMedica',
         'nota123',
         updateDto,
+        'user123',
       );
       expect(result).toBeDefined();
     });
@@ -796,12 +811,12 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         save: mockNotaMedicaModel.save,
       }));
 
-      await expect(service.createDocument('notaMedica', dto)).rejects.toThrow(
+      await expect(service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador)).rejects.toThrow(
         BadRequestException,
       );
 
       try {
-        await service.createDocument('notaMedica', dto);
+        await service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador);
       } catch (error: any) {
         expect(error.response.code).toBe('VALIDATION_ERROR');
         expect(error.response.ruleId).toBe('C4');
@@ -841,12 +856,12 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         save: mockNotaMedicaModel.save,
       }));
 
-      await expect(service.createDocument('notaMedica', dto)).rejects.toThrow(
+      await expect(service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador)).rejects.toThrow(
         BadRequestException,
       );
 
       try {
-        await service.createDocument('notaMedica', dto);
+        await service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador);
       } catch (error: any) {
         expect(error.response.code).toBe('VALIDATION_ERROR');
         expect(error.response.ruleId).toBe('C3');
@@ -887,7 +902,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         .fn()
         .mockResolvedValue(undefined);
 
-      const result = await service.createDocument('notaMedica', dto);
+      const result = await service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador);
       expect(result).toBeDefined();
       expect(result._id).toBe('nota123');
     });
@@ -924,7 +939,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         .fn()
         .mockResolvedValue(undefined);
 
-      const result = await service.createDocument('notaMedica', dto);
+      const result = await service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador);
       expect(result).toBeDefined();
     });
 
@@ -954,12 +969,12 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         save: mockNotaMedicaModel.save,
       }));
 
-      await expect(service.createDocument('notaMedica', dto)).rejects.toThrow(
+      await expect(service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador)).rejects.toThrow(
         BadRequestException,
       );
 
       try {
-        await service.createDocument('notaMedica', dto);
+        await service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador);
       } catch (error: any) {
         expect(error.response.ruleId).toBe('C4');
         expect(error.response.details[0].edadTrabajador).toBe(35);
@@ -977,6 +992,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         fechaNotaMedica: new Date('2024-01-01'),
         codigoCIE10Principal: 'A30',
         estado: DocumentoEstado.BORRADOR,
+        idTrabajador: 'trabajador123',
       };
 
       const updateDto = {
@@ -1006,7 +1022,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
       });
 
       await expect(
-        service.updateOrCreateDocument('notaMedica', 'nota123', updateDto),
+        service.updateOrCreateDocument('notaMedica', 'nota123', updateDto, 'user123'),
       ).rejects.toThrow(BadRequestException);
 
       try {
@@ -1014,6 +1030,7 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
           'notaMedica',
           'nota123',
           updateDto,
+          'user123',
         );
       } catch (error: any) {
         expect(error.response.code).toBe('VALIDATION_ERROR');
@@ -1049,12 +1066,12 @@ describe('ExpedientesService - Document Immutability Enforcement', () => {
         save: mockNotaMedicaModel.save,
       }));
 
-      await expect(service.createDocument('notaMedica', dto)).rejects.toThrow(
+      await expect(service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador)).rejects.toThrow(
         BadRequestException,
       );
 
       try {
-        await service.createDocument('notaMedica', dto);
+        await service.createDocument('notaMedica', dto, 'user123', dto.idTrabajador);
       } catch (error: any) {
         expect(error.response.details.length).toBeGreaterThan(1);
         // Debe reportar C61 y N40

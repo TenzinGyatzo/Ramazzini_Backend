@@ -81,6 +81,7 @@ import { AuditService } from '../audit/audit.service';
 import { UsersService } from '../users/users.service';
 
 import { WorkerFusionService } from '../trabajadores/worker-fusion.service';
+import { OrganizationalAccessService } from '../../utils/organizational-access.service';
 
 import { FirmanteHelper } from './helpers/firmante-helper';
 
@@ -333,12 +334,13 @@ describe('ExpedientesService.countDocumentosByTrabajador', () => {
 
         { provide: UsersService, useValue: {} },
 
-        { provide: WorkerFusionService, useValue: {} },
+        { provide: WorkerFusionService, useValue: { getCanonicalTrabajadorId: jest.fn(async (id: string) => id) } },
 
         { provide: FirmanteHelper, useValue: {} },
 
         { provide: CexCatalogResolver, useValue: {} },
         { provide: FichaSnapshotService, useValue: { capturar: jest.fn() } },
+        { provide: OrganizationalAccessService, useValue: { assertUserCanAccessTrabajadorId: jest.fn().mockResolvedValue(undefined) } },
 
       ],
 
@@ -362,7 +364,7 @@ describe('ExpedientesService.countDocumentosByTrabajador', () => {
 
     await expect(
 
-      service.countDocumentosByTrabajador('id-invalido'),
+      service.countDocumentosByTrabajador('id-invalido', 'user-actor'),
 
     ).rejects.toBeInstanceOf(BadRequestException);
 
@@ -376,7 +378,7 @@ describe('ExpedientesService.countDocumentosByTrabajador', () => {
 
 
 
-    const result = await service.countDocumentosByTrabajador(trabajadorId);
+    const result = await service.countDocumentosByTrabajador(trabajadorId, 'user-actor');
 
 
 
@@ -418,7 +420,7 @@ describe('ExpedientesService.countDocumentosByTrabajador', () => {
 
     const trabajadorId = new Types.ObjectId().toString();
 
-    const result = await service.countDocumentosByTrabajador(trabajadorId);
+    const result = await service.countDocumentosByTrabajador(trabajadorId, 'user-actor');
 
 
 

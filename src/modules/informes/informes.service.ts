@@ -297,10 +297,13 @@ export class InformesService {
   async withPdfGenerationStatus<T>(
     documentType: string,
     documentId: string,
+    actorUserId: string,
     generator: () => Promise<T>,
   ): Promise<T> {
+    // Un fallo de setPdfStatus (p. ej. 403) no autoriza el PDF: el generator
+    // debe volver a pasar por findDocumentLean/Select con el mismo actor JWT.
     await this.expedientesService
-      .setPdfStatus(documentType, documentId, PdfStatus.GENERATING)
+      .setPdfStatus(documentType, documentId, PdfStatus.GENERATING, actorUserId)
       .catch((err) =>
         console.warn(
           `[withPdfGenerationStatus] No se pudo marcar generating (${documentType}/${documentId}):`,
@@ -311,7 +314,7 @@ export class InformesService {
     try {
       const result = await generator();
       await this.expedientesService
-        .setPdfStatus(documentType, documentId, PdfStatus.READY)
+        .setPdfStatus(documentType, documentId, PdfStatus.READY, actorUserId)
         .catch((err) =>
           console.warn(
             `[withPdfGenerationStatus] No se pudo marcar ready (${documentType}/${documentId}):`,
@@ -321,7 +324,7 @@ export class InformesService {
       return result;
     } catch (error) {
       await this.expedientesService
-        .setPdfStatus(documentType, documentId, PdfStatus.FAILED)
+        .setPdfStatus(documentType, documentId, PdfStatus.FAILED, actorUserId)
         .catch((err) =>
           console.warn(
             `[withPdfGenerationStatus] No se pudo marcar failed (${documentType}/${documentId}):`,
@@ -347,6 +350,7 @@ export class InformesService {
       documentType,
       documentId,
       'idTrabajador rutaPDF',
+      finalizadorId,
     );
 
     // 2. empresaId + trabajador canónico (sin riesgos ni centro completo)
@@ -368,6 +372,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'aptitud':
@@ -376,6 +381,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'certificado':
@@ -384,6 +390,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'certificadoExpedito':
@@ -392,6 +399,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'examenVista':
@@ -400,6 +408,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'exploracionFisica':
@@ -408,6 +417,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'historiaClinica':
@@ -416,6 +426,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'notaMedica':
@@ -424,6 +435,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'notaAclaratoria':
@@ -432,6 +444,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'controlPrenatal':
@@ -440,6 +453,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'historiaOtologica':
@@ -448,6 +462,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'previoEspirometria':
@@ -456,6 +471,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'receta':
@@ -464,6 +480,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'constanciaAptitud':
@@ -472,6 +489,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'audiometria':
@@ -480,6 +498,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'entrevistaPsicologica':
@@ -488,6 +507,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'trastornosEstadoAnimo':
@@ -496,6 +516,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'cuestionarioProdromalBreve':
@@ -504,6 +525,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'trastornoLimitePersonalidad':
@@ -512,6 +534,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'eventoSeguimientoCardiometabolico':
@@ -520,6 +543,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'informeLongitudinalCardiometabolico':
@@ -528,6 +552,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         case 'informeLongitudinalAudiometrico':
@@ -536,6 +561,7 @@ export class InformesService {
             trabajadorId,
             documentId,
             finalizadorId,
+          finalizadorId,
             undefined,
           );
         default:
@@ -568,6 +594,7 @@ export class InformesService {
           trabajadorId,
           documentId,
           finalizadorId,
+          finalizadorId,
           footerFirmantesData,
         );
       case 'aptitud':
@@ -575,6 +602,7 @@ export class InformesService {
           empresaId,
           trabajadorId,
           documentId,
+          finalizadorId,
           finalizadorId,
           footerFirmantesData,
         );
@@ -584,6 +612,7 @@ export class InformesService {
           trabajadorId,
           documentId,
           finalizadorId,
+          finalizadorId,
           footerFirmantesData,
         );
       case 'certificadoExpedito':
@@ -591,6 +620,7 @@ export class InformesService {
           empresaId,
           trabajadorId,
           documentId,
+          finalizadorId,
           finalizadorId,
           footerFirmantesData,
         );
@@ -600,6 +630,7 @@ export class InformesService {
           trabajadorId,
           documentId,
           finalizadorId,
+          finalizadorId,
           footerFirmantesData,
         );
       case 'exploracionFisica':
@@ -607,6 +638,7 @@ export class InformesService {
           empresaId,
           trabajadorId,
           documentId,
+          finalizadorId,
           finalizadorId,
           footerFirmantesData,
         );
@@ -616,6 +648,7 @@ export class InformesService {
           trabajadorId,
           documentId,
           finalizadorId,
+          finalizadorId,
           footerFirmantesData,
         );
       case 'notaMedica':
@@ -623,6 +656,7 @@ export class InformesService {
           empresaId,
           trabajadorId,
           documentId,
+          finalizadorId,
           finalizadorId,
           footerFirmantesData,
         );
@@ -632,6 +666,7 @@ export class InformesService {
           trabajadorId,
           documentId,
           finalizadorId,
+          finalizadorId,
           footerFirmantesData,
         );
       case 'controlPrenatal':
@@ -639,6 +674,7 @@ export class InformesService {
           empresaId,
           trabajadorId,
           documentId,
+          finalizadorId,
           finalizadorId,
           footerFirmantesData,
         );
@@ -648,6 +684,7 @@ export class InformesService {
           trabajadorId,
           documentId,
           finalizadorId,
+          finalizadorId,
           footerFirmantesData,
         );
       case 'previoEspirometria':
@@ -655,6 +692,7 @@ export class InformesService {
           empresaId,
           trabajadorId,
           documentId,
+          finalizadorId,
           finalizadorId,
           footerFirmantesData,
         );
@@ -664,6 +702,7 @@ export class InformesService {
           trabajadorId,
           documentId,
           finalizadorId,
+          finalizadorId,
           footerFirmantesData,
         );
       case 'constanciaAptitud':
@@ -672,6 +711,7 @@ export class InformesService {
           trabajadorId,
           documentId,
           finalizadorId,
+          finalizadorId,
           footerFirmantesData,
         );
       case 'audiometria':
@@ -679,6 +719,7 @@ export class InformesService {
           empresaId,
           trabajadorId,
           documentId,
+          finalizadorId,
           finalizadorId,
           undefined, // audiometria tiene graficaAudiometria como parámetro opcional diferente
           footerFirmantesData,
@@ -689,6 +730,7 @@ export class InformesService {
           trabajadorId,
           documentId,
           finalizadorId,
+          finalizadorId,
           footerFirmantesData,
         );
       case 'trastornosEstadoAnimo':
@@ -696,6 +738,7 @@ export class InformesService {
           empresaId,
           trabajadorId,
           documentId,
+          finalizadorId,
           finalizadorId,
           footerFirmantesData,
         );
@@ -705,6 +748,7 @@ export class InformesService {
           trabajadorId,
           documentId,
           finalizadorId,
+          finalizadorId,
           footerFirmantesData,
         );
       case 'trastornoLimitePersonalidad':
@@ -712,6 +756,7 @@ export class InformesService {
           empresaId,
           trabajadorId,
           documentId,
+          finalizadorId,
           finalizadorId,
           footerFirmantesData,
         );
@@ -721,6 +766,7 @@ export class InformesService {
           trabajadorId,
           documentId,
           finalizadorId,
+          finalizadorId,
           footerFirmantesData,
         );
       case 'informeLongitudinalCardiometabolico':
@@ -729,6 +775,7 @@ export class InformesService {
           trabajadorId,
           documentId,
           finalizadorId,
+          finalizadorId,
           footerFirmantesData,
         );
       case 'informeLongitudinalAudiometrico':
@@ -736,6 +783,7 @@ export class InformesService {
           empresaId,
           trabajadorId,
           documentId,
+          finalizadorId,
           finalizadorId,
           footerFirmantesData,
         );
@@ -958,15 +1006,17 @@ export class InformesService {
     trabajadorId: string,
     antidopingId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: any,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('antidoping', antidopingId, async () => {
+    return this.withPdfGenerationStatus('antidoping', antidopingId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
     const antidoping = await this.expedientesService.findDocumentLean(
       'antidoping',
       antidopingId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       antidoping,
@@ -1201,16 +1251,18 @@ export class InformesService {
     trabajadorId: string,
     aptitudId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
     includeResultadosClinicos = true,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('aptitud', aptitudId, async () => {
+    return this.withPdfGenerationStatus('aptitud', aptitudId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
     const aptitud = await this.expedientesService.findDocumentLean(
       'aptitud',
       aptitudId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       aptitud,
@@ -1304,6 +1356,7 @@ export class InformesService {
     const [vecinosAptitud, resultadosClinicosList] = await Promise.all([
       this.expedientesService.findDocumentsForAptitudInformeVecinos(
         trabajadorId,
+      actorUserId,
       ),
       includeResultadosClinicos
         ? this.resultadosClinicosService.findByTrabajador(trabajadorId)
@@ -1644,15 +1697,17 @@ export class InformesService {
     trabajadorId: string,
     constanciaAptitudId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('constanciaAptitud', constanciaAptitudId, async () => {
+    return this.withPdfGenerationStatus('constanciaAptitud', constanciaAptitudId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
     const constanciaAptitud = await this.expedientesService.findDocumentLean(
       'constanciaAptitud',
       constanciaAptitudId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       constanciaAptitud,
@@ -1790,16 +1845,18 @@ export class InformesService {
     trabajadorId: string,
     audiometriaId: string,
     userId: string,
+    actorUserId: string,
     graficaAudiometria?: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('audiometria', audiometriaId, async () => {
+    return this.withPdfGenerationStatus('audiometria', audiometriaId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
     const audiometria = await this.expedientesService.findDocumentLean(
       'audiometria',
       audiometriaId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       audiometria,
@@ -2017,15 +2074,17 @@ export class InformesService {
     trabajadorId: string,
     certificadoId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('certificado', certificadoId, async () => {
+    return this.withPdfGenerationStatus('certificado', certificadoId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
     const certificado = await this.expedientesService.findDocumentLean(
       'certificado',
       certificadoId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       certificado,
@@ -2087,6 +2146,7 @@ export class InformesService {
     const exploracionesFisicas = await this.expedientesService.findDocuments(
       'exploracionFisica',
       trabajadorId,
+    actorUserId,
     );
 
     const nearestExploracionFisica = exploracionesFisicas?.length
@@ -2161,6 +2221,7 @@ export class InformesService {
     const examenesVista = await this.expedientesService.findDocuments(
       'examenVista',
       trabajadorId,
+    actorUserId,
     );
     const nearestExamenVista = examenesVista?.length
       ? findNearestDocument(
@@ -2290,15 +2351,17 @@ export class InformesService {
     trabajadorId: string,
     certificadoExpeditoId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('certificadoExpedito', certificadoExpeditoId, async () => {
+    return this.withPdfGenerationStatus('certificadoExpedito', certificadoExpeditoId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
     const certificadoExpedito = await this.expedientesService.findDocumentLean(
       'certificadoExpedito',
       certificadoExpeditoId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       certificadoExpedito,
@@ -2428,15 +2491,17 @@ export class InformesService {
     trabajadorId: string,
     examenVistaId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('examenVista', examenVistaId, async () => {
+    return this.withPdfGenerationStatus('examenVista', examenVistaId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
     const examenVista = await this.expedientesService.findDocumentLean(
       'examenVista',
       examenVistaId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       examenVista,
@@ -2649,9 +2714,10 @@ export class InformesService {
     trabajadorId: string,
     exploracionFisicaId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('exploracionFisica', exploracionFisicaId, async () => {
+    return this.withPdfGenerationStatus('exploracionFisica', exploracionFisicaId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
@@ -2659,6 +2725,7 @@ export class InformesService {
     const exploracionFisica = await this.expedientesService.findDocumentLean(
       'exploracionFisica',
       exploracionFisicaId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       exploracionFisica,
@@ -2902,15 +2969,17 @@ export class InformesService {
     trabajadorId: string,
     historiaClinicaId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('historiaClinica', historiaClinicaId, async () => {
+    return this.withPdfGenerationStatus('historiaClinica', historiaClinicaId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
     const historiaClinica = await this.expedientesService.findDocumentLean(
       'historiaClinica',
       historiaClinicaId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       historiaClinica,
@@ -3196,14 +3265,16 @@ export class InformesService {
     trabajadorId: string,
     notaMedicaId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('notaMedica', notaMedicaId, async () => {
+    return this.withPdfGenerationStatus('notaMedica', notaMedicaId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
     const notaMedica = await this.expedientesService.findDocumentLean(
       'notaMedica',
       notaMedicaId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       notaMedica,
@@ -3443,14 +3514,16 @@ export class InformesService {
     trabajadorId: string,
     notaAclaratoriaId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('notaAclaratoria', notaAclaratoriaId, async () => {
+    return this.withPdfGenerationStatus('notaAclaratoria', notaAclaratoriaId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
     const notaAclaratoria = await this.expedientesService.findDocumentLean(
       'notaAclaratoria',
       notaAclaratoriaId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       notaAclaratoria,
@@ -3472,6 +3545,7 @@ export class InformesService {
       documentoOrigen = await this.expedientesService.findDocumentLean(
         tipoDocumentoNormalizado,
         documentoOrigenId,
+        actorUserId,
         {
           populateRefs: [
             { path: 'finalizadoPor', select: 'username' },
@@ -3715,14 +3789,16 @@ export class InformesService {
     trabajadorId: string,
     controlPrenatalId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('controlPrenatal', controlPrenatalId, async () => {
+    return this.withPdfGenerationStatus('controlPrenatal', controlPrenatalId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
     const controlPrenatal = await this.expedientesService.findDocumentLean(
       'controlPrenatal',
       controlPrenatalId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       controlPrenatal,
@@ -4014,14 +4090,16 @@ export class InformesService {
     trabajadorId: string,
     historiaOtologicaId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('historiaOtologica', historiaOtologicaId, async () => {
+    return this.withPdfGenerationStatus('historiaOtologica', historiaOtologicaId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
     const historiaOtologica = await this.expedientesService.findDocumentLean(
       'historiaOtologica',
       historiaOtologicaId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       historiaOtologica,
@@ -4244,14 +4322,16 @@ export class InformesService {
     trabajadorId: string,
     previoEspirometriaId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('previoEspirometria', previoEspirometriaId, async () => {
+    return this.withPdfGenerationStatus('previoEspirometria', previoEspirometriaId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
     const previoEspirometria = await this.expedientesService.findDocumentLean(
       'previoEspirometria',
       previoEspirometriaId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       previoEspirometria,
@@ -4480,14 +4560,16 @@ export class InformesService {
     trabajadorId: string,
     recetaId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('receta', recetaId, async () => {
+    return this.withPdfGenerationStatus('receta', recetaId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
     const receta = await this.expedientesService.findDocumentLean(
       'receta',
       recetaId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       receta,
@@ -4605,9 +4687,10 @@ export class InformesService {
     trabajadorId: string,
     entrevistaPsicologicaId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('entrevistaPsicologica', entrevistaPsicologicaId, async () => {
+    return this.withPdfGenerationStatus('entrevistaPsicologica', entrevistaPsicologicaId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
@@ -4615,6 +4698,7 @@ export class InformesService {
     const entrevistaPsicologica = await this.expedientesService.findDocumentLean(
       'entrevistaPsicologica',
       entrevistaPsicologicaId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       entrevistaPsicologica,
@@ -4846,9 +4930,10 @@ export class InformesService {
     trabajadorId: string,
     trastornosEstadoAnimoId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('trastornosEstadoAnimo', trastornosEstadoAnimoId, async () => {
+    return this.withPdfGenerationStatus('trastornosEstadoAnimo', trastornosEstadoAnimoId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
@@ -4856,6 +4941,7 @@ export class InformesService {
     const trastornosEstadoAnimo = await this.expedientesService.findDocumentLean(
       'trastornosEstadoAnimo',
       trastornosEstadoAnimoId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       trastornosEstadoAnimo,
@@ -5075,9 +5161,10 @@ export class InformesService {
     trabajadorId: string,
     cuestionarioProdromalBreveId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('cuestionarioProdromalBreve', cuestionarioProdromalBreveId, async () => {
+    return this.withPdfGenerationStatus('cuestionarioProdromalBreve', cuestionarioProdromalBreveId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
@@ -5086,6 +5173,7 @@ export class InformesService {
       await this.expedientesService.findDocumentLean(
         'cuestionarioProdromalBreve',
         cuestionarioProdromalBreveId,
+      actorUserId,
       );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       cuestionarioProdromalBreve,
@@ -5342,9 +5430,10 @@ export class InformesService {
     trabajadorId: string,
     trastornoLimitePersonalidadId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('trastornoLimitePersonalidad', trastornoLimitePersonalidadId, async () => {
+    return this.withPdfGenerationStatus('trastornoLimitePersonalidad', trastornoLimitePersonalidadId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
@@ -5353,6 +5442,7 @@ export class InformesService {
       await this.expedientesService.findDocumentLean(
         'trastornoLimitePersonalidad',
         trastornoLimitePersonalidadId,
+      actorUserId,
       );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       trastornoLimitePersonalidad,
@@ -5563,7 +5653,11 @@ export class InformesService {
     empresaId: string,
     trabajadorId: string,
     userId: string,
+    actorUserId: string,
   ): Promise<Buffer> {
+    // El dashboard no lee ExpedientesService; el actor JWT lo exige el
+    // contrato HTTP para no reutilizar el userId de URL como identidad.
+    void actorUserId;
     const empresa = await this.empresasService.findOne(empresaId);
     const nombreEmpresa = empresa.nombreComercial;
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
@@ -5636,9 +5730,10 @@ export class InformesService {
     trabajadorId: string,
     eventoSeguimientoCardiometabolicoId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
   ): Promise<string> {
-    return this.withPdfGenerationStatus('eventoSeguimientoCardiometabolico', eventoSeguimientoCardiometabolicoId, async () => {
+    return this.withPdfGenerationStatus('eventoSeguimientoCardiometabolico', eventoSeguimientoCardiometabolicoId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
@@ -5647,6 +5742,7 @@ export class InformesService {
       await this.expedientesService.findDocumentLean(
         'eventoSeguimientoCardiometabolico',
         eventoSeguimientoCardiometabolicoId,
+      actorUserId,
       );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       eventoSeguimientoCardiometabolico,
@@ -5850,6 +5946,7 @@ export class InformesService {
     trabajadorId: string,
     informeLongitudinalCardiometabolicoId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
     graficasOverride?: {
       graficaEvolucionGlucemica?: string;
@@ -5858,7 +5955,7 @@ export class InformesService {
       graficaEvolucionPerfilLipidico?: string;
     },
   ): Promise<string> {
-    return this.withPdfGenerationStatus('informeLongitudinalCardiometabolico', informeLongitudinalCardiometabolicoId, async () => {
+    return this.withPdfGenerationStatus('informeLongitudinalCardiometabolico', informeLongitudinalCardiometabolicoId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
@@ -5867,6 +5964,7 @@ export class InformesService {
       await this.expedientesService.findDocumentLean(
         'informeLongitudinalCardiometabolico',
         informeLongitudinalCardiometabolicoId,
+      actorUserId,
       );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       informeLongitudinalCardiometabolico,
@@ -6110,19 +6208,21 @@ export class InformesService {
     trabajadorId: string,
     informeLongitudinalAudiometricoId: string,
     userId: string,
+    actorUserId: string,
     footerFirmantesData?: FooterFirmantesData,
     graficasOverride?: {
       graficaAudiogramaOidoDerecho?: string;
       graficaAudiogramaOidoIzquierdo?: string;
     },
   ): Promise<string> {
-    return this.withPdfGenerationStatus('informeLongitudinalAudiometrico', informeLongitudinalAudiometricoId, async () => {
+    return this.withPdfGenerationStatus('informeLongitudinalAudiometrico', informeLongitudinalAudiometricoId, actorUserId, async () => {
     const empresa = await this.empresasService.findOne(empresaId);
     const trabajador = await this.trabajadoresService.findOne(trabajadorId, { includeRiesgos: false });
 
     const informe = await this.expedientesService.findDocumentLean(
       'informeLongitudinalAudiometrico',
       informeLongitudinalAudiometricoId,
+    actorUserId,
     );
     const { datosTrabajador, nombreEmpresa } = this.resolveFichaParaInforme(
       informe,

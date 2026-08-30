@@ -10,6 +10,7 @@ import { CatalogsService } from '../catalogs/catalogs.service';
 import { NOM024ComplianceUtil } from '../../utils/nom024-compliance.util';
 import { FilesService } from '../files/files.service';
 import { FichaSnapshotService } from './services/ficha-snapshot.service';
+import { OrganizationalAccessService } from '../../utils/organizational-access.service';
 import { DocumentoEstado } from './enums/documento-estado.enum';
 
 describe('GIIS-B019 Detección Validation', () => {
@@ -160,6 +161,12 @@ describe('GIIS-B019 Detección Validation', () => {
         {
           provide: FichaSnapshotService,
           useValue: { capturar: jest.fn().mockResolvedValue(null) },
+        },
+        {
+          provide: OrganizationalAccessService,
+          useValue: {
+            assertUserCanAccessTrabajadorId: jest.fn().mockResolvedValue(undefined),
+          },
         },
       ],
     }).compile();
