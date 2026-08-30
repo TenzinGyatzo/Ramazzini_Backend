@@ -26,6 +26,7 @@ describe('UsersService — tokens (H-34)', () => {
     find: jest.fn(),
     findOneAndDelete: jest.fn(),
     findByIdAndUpdate: jest.fn(),
+    updateOne: jest.fn(),
   };
 
   const mockUser = (overrides: Record<string, unknown> = {}) => ({
@@ -47,6 +48,7 @@ describe('UsersService — tokens (H-34)', () => {
   beforeEach(() => {
     savedUsers = [];
     userModel.findOne.mockClear();
+    userModel.updateOne.mockClear();
 
     service = new UsersService(
       userModel as any,
@@ -136,6 +138,74 @@ describe('UsersService — tokens (H-34)', () => {
 
     expect(result.token).toHaveLength(64);
     expect(result.tokenExpiresAt).toBeInstanceOf(Date);
+  });
+
+  it('clearPasswordResetTokenIfMatches solo limpia si el token almacenado coincide', async () => {
+    userModel.updateOne.mockImplementation((filter: { token?: string }) => ({
+      exec: jest.fn(async () => {
+        const user = savedUsers.find((u) => u.token === filter.token);
+        if (!user) {
+          return { modifiedCount: 0 };
+        }
+        user.token = '';
+        user.tokenExpiresAt = null;
+        return { modifiedCount: 1 };
+      }),
+    }));
+
+    const user = mockUser({
+      _id: 'user-1',
+      token: 'issued-token-aaa',
+      tokenExpiresAt: new Date(Date.now() + 60_000),
+    });
+    savedUsers.push(user);
+
+    await service.clearPasswordResetTokenIfMatches(
+      'user-1',
+      'issued-token-aaa',
+    );
+
+    expect(userModel.updateOne).toHaveBeenCalledWith(
+      { _id: 'user-1', token: 'issued-token-aaa' },
+      { $set: { token: '', tokenExpiresAt: null } },
+    );
+    expect(user.token).toBe('');
+    expect(user.tokenExpiresAt).toBeNull();
+  });
+
+  it('clearPasswordResetTokenIfMatches no borra un token posterior o distinto', async () => {
+    userModel.updateOne.mockImplementation((filter: { token?: string }) => ({
+      exec: jest.fn(async () => {
+        const user = savedUsers.find((u) => u.token === filter.token);
+        if (!user) {
+          return { modifiedCount: 0 };
+        }
+        user.token = '';
+        user.tokenExpiresAt = null;
+        return { modifiedCount: 1 };
+      }),
+    }));
+
+    const laterToken = 'later-token-bbb';
+    const laterExpiry = new Date(Date.now() + 3_600_000);
+    const user = mockUser({
+      _id: 'user-1',
+      token: laterToken,
+      tokenExpiresAt: laterExpiry,
+    });
+    savedUsers.push(user);
+
+    await service.clearPasswordResetTokenIfMatches(
+      'user-1',
+      'stale-token-aaa',
+    );
+
+    expect(userModel.updateOne).toHaveBeenCalledWith(
+      { _id: 'user-1', token: 'stale-token-aaa' },
+      { $set: { token: '', tokenExpiresAt: null } },
+    );
+    expect(user.token).toBe(laterToken);
+    expect(user.tokenExpiresAt).toBe(laterExpiry);
   });
 
   it('issuePasswordResetToken lanza NotFoundException con msg si no existe email', async () => {

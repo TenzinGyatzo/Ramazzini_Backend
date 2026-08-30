@@ -22,6 +22,7 @@ describe('UsersController — throttling (H-28)', () => {
     issuePasswordResetToken: jest.fn().mockRejectedValue(
       new NotFoundException({ msg: 'El usuario no existe' }),
     ),
+    clearPasswordResetTokenIfMatches: jest.fn(),
     findById: jest.fn(),
   };
 

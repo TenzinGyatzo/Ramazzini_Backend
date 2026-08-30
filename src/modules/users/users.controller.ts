@@ -68,6 +68,8 @@ const LOGIN_FAIL_REASON = {
 type LoginFailReason =
   (typeof LOGIN_FAIL_REASON)[keyof typeof LOGIN_FAIL_REASON];
 const RESOURCE_TYPE_USER = 'USER';
+export const PASSWORD_RESET_EMAIL_FAIL_MSG =
+  'No se pudo enviar el correo. Intenta de nuevo más tarde.';
 
 type LoginContext = 'PRIMARY_LOGIN' | 'SESSION_UNLOCK' | 'TOKEN_REFRESH';
 
@@ -628,12 +630,35 @@ export class UsersController {
   async forgotPassword(@Body() body: { email: string }) {
     const { email } = body;
     const result = await this.usersService.issuePasswordResetToken(email);
+    const issuedToken = result.token;
+    const userId = (result as any)._id?.toString?.() ?? '';
 
-    this.emailsService.sendEmailPasswordReset({
-      username: result.username,
-      email: result.email,
-      token: result.token,
-    });
+    try {
+      await this.emailsService.sendEmailPasswordReset({
+        username: result.username,
+        email: result.email,
+        token: issuedToken,
+      });
+    } catch {
+      try {
+        await this.usersService.clearPasswordResetTokenIfMatches(
+          userId,
+          issuedToken,
+        );
+      } catch (cleanupError) {
+        this.logger.warn(
+          `No se pudo invalidar el token de recuperación tras fallo de envío: ${
+            cleanupError instanceof Error
+              ? cleanupError.message
+              : String(cleanupError)
+          }`,
+        );
+      }
+      throw new HttpException(
+        { msg: PASSWORD_RESET_EMAIL_FAIL_MSG },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
 
     return { msg: 'Hemos enviado un email con las instrucciones' };
   }

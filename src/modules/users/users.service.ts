@@ -154,6 +154,25 @@ export class UsersService {
     return user.save();
   }
 
+  /**
+   * Invalida el token de recuperación solo si sigue siendo el valor emitido
+   * por esta solicitud (no toca un token posterior o de otro flujo).
+   */
+  async clearPasswordResetTokenIfMatches(
+    userId: string,
+    expectedToken: string,
+  ): Promise<void> {
+    if (!userId || !expectedToken) {
+      return;
+    }
+    await this.userModel
+      .updateOne(
+        { _id: userId, token: expectedToken },
+        { $set: { token: '', tokenExpiresAt: null } },
+      )
+      .exec();
+  }
+
   async resetPasswordWithToken(
     token: string,
     password: string,

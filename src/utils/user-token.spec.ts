@@ -10,6 +10,10 @@ import {
 } from './user-token';
 
 describe('user-token (H-34)', () => {
+  it('TOKEN_TTL_MS.reset permanece en 60 minutos', () => {
+    expect(TOKEN_TTL_MS.reset).toBe(60 * 60 * 1000);
+  });
+
   it('generateSecureToken produce 64 caracteres hex', () => {
     const token = generateSecureToken();
     expect(token).toHaveLength(64);

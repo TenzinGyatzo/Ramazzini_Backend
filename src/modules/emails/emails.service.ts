@@ -54,7 +54,6 @@ export class EmailsService {
     const info = await transporter.sendMail({
       from: `"Soporte Ramazzini" <${process.env.EMAIL_USER}>`,
       to: email,
-      bcc: process.env.EMAIL_USER, // Copia oculta al remitente
       subject: 'Ramazzini - Reestablece tu contraseña',
       text: 'Ramazzini - Reestablece tu contraseña',
       html: `
