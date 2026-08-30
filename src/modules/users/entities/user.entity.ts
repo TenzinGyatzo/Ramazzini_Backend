@@ -22,6 +22,7 @@ export class User extends Document {
     accesoRiesgosTrabajo: boolean;
   };
   cuentaActiva?: boolean;
+  tokensInvalidBefore?: Date | null;
   empresasAsignadas?: string[];
   centrosTrabajoAsignados?: string[];
   checkPassword: (inputPassword: string) => Promise<boolean>;

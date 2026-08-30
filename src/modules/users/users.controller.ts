@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
   HttpException,
+  Logger,
   Param,
   Delete,
   Query,
@@ -53,6 +54,7 @@ import { AuditActionType } from '../audit/constants/audit-action-type';
 import { AuditEventClass } from '../audit/constants/audit-event-class';
 import { LoginLockoutService } from './login-lockout.service';
 import { SessionActivityService } from './session-activity.service';
+import { isIssuedBeforeWatermark } from 'src/utils/account-status.constants';
 
 const LOGIN_FAIL_REASON = {
   USER_NOT_FOUND: 'USER_NOT_FOUND',
@@ -72,6 +74,8 @@ type LoginContext = 'PRIMARY_LOGIN' | 'SESSION_UNLOCK' | 'TOKEN_REFRESH';
 @Controller('auth/users')
 @ApiTags('Usuarios')
 export class UsersController {
+  private readonly logger = new Logger(UsersController.name);
+
   private normalizeIds(values?: string[] | null): string[] {
     if (!values) return [];
     return Array.from(new Set(values.map(String))).sort();
@@ -149,6 +153,27 @@ export class UsersController {
       ip,
       userAgent,
     };
+  }
+
+  private async revokeUserSessionsBestEffort(userId: string): Promise<void> {
+    try {
+      await this.refreshTokenService.revokeAllForUser(userId);
+    } catch (error) {
+      this.logger.warn(
+        `No se pudieron revocar refresh sessions del usuario ${userId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    try {
+      await this.sessionActivityService.revokeAllForUser(userId);
+    } catch (error) {
+      this.logger.warn(
+        `No se pudieron revocar activity sessions del usuario ${userId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   private buildLoginSuccessPayload(
@@ -553,11 +578,22 @@ export class UsersController {
   async refresh(@Req() req: Request, @Res() res: Response) {
     const sid = getSidFromRequest(req);
     const presentedRefresh = getRefreshTokenFromCookies(req.cookies);
-    const { userId, newRefreshToken } =
+    const { userId, newRefreshToken, previousCreatedAt } =
       await this.refreshTokenService.rotate(presentedRefresh ?? '');
 
     const user = await this.usersService.findById(userId);
-    if (!user || !user.verified || !user.cuentaActiva) {
+    const watermarkInvalidatesRefresh = isIssuedBeforeWatermark(
+      previousCreatedAt ? previousCreatedAt.getTime() : undefined,
+      (user as { tokensInvalidBefore?: Date | null } | null)
+        ?.tokensInvalidBefore,
+    );
+    if (
+      !user ||
+      !user.verified ||
+      !user.cuentaActiva ||
+      watermarkInvalidatesRefresh
+    ) {
+      await this.refreshTokenService.revoke(newRefreshToken).catch(() => {});
       clearAuthCookies(res);
       throw new UnauthorizedException('Sesión inválida');
     }
@@ -695,6 +731,7 @@ export class UsersController {
     const resourceId = targetUserId;
 
     const user = await this.usersService.removeUserByEmail(email);
+    await this.revokeUserSessionsBestEffort(targetUserId);
     const actorProveedorSaludId =
       await this.usersService.getIdProveedorSaludByUserId(actorId);
     await this.auditService.record({
@@ -897,6 +934,10 @@ export class UsersController {
     );
     if (!user) {
       return res.status(404).json({ msg: 'Usuario no encontrado' });
+    }
+
+    if (!body.cuentaActiva) {
+      await this.revokeUserSessionsBestEffort(userId);
     }
 
     const actorProveedorSaludId =

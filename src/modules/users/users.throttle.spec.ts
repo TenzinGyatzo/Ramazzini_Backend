@@ -9,6 +9,10 @@ import { UsersService } from './users.service';
 import { EmailsService } from '../emails/emails.service';
 import { RefreshTokenService } from './refresh-token.service';
 import { JwtAuthGuard } from 'src/utils/guards/jwt-auth.guard';
+import { DeletionPasswordGuard } from 'src/utils/guards/deletion-password.guard';
+import { AuditService } from '../audit/audit.service';
+import { LoginLockoutService } from './login-lockout.service';
+import { SessionActivityService } from './session-activity.service';
 import { AUTH_FORGOT_PASSWORD } from 'src/utils/throttle/throttle-limits';
 
 describe('UsersController — throttling (H-28)', () => {
@@ -46,10 +50,28 @@ describe('UsersController — throttling (H-28)', () => {
         },
         {
           provide: RefreshTokenService,
-          useValue: { issue: jest.fn(), rotate: jest.fn(), revoke: jest.fn() },
+          useValue: {
+            issue: jest.fn(),
+            rotate: jest.fn(),
+            revoke: jest.fn(),
+            revokeAllForUser: jest.fn(),
+          },
+        },
+        { provide: AuditService, useValue: { record: jest.fn() } },
+        { provide: LoginLockoutService, useValue: {} },
+        {
+          provide: SessionActivityService,
+          useValue: {
+            revokeSession: jest.fn(),
+            revokeAllForUser: jest.fn(),
+            assertAndTouchSession: jest.fn(),
+          },
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(DeletionPasswordGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     app = module.createNestApplication<NestExpressApplication>();
     app.set('trust proxy', 1);

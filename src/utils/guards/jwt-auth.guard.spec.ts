@@ -48,15 +48,18 @@ describe('JwtAuthGuard', () => {
     );
   });
 
-  it('asigna userId cuando el token es válido', () => {
+  it('asigna userId y jwtIat cuando el token es válido', () => {
     jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-    (jwt.verify as jest.Mock).mockReturnValue({ id: 'user-123' });
+    (jwt.verify as jest.Mock).mockReturnValue({ id: 'user-123', iat: 1_700_000_000 });
 
     const req = { headers: { authorization: 'Bearer valid-token' } };
     const result = guard.canActivate(createContext(req));
 
     expect(result).toBe(true);
-    expect((req as { userId?: string }).userId).toBe('user-123');
+    expect((req as { userId?: string; jwtIat?: number }).userId).toBe(
+      'user-123',
+    );
+    expect((req as { jwtIat?: number }).jwtIat).toBe(1_700_000_000);
     expect(jwt.verify).toHaveBeenCalledWith('valid-token', 'test-secret');
   });
 

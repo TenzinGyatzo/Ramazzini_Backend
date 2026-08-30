@@ -13,6 +13,8 @@ export class RefreshSession {
 
   @Prop({ required: true })
   expiresAt: Date;
+
+  createdAt?: Date;
 }
 
 export const RefreshSessionSchema =

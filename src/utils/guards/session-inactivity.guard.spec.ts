@@ -25,6 +25,7 @@ describe('SessionInactivityGuard', () => {
     userId?: string;
     path?: string;
     isPublic?: boolean;
+    idProveedorSalud?: string | null;
   }): { ctx: ExecutionContext; request: Record<string, unknown> } => {
     const handler = jest.fn();
     if (opts.isPublic) {
@@ -33,6 +34,9 @@ describe('SessionInactivityGuard', () => {
     const request: Record<string, unknown> = {
       userId: opts.userId,
       path: opts.path ?? '/api/expedientes/abc',
+      ...(opts.idProveedorSalud !== undefined
+        ? { idProveedorSalud: opts.idProveedorSalud }
+        : {}),
     };
     const ctx = {
       getHandler: () => handler,
@@ -98,6 +102,21 @@ describe('SessionInactivityGuard', () => {
       '507f1f77bcf86cd799439012',
     );
     expect(request.idProveedorSalud).toBe('507f1f77bcf86cd799439012');
+  });
+
+  it('no consulta usuario si AccountStatusGuard ya precargó idProveedorSalud', async () => {
+    const { ctx } = createContext({
+      userId: 'user-1',
+      path: '/api/trabajadores',
+      idProveedorSalud: 'preloaded-proveedor',
+    });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(usersService.getIdProveedorSaludByUserId).not.toHaveBeenCalled();
+    expect(sessionActivityService.assertAndTouchSession).toHaveBeenCalledWith(
+      'sid-1',
+      'user-1',
+      'preloaded-proveedor',
+    );
   });
 
   it('propagates SESSION_IDLE from service', async () => {

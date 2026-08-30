@@ -9,7 +9,14 @@ import { ACCESS_COOKIE } from './auth-cookies';
 interface JwtPayload {
   id: string;
   sid?: string;
+  iat?: number;
 }
+
+export type VerifiedJwtPayload = {
+  id: string;
+  sid?: string;
+  iat?: number;
+};
 
 export function getAccessTokenFromRequest(req: Request): string {
   const cookieToken = req.cookies?.[ACCESS_COOKIE];
@@ -27,7 +34,9 @@ export function getAccessTokenFromRequest(req: Request): string {
   throw new UnauthorizedException('Token de autenticación requerido');
 }
 
-export function getUserIdFromRequest(req: Request): string {
+export function getVerifiedJwtPayloadFromRequest(
+  req: Request,
+): VerifiedJwtPayload {
   try {
     const token = getAccessTokenFromRequest(req);
     const decoded = jwt.verify(token, process.env.JWT_SECRET) as JwtPayload;
@@ -38,7 +47,11 @@ export function getUserIdFromRequest(req: Request): string {
       );
     }
 
-    return decoded.id;
+    return {
+      id: decoded.id,
+      sid: decoded.sid,
+      iat: decoded.iat,
+    };
   } catch (error) {
     if (
       error instanceof UnauthorizedException ||
@@ -48,6 +61,10 @@ export function getUserIdFromRequest(req: Request): string {
     }
     throw new UnauthorizedException('Token inválido o expirado');
   }
+}
+
+export function getUserIdFromRequest(req: Request): string {
+  return getVerifiedJwtPayloadFromRequest(req).id;
 }
 
 export function getSidFromRequest(req: Request): string | undefined {

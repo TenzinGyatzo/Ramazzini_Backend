@@ -57,11 +57,12 @@ export class SessionInactivityGuard implements CanActivate {
     }
 
     const sid = getSidFromRequest(request);
-    const proveedorSaludId =
-      await this.usersService.getIdProveedorSaludByUserId(userId);
-
-    // Compartir con ConfidentialityAgreementGuard (y otros) en el mismo request
-    request[REQUEST_PROVEEDOR_SALUD_ID_KEY] = proveedorSaludId;
+    let proveedorSaludId = request[REQUEST_PROVEEDOR_SALUD_ID_KEY];
+    if (proveedorSaludId === undefined) {
+      proveedorSaludId =
+        await this.usersService.getIdProveedorSaludByUserId(userId);
+      request[REQUEST_PROVEEDOR_SALUD_ID_KEY] = proveedorSaludId;
+    }
 
     await this.sessionActivityService.assertAndTouchSession(
       sid,

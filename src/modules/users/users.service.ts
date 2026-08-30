@@ -203,6 +203,39 @@ export class UsersService {
   }
 
   /**
+   * Lectura mínima para AccountStatusGuard (existe / verified / cuentaActiva / watermark / tenant).
+   * No cachear: una suspensión debe verse en el siguiente request.
+   */
+  async findAuthStatusById(userId: string): Promise<{
+    cuentaActiva: boolean;
+    verified: boolean;
+    idProveedorSalud: string | null;
+    tokensInvalidBefore: Date | null;
+  } | null> {
+    const doc = await this.userModel
+      .findById(userId)
+      .select('cuentaActiva verified idProveedorSalud tokensInvalidBefore')
+      .lean()
+      .exec();
+    if (!doc) {
+      return null;
+    }
+    const raw = doc as {
+      cuentaActiva?: boolean;
+      verified?: boolean;
+      idProveedorSalud?: unknown;
+      tokensInvalidBefore?: Date | null;
+    };
+    return {
+      cuentaActiva: raw.cuentaActiva === true,
+      verified: raw.verified === true,
+      idProveedorSalud:
+        raw.idProveedorSalud == null ? null : String(raw.idProveedorSalud),
+      tokensInvalidBefore: raw.tokensInvalidBefore ?? null,
+    };
+  }
+
+  /**
    * Devuelve username, email y role del usuario para snapshot de auditoría.
    * Una sola lectura con select mínimo.
    */
@@ -366,8 +399,27 @@ export class UsersService {
     userId: string,
     cuentaActiva: boolean,
   ): Promise<UserDocument | null> {
+    if (cuentaActiva) {
+      return this.userModel
+        .findByIdAndUpdate(
+          userId,
+          { $set: { cuentaActiva: true } },
+          { new: true },
+        )
+        .exec();
+    }
+
     return this.userModel
-      .findByIdAndUpdate(userId, { $set: { cuentaActiva } }, { new: true })
+      .findByIdAndUpdate(
+        userId,
+        {
+          $set: {
+            cuentaActiva: false,
+            tokensInvalidBefore: new Date(),
+          },
+        },
+        { new: true },
+      )
       .exec();
   }
 

@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppThrottlerGuard } from './utils/guards/app-throttler.guard';
 import { JwtAuthGuard } from './utils/guards/jwt-auth.guard';
+import { AccountStatusGuard } from './utils/guards/account-status.guard';
 import { SessionInactivityGuard } from './utils/guards/session-inactivity.guard';
 import { ConfidentialityAgreementGuard } from './utils/guards/confidentiality-agreement.guard';
 import { SessionActivityModule } from './modules/users/session-activity.module';
@@ -100,6 +101,10 @@ import { InicioModule } from './modules/inicio/inicio.module';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: AccountStatusGuard,
     },
     {
       provide: APP_GUARD,

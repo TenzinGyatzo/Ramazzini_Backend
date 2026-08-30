@@ -86,6 +86,10 @@ export class User {
   @Prop({ default: true })
   cuentaActiva: boolean;
 
+  /** Instantes de JWT/refresh anteriores a esta fecha no autorizan. No se limpia al reactivar. */
+  @Prop({ type: Date, default: null })
+  tokensInvalidBefore: Date | null;
+
   @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'Empresa', default: [] })
   empresasAsignadas: string[];
 

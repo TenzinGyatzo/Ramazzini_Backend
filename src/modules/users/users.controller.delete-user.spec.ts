@@ -11,6 +11,8 @@ describe('UsersController — delete-user (IDOR tenant)', () => {
     getIdProveedorSaludByUserId: jest.Mock;
   };
   let auditService: { record: jest.Mock };
+  let refreshTokenService: { revokeAllForUser: jest.Mock };
+  let sessionActivityService: { revokeAllForUser: jest.Mock };
 
   const actorId = '507f1f77bcf86cd799439011';
   const targetId = '507f1f77bcf86cd799439012';
@@ -24,14 +26,20 @@ describe('UsersController — delete-user (IDOR tenant)', () => {
       getIdProveedorSaludByUserId: jest.fn(),
     };
     auditService = { record: jest.fn().mockResolvedValue(undefined) };
+    refreshTokenService = {
+      revokeAllForUser: jest.fn().mockResolvedValue(undefined),
+    };
+    sessionActivityService = {
+      revokeAllForUser: jest.fn().mockResolvedValue(undefined),
+    };
 
     controller = new UsersController(
       usersService as any,
       {} as any,
-      {} as any,
+      refreshTokenService as any,
       auditService as any,
       {} as any,
-      {} as any,
+      sessionActivityService as any,
     );
 
     jest.spyOn(authHelpers, 'getUserIdFromRequest').mockReturnValue(actorId);
@@ -91,6 +99,10 @@ describe('UsersController — delete-user (IDOR tenant)', () => {
     await controller.removeUserByEmail(targetEmail, req, res);
 
     expect(usersService.removeUserByEmail).toHaveBeenCalledWith(targetEmail);
+    expect(refreshTokenService.revokeAllForUser).toHaveBeenCalledWith(targetId);
+    expect(sessionActivityService.revokeAllForUser).toHaveBeenCalledWith(
+      targetId,
+    );
     expect(auditService.record).toHaveBeenCalled();
     expect(res.json).toHaveBeenCalled();
   });

@@ -35,7 +35,11 @@ export class RefreshTokenService {
 
   async rotate(
     presentedToken: string,
-  ): Promise<{ userId: string; newRefreshToken: string }> {
+  ): Promise<{
+    userId: string;
+    newRefreshToken: string;
+    previousCreatedAt: Date | null;
+  }> {
     if (!presentedToken) {
       throw new UnauthorizedException('Refresh token requerido');
     }
@@ -53,10 +57,11 @@ export class RefreshTokenService {
     }
 
     const userId = String(session.userId);
+    const previousCreatedAt = session.createdAt ?? null;
     await this.refreshSessionModel.deleteOne({ _id: session._id }).exec();
     const newRefreshToken = await this.issue(userId);
 
-    return { userId, newRefreshToken };
+    return { userId, newRefreshToken, previousCreatedAt };
   }
 
   async revoke(presentedToken: string): Promise<void> {

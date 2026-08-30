@@ -11,11 +11,16 @@ describe('RefreshTokenService', () => {
     userId: string;
     tokenHash: string;
     expiresAt: Date;
+    createdAt: Date;
   }> = [];
 
   const model = {
     create: jest.fn(async (doc) => {
-      const row = { _id: `id-${sessions.length}`, ...doc };
+      const row = {
+        _id: `id-${sessions.length}`,
+        createdAt: new Date(),
+        ...doc,
+      };
       sessions.push(row);
       return row;
     }),
@@ -36,13 +41,15 @@ describe('RefreshTokenService', () => {
         return { deletedCount: idx >= 0 ? 1 : 0 };
       }),
     })),
-    deleteMany: jest.fn(async ({ userId }) => {
-      const before = sessions.length;
-      for (let i = sessions.length - 1; i >= 0; i--) {
-        if (sessions[i].userId === userId) sessions.splice(i, 1);
-      }
-      return { deletedCount: before - sessions.length };
-    }),
+    deleteMany: jest.fn(({ userId }) => ({
+      exec: jest.fn(async () => {
+        const before = sessions.length;
+        for (let i = sessions.length - 1; i >= 0; i--) {
+          if (sessions[i].userId === userId) sessions.splice(i, 1);
+        }
+        return { deletedCount: before - sessions.length };
+      }),
+    })),
   };
 
   beforeEach(async () => {
@@ -70,6 +77,13 @@ describe('RefreshTokenService', () => {
   it('revoke elimina la sesión', async () => {
     const token = await service.issue('user-2');
     await service.revoke(token);
+    await expect(service.rotate(token)).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('revokeAllForUser elimina todas las sesiones del usuario', async () => {
+    const token = await service.issue('user-3');
+    await service.issue('user-other');
+    await service.revokeAllForUser('user-3');
     await expect(service.rotate(token)).rejects.toThrow(UnauthorizedException);
   });
 });

@@ -9,5 +9,6 @@ export const REQUEST_PROVEEDOR_SALUD_ID_KEY = 'idProveedorSalud' as const;
 
 export type RequestWithUserContext = Request & {
   userId?: string;
+  jwtIat?: number;
   [REQUEST_PROVEEDOR_SALUD_ID_KEY]?: string | null;
 };

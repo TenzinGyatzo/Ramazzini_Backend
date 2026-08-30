@@ -24,6 +24,7 @@ export class AuditService {
     private readonly auditEventModel: Model<AuditEvent>,
     @InjectModel(AuditOutbox.name)
     private readonly auditOutboxModel: Model<AuditOutbox>,
+    @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
     @Inject(forwardRef(() => RegulatoryPolicyService))
     private readonly regulatoryPolicyService: RegulatoryPolicyService,

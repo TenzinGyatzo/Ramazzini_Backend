@@ -4,9 +4,9 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import { getUserIdFromRequest } from '../auth-helpers';
+import { getVerifiedJwtPayloadFromRequest } from '../auth-helpers';
+import { RequestWithUserContext } from '../helpers/request-user-context';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -22,8 +22,14 @@ export class JwtAuthGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<Request & { userId?: string }>();
-    request.userId = getUserIdFromRequest(request);
+    const request = context
+      .switchToHttp()
+      .getRequest<RequestWithUserContext>();
+    const payload = getVerifiedJwtPayloadFromRequest(request);
+    request.userId = payload.id;
+    if (typeof payload.iat === 'number') {
+      request.jwtIat = payload.iat;
+    }
     return true;
   }
 }
