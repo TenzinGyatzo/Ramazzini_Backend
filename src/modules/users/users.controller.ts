@@ -1043,13 +1043,22 @@ export class UsersController {
   @Get('asignaciones/:userId/centros-trabajo')
   async getUserCentrosTrabajo(
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     try {
+      const actorUserId = getUserIdFromRequest(req);
+      await this.usersService.assertActorCanReadTargetAssignments(
+        actorUserId,
+        userId,
+      );
       const centrosTrabajo =
         await this.usersService.getUserCentrosTrabajo(userId);
       res.json(centrosTrabajo || []);
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       console.error('Error al obtener centros de trabajo del usuario:', error);
       res.status(500).json({ msg: 'Error interno del servidor' });
     }
@@ -1058,9 +1067,15 @@ export class UsersController {
   @Get('asignaciones/:userId')
   async getUserAssignments(
     @Param('userId') userId: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     try {
+      const actorUserId = getUserIdFromRequest(req);
+      await this.usersService.assertActorCanReadTargetAssignments(
+        actorUserId,
+        userId,
+      );
       const user = await this.usersService.getUserAssignments(userId);
       if (!user) {
         return res.status(404).json({ msg: 'Usuario no encontrado' });
@@ -1070,6 +1085,9 @@ export class UsersController {
         centrosTrabajoAsignados: user.centrosTrabajoAsignados || [],
       });
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       console.error('Error al obtener asignaciones:', error);
       res.status(500).json({ msg: 'Error interno del servidor' });
     }

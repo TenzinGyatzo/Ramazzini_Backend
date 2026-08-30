@@ -312,6 +312,16 @@ export class UsersService {
     return { actor, target };
   }
 
+  async assertActorCanReadTargetAssignments(
+    actorUserId: string,
+    targetUserId: string,
+  ): Promise<void> {
+    if (String(actorUserId) === String(targetUserId)) {
+      return;
+    }
+    await this.assertActorCanManageTargetUser(actorUserId, targetUserId);
+  }
+
   async assertActorCanAccessProveedor(
     actorUserId: string,
     idProveedorSalud: string,

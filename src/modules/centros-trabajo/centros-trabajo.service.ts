@@ -117,17 +117,36 @@ export class CentrosTrabajoService {
       return [];
     }
 
-    if (user.role === 'Principal') {
-      return await this.centroTrabajoModel.find({}).exec();
+    const proveedorSaludId = user.idProveedorSalud
+      ? String(user.idProveedorSalud)
+      : '';
+    if (!proveedorSaludId) {
+      return [];
     }
 
-    if (user.permisos?.accesoCompletoEmpresasCentros) {
-      return await this.centroTrabajoModel.find({}).exec();
+    const empresas = await this.empresaModel
+      .find({ idProveedorSalud: proveedorSaludId })
+      .select('_id')
+      .lean()
+      .exec();
+    const empresaIds = empresas.map((empresa) => String(empresa._id));
+
+    if (
+      user.role === 'Principal' ||
+      user.permisos?.accesoCompletoEmpresasCentros
+    ) {
+      return this.findCentersByCompanies(empresaIds);
     }
 
-    return await this.centroTrabajoModel
+    const assignedIds = (user.centrosTrabajoAsignados || []).map(String);
+    if (assignedIds.length === 0 || empresaIds.length === 0) {
+      return [];
+    }
+
+    return this.centroTrabajoModel
       .find({
-        _id: { $in: user.centrosTrabajoAsignados || [] },
+        _id: { $in: assignedIds },
+        idEmpresa: { $in: empresaIds },
       })
       .exec();
   }
