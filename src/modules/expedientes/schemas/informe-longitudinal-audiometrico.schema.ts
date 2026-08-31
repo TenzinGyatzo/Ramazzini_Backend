@@ -235,7 +235,19 @@ export class InformeLongitudinalAudiometrico extends Document {
   borradorInterpretacionObjetiva?: string;
 
   @Prop()
+  borradorInterpretacionOidoDerecho?: string;
+
+  @Prop()
+  borradorInterpretacionOidoIzquierdo?: string;
+
+  @Prop()
   interpretacionLongitudinal?: string;
+
+  @Prop()
+  interpretacionOidoDerecho?: string;
+
+  @Prop()
+  interpretacionOidoIzquierdo?: string;
 
   @Prop()
   recomendacionesSeguimientoAudiometrico?: string;

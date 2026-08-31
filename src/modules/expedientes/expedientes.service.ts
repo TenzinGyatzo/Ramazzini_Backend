@@ -40,6 +40,13 @@ import { parseISO } from 'date-fns';
 import * as fs from 'fs/promises';
 import { Trabajador } from '../trabajadores/schemas/trabajador.schema';
 import { DocumentoEstado } from './enums/documento-estado.enum';
+import {
+  derivarCamposInformeLongitudinalAudiometrico,
+  mongoIdFromUnknown,
+  payloadTieneSeleccionAudiometrica,
+  snapshotExposicionRuidoIla,
+  uniqueMongoIds,
+} from './helpers/informe-longitudinal-audiometrico.derive';
 import { PdfStatus } from './enums/pdf-status.enum';
 import { NOM024ComplianceUtil } from '../../utils/nom024-compliance.util';
 import { CentroTrabajo } from '../centros-trabajo/schemas/centro-trabajo.schema';
@@ -955,6 +962,14 @@ export class ExpedientesService {
         : { ...createDto };
     delete createPayload.fichaSnapshot;
 
+    if (documentType === 'informeLongitudinalAudiometrico') {
+      await this.hydrateInformeLongitudinalAudiometrico(
+        createPayload,
+        String(createPayload.idTrabajador),
+        { requireSelection: true },
+      );
+    }
+
     const fichaSnapshot = await this.tryCapturarFichaSnapshot({
       documentType,
       trabajadorId: createPayload.idTrabajador,
@@ -986,6 +1001,103 @@ export class ExpedientesService {
     );
 
     return savedDocument;
+  }
+
+  /**
+   * Re-deriva concentrados, Δ y advertencias desde las audiometrías del trabajador.
+   * Rechaza IDs inexistentes, ajenos o anulados. Un parche solo de gráficas no entra aquí.
+   */
+  private async hydrateInformeLongitudinalAudiometrico(
+    dto: Record<string, any>,
+    trabajadorId: string,
+    opts: { requireSelection: boolean },
+  ): Promise<void> {
+    const basalId = mongoIdFromUnknown(dto.idAudiometriaBasal);
+    const subIds = uniqueMongoIds(dto.audiometriasSubsecuentesIncluidas).filter(
+      (id) => id && id !== basalId,
+    );
+
+    if (!opts.requireSelection && !basalId && !subIds.length) {
+      return;
+    }
+
+    if (!basalId) {
+      throw new BadRequestException(
+        'Debe seleccionar una audiometría basal',
+      );
+    }
+    if (!subIds.length) {
+      throw new BadRequestException(
+        'Debe incluir al menos una audiometría subsecuente',
+      );
+    }
+
+    const allIds = [basalId, ...subIds];
+    for (const id of allIds) {
+      if (!isValidObjectId(id)) {
+        throw new BadRequestException(
+          `El id de audiometría ${id} no es un ObjectId válido`,
+        );
+      }
+    }
+
+    const docs = await this.audiometriaModel
+      .find({
+        _id: { $in: allIds.map((id) => new Types.ObjectId(id)) },
+        idTrabajador: trabajadorId,
+      })
+      .lean()
+      .exec();
+
+    const byId = new Map(docs.map((d) => [String(d._id), d]));
+    for (const id of allIds) {
+      const doc = byId.get(id);
+      if (!doc) {
+        throw new BadRequestException(
+          `La audiometría ${id} no existe o no pertenece al trabajador`,
+        );
+      }
+      if (String(doc.estado || '').toLowerCase() === DocumentoEstado.ANULADO) {
+        throw new BadRequestException(
+          'No se pueden incluir audiometrías anuladas en el informe',
+        );
+      }
+    }
+
+    const [trabajador, historias] = await Promise.all([
+      this.trabajadorModel
+        .findById(trabajadorId)
+        .select('agentesRiesgoActuales')
+        .lean()
+        .exec(),
+      this.historiaOtologicaModel
+        .find({ idTrabajador: trabajadorId })
+        .sort({ fechaHistoriaOtologica: -1 })
+        .limit(20)
+        .select(
+          '_id fechaHistoriaOtologica trabajoAmbientesRuidosos tiempoExposicionLaboral usoProteccionAuditiva',
+        )
+        .lean()
+        .exec(),
+    ]);
+
+    const exposicion = snapshotExposicionRuidoIla({
+      historias: historias || [],
+      agentesRiesgoActuales: (trabajador?.agentesRiesgoActuales as string[]) || [],
+      textoLibre: dto.antecedenteExposicionRuido?.textoLibre,
+    });
+
+    const derived = derivarCamposInformeLongitudinalAudiometrico({
+      basalFuente: byId.get(basalId) as Record<string, unknown>,
+      subsecuentesFuente: subIds.map((id) => byId.get(id) as Record<string, unknown>),
+      exposicion,
+    });
+
+    Object.assign(dto, derived, {
+      idAudiometriaBasal: basalId,
+      audiometriasSubsecuentesIncluidas: subIds,
+      antecedenteExposicionRuido: exposicion,
+    });
   }
 
   /**
@@ -1785,6 +1897,14 @@ export class ExpedientesService {
     }
 
     await this.runValidationsInPriorityOrder(updateValidationTasks);
+
+    if (documentType === 'informeLongitudinalAudiometrico') {
+      await this.hydrateInformeLongitudinalAudiometrico(
+        updateDto,
+        String(trabajadorId),
+        { requireSelection: payloadTieneSeleccionAudiometrica(updateDto) },
+      );
+    }
 
     let result;
     const dateChanged = newFecha.toISOString() !== oldFecha.toISOString();

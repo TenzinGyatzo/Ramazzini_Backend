@@ -1,4 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
+import { PLATFORM_ADMIN_EMAIL } from 'src/utils/user-role-helpers';
 import { BrandingAssetsService } from './branding-assets.service';
 
 describe('BrandingAssetsService', () => {
@@ -146,6 +147,49 @@ describe('BrandingAssetsService', () => {
       await expect(
         service.assertUserCanAccessProviderLogo(userId, 'logo.png'),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('permite al operador de plataforma leer el logo de otro proveedor', async () => {
+      proveedorSaludModel.findOne.mockReturnValue(
+        mockLeanExec({ _id: '507f1f77bcf86cd799439099' }),
+      );
+      userModel.findById.mockReturnValue({
+        select: () => ({
+          exec: jest.fn().mockResolvedValue({
+            idProveedorSalud: proveedorId,
+            email: PLATFORM_ADMIN_EMAIL,
+          }),
+        }),
+      });
+
+      await expect(
+        service.assertUserCanAccessProviderLogo(userId, 'otro-proveedor-logo.png'),
+      ).resolves.toBeUndefined();
+
+      expect(proveedorSaludModel.findOne).toHaveBeenCalledWith({
+        'logotipoEmpresa.data': 'otro-proveedor-logo.png',
+      });
+    });
+
+    it('sigue rechazando a un usuario no admin si el logo es de otro proveedor', async () => {
+      proveedorSaludModel.findOne.mockReturnValue(mockLeanExec(null));
+      userModel.findById.mockReturnValue({
+        select: () => ({
+          exec: jest.fn().mockResolvedValue({
+            idProveedorSalud: proveedorId,
+            email: 'otro@example.com',
+          }),
+        }),
+      });
+
+      await expect(
+        service.assertUserCanAccessProviderLogo(userId, 'otro-proveedor-logo.png'),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(proveedorSaludModel.findOne).toHaveBeenCalledWith({
+        _id: proveedorId,
+        'logotipoEmpresa.data': 'otro-proveedor-logo.png',
+      });
     });
   });
 });

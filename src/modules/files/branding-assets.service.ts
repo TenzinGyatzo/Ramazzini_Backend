@@ -17,6 +17,7 @@ import {
   resolveProvidersLogosDir,
   resolveSignatoriesDir,
 } from 'src/utils/branding-assets-dir.util';
+import { isPlatformAdminEmail } from 'src/utils/user-role-helpers';
 
 const ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.svg']);
 
@@ -128,18 +129,24 @@ export class BrandingAssetsService {
     const safeFilename = this.resolveSafeFilename(filename);
     const user = await this.userModel
       .findById(userId)
-      .select('idProveedorSalud')
+      .select('idProveedorSalud email')
       .exec();
 
-    if (!user?.idProveedorSalud) {
-      throw new ForbiddenException('No tiene permiso para acceder a este recurso');
+    const filter: Record<string, unknown> = {
+      'logotipoEmpresa.data': safeFilename,
+    };
+
+    if (!isPlatformAdminEmail(user?.email)) {
+      if (!user?.idProveedorSalud) {
+        throw new ForbiddenException(
+          'No tiene permiso para acceder a este recurso',
+        );
+      }
+      filter._id = user.idProveedorSalud;
     }
 
     const proveedor = await this.proveedorSaludModel
-      .findOne({
-        _id: user.idProveedorSalud,
-        'logotipoEmpresa.data': safeFilename,
-      })
+      .findOne(filter)
       .select('_id')
       .lean()
       .exec();

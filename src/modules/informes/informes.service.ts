@@ -6353,6 +6353,8 @@ export class InformesService {
       resumenCronologico: informe.resumenCronologico,
       advertencias: informe.advertencias,
       interpretacionLongitudinal: informe.interpretacionLongitudinal,
+      interpretacionOidoDerecho: informe.interpretacionOidoDerecho,
+      interpretacionOidoIzquierdo: informe.interpretacionOidoIzquierdo,
       recomendacionesSeguimientoAudiometrico: informe.recomendacionesSeguimientoAudiometrico,
       graficaAudiogramaOidoDerecho:
         graficasOverride?.graficaAudiogramaOidoDerecho || informe.graficaAudiogramaOidoDerecho,

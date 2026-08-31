@@ -353,6 +353,26 @@ export class CreateInformeLongitudinalAudiometricoDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(8000)
+  borradorInterpretacionOidoDerecho?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8000)
+  borradorInterpretacionOidoIzquierdo?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8000)
+  interpretacionOidoDerecho?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8000)
+  interpretacionOidoIzquierdo?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(4000)
   recomendacionesSeguimientoAudiometrico?: string;
 

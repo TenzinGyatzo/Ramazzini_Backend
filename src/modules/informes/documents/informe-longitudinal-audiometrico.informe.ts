@@ -91,9 +91,31 @@ export interface DatosInformeLongitudinalAudiometricoPdf {
   }>;
   advertencias?: string[];
   interpretacionLongitudinal?: string;
+  interpretacionOidoDerecho?: string;
+  interpretacionOidoIzquierdo?: string;
   recomendacionesSeguimientoAudiometrico?: string;
   graficaAudiogramaOidoDerecho?: string;
   graficaAudiogramaOidoIzquierdo?: string;
+}
+
+function claveFechaOrden(v?: Date | string | null): string {
+  if (v == null || v === '') return '';
+  if (typeof v === 'string') {
+    const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  }
+  const d = v instanceof Date ? v : new Date(v);
+  if (Number.isNaN(d.getTime())) return '';
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function ordenarPorFechaAsc<T extends { fechaAudiometria?: Date | string | null }>(items: T[]): T[] {
+  return [...items].sort((a, b) =>
+    claveFechaOrden(a.fechaAudiometria).localeCompare(claveFechaOrden(b.fechaAudiometria)),
+  );
 }
 
 function fmtFecha(v?: Date | string | null): string {
@@ -110,6 +132,19 @@ function fmt(v: unknown): string {
   return String(v);
 }
 
+function fmtResultadoResumen(v: unknown, metodo?: string): string {
+  const s = fmt(v);
+  const m = String(metodo || '').toUpperCase();
+  const etiqueta = m === 'LFT' ? 'HBC' : m === 'AMA' ? 'PA' : '';
+  if (etiqueta) {
+    const resto = s.replace(/^(AMA|LFT|HBC|PA)\b\s*/i, '');
+    return resto && resto !== '—' ? `${etiqueta} ${resto}` : (resto === '—' ? `${etiqueta} —` : etiqueta);
+  }
+  if (/^AMA\b/i.test(s)) return s.replace(/^AMA\b/i, 'PA');
+  if (/^LFT\b/i.test(s)) return s.replace(/^LFT\b/i, 'HBC');
+  return s;
+}
+
 function colorDelta(delta?: number | null): { fillColor: string; color: string } {
   if (delta == null || !Number.isFinite(delta)) return { fillColor: '#FFFFFF', color: '#9CA3AF' };
   if (delta === 0) return { fillColor: '#F3F4F6', color: '#374151' };
@@ -124,13 +159,129 @@ function fmtDelta(delta?: number | null): string {
   return delta > 0 ? `+${delta}` : String(delta);
 }
 
+const ANCHO_AUDIOGRAMA_PDF = 520;
+
+function filasMatrizPorOido(
+  matriz: NonNullable<DatosInformeLongitudinalAudiometricoPdf['matrizDeltas']>,
+  oido: string,
+) {
+  return ordenarPorFechaAsc(matriz.filter((f) => f.oido === oido));
+}
+
+function tablaMatrizOido(
+  filas: NonNullable<DatosInformeLongitudinalAudiometricoPdf['matrizDeltas']>,
+): Content {
+  const header: Content[] = [
+    { text: 'Fecha', style: 'tableHeader' },
+    ...FRECUENCIAS.map((f) => ({ text: `${f} Hz`, style: 'tableHeader' })),
+  ];
+  const body = [
+    header,
+    ...(filas.length
+      ? filas.map((fila) => [
+          { text: fmtFecha(fila.fechaAudiometria), style: 'tableCell' },
+          ...FRECUENCIAS.map((freq) => {
+            const celda = (fila.deltas || []).find((d) => d.frecuenciaHz === freq);
+            const c = colorDelta(celda?.deltaDb);
+            return {
+              text: fmtDelta(celda?.deltaDb),
+              style: 'tableCell',
+              fillColor: c.fillColor,
+              color: c.color,
+              bold: true,
+            };
+          }),
+        ])
+      : [[{ text: 'Sin estudios subsecuentes.', style: 'tableCell', colSpan: 8 }, ...Array(7).fill({})]]),
+  ];
+  return {
+    table: { widths: [55, ...FRECUENCIAS.map(() => '*')], body },
+    layout: { hLineColor: '#e5e7eb', vLineColor: '#e5e7eb' },
+    margin: [0, 0, 0, 8],
+  };
+}
+
+function textoInterpretacionOidoPdf(
+  doc: DatosInformeLongitudinalAudiometricoPdf,
+  oido: 'Derecho' | 'Izquierdo',
+): string {
+  const nuevo = oido === 'Derecho' ? doc.interpretacionOidoDerecho : doc.interpretacionOidoIzquierdo;
+  if (nuevo && String(nuevo).trim()) return String(nuevo).trim();
+  return '';
+}
+
+function textoInterpretacionLegadoPdf(doc: DatosInformeLongitudinalAudiometricoPdf): string {
+  if (textoInterpretacionOidoPdf(doc, 'Derecho') || textoInterpretacionOidoPdf(doc, 'Izquierdo')) {
+    return '';
+  }
+  return String(doc.interpretacionLongitudinal || '').trim();
+}
+
+function bloqueOidoPdf(
+  etiqueta: string,
+  grafica: string | undefined,
+  filas: NonNullable<DatosInformeLongitudinalAudiometricoPdf['matrizDeltas']>,
+  interpretacion: string,
+  pageBreakBefore = false,
+): Content[] {
+  return [
+    {
+      text: `Audiograma — oído ${etiqueta}`,
+      style: 'sectionHeader',
+      ...(pageBreakBefore ? { pageBreak: 'before' as const } : {}),
+    },
+    grafica
+      ? { image: grafica, width: ANCHO_AUDIOGRAMA_PDF, alignment: 'center', margin: [0, 0, 0, 6] }
+      : { text: 'Sin gráfica', fontSize: 8, margin: [0, 0, 0, 6] },
+    { text: `Matriz longitudinal de cambios — oído ${etiqueta} (Δ vs basal)`, style: 'sectionHeader' },
+    tablaMatrizOido(filas),
+    { text: PIE_COLOR, fontSize: 7, italics: true, color: '#6B7280', margin: [0, 0, 0, 6] },
+    { text: `Interpretación — oído ${etiqueta}`, style: 'sectionHeader' },
+    {
+      text: interpretacion || 'Sin interpretación registrada.',
+      style: 'paragraph',
+      margin: [0, 0, 0, 8],
+    },
+  ];
+}
+
+function tablaResumenPdf(
+  resumen: NonNullable<DatosInformeLongitudinalAudiometricoPdf['resumenCronologico']>,
+): Content {
+  return {
+    table: {
+      widths: [55, 45, 35, '*', '*', '*'],
+      body: [
+        [
+          { text: 'Fecha', style: 'tableHeader' },
+          { text: 'Tipo', style: 'tableHeader' },
+          { text: 'Método', style: 'tableHeader' },
+          { text: 'Resultado OD', style: 'tableHeader' },
+          { text: 'Resultado OI', style: 'tableHeader' },
+          { text: 'Cambio vs basal', style: 'tableHeader' },
+        ],
+        ...resumen.map((r) => [
+          { text: fmtFecha(r.fechaAudiometria), style: 'tableCell' },
+          { text: fmt(r.tipo), style: 'tableCell' },
+          { text: fmt(r.metodoAudiometria), style: 'tableCell' },
+          { text: fmtResultadoResumen(r.resultadoOD, r.metodoAudiometria), style: 'tableCell' },
+          { text: fmtResultadoResumen(r.resultadoOI, r.metodoAudiometria), style: 'tableCell' },
+          { text: fmt(r.cambioRespectoBasal), fontSize: 6.5, alignment: 'left' as const },
+        ]),
+      ],
+    },
+    layout: { hLineColor: '#e5e7eb', vLineColor: '#e5e7eb' },
+    margin: [0, 0, 0, 8],
+  };
+}
+
 function formatearTelefono(telefono?: string): string {
   if (!telefono) return '';
   return telefono;
 }
 
 const headerText: Content = {
-  text: 'INFORME LONGITUDINAL AUDIOMÉTRICO\n',
+  text: '                                                  INFORME LONGITUDINAL AUDIOMÉTRICO\n',
   style: 'header',
   alignment: 'right',
   margin: [0, 35, 40, 0],
@@ -168,7 +319,6 @@ export const informeLongitudinalAudiometricoInforme = (
     ? { image: `assets/providers-logos/${proveedorSalud.logotipoEmpresa.data}`, width: 55, margin: [40, 20, 0, 0] }
     : { image: 'assets/RamazziniBrand600x600.png', width: 55, margin: [40, 20, 0, 0] };
 
-  const exposicion = doc.antecedenteExposicionRuido || {};
   const basal = doc.audiometriaBasalConcentrada || {};
   const metodos = [
     basal.metodoAudiometria,
@@ -194,14 +344,8 @@ export const informeLongitudinalAudiometricoInforme = (
         ],
         [
           { text: 'ESTUDIOS', style: 'label' },
-          { text: `${doc.numeroAudiometriasIncluidas ?? '—'} · ${metodosUnicos.join(', ') || '—'}`, style: 'value' },
-          { text: 'CRITERIO', style: 'label' },
-          { text: `${doc.criterioComparacion || 'solo_diferencias'} ${doc.versionCriterio || 'v1.0-deltas'}`, style: 'value' },
-        ],
-        [
-          { text: 'EXPOSICIÓN A RUIDO', style: 'label' },
           {
-            text: `${fmt(exposicion.trabajoAmbientesRuidosos)} · ${fmt(exposicion.tiempoExposicionLaboral)} · EPP ${fmt(exposicion.usoProteccionAuditiva)}`,
+            text: `${doc.numeroAudiometriasIncluidas ?? '—'} · ${metodosUnicos.join(', ') || '—'}`,
             style: 'value',
             colSpan: 3,
           },
@@ -240,98 +384,42 @@ export const informeLongitudinalAudiometricoInforme = (
   const content: Content[] = [
     empresaFecha,
     identificacion,
-    {
-      text: 'El seguimiento longitudinal utiliza umbrales tonales originales. AMA y LFT interpretan cada estudio por separado y no se comparan como una misma escala. Ramazzini no atribuye causalidad al ruido laboral.',
-      style: 'paragraph',
-      italics: true,
-      margin: [0, 0, 0, 8],
-    },
   ];
-
-  if (doc.graficaAudiogramaOidoDerecho || doc.graficaAudiogramaOidoIzquierdo) {
-    content.push({ text: 'Audiogramas superpuestos', style: 'sectionHeader' });
-    content.push({
-      columns: [
-        doc.graficaAudiogramaOidoDerecho
-          ? { image: doc.graficaAudiogramaOidoDerecho, width: 250, alignment: 'center' }
-          : { text: 'Oído derecho: sin gráfica', fontSize: 8 },
-        doc.graficaAudiogramaOidoIzquierdo
-          ? { image: doc.graficaAudiogramaOidoIzquierdo, width: 250, alignment: 'center' }
-          : { text: 'Oído izquierdo: sin gráfica', fontSize: 8 },
-      ],
-      columnGap: 8,
-      margin: [0, 0, 0, 8],
-    });
-  }
 
   const matriz = doc.matrizDeltas || [];
-  const headerMatriz: Content[] = [
-    { text: 'Fecha', style: 'tableHeader' },
-    { text: 'Oído', style: 'tableHeader' },
-    ...FRECUENCIAS.map((f) => ({ text: `${f} Hz`, style: 'tableHeader' })),
-  ];
-  const bodyMatriz = [
-    headerMatriz,
-    ...matriz.map((fila) => [
-      { text: fmtFecha(fila.fechaAudiometria), style: 'tableCell' },
-      { text: fmt(fila.oido), style: 'tableCell' },
-      ...FRECUENCIAS.map((freq) => {
-        const celda = (fila.deltas || []).find((d) => d.frecuenciaHz === freq);
-        const c = colorDelta(celda?.deltaDb);
-        return { text: fmtDelta(celda?.deltaDb), style: 'tableCell', fillColor: c.fillColor, color: c.color, bold: true };
-      }),
-    ]),
-  ];
-  content.push({ text: 'Matriz longitudinal de cambios (Δ vs basal)', style: 'sectionHeader' });
-  content.push({
-    table: { widths: [55, 45, ...FRECUENCIAS.map(() => '*')], body: bodyMatriz },
-    layout: { hLineColor: '#e5e7eb', vLineColor: '#e5e7eb' },
-    margin: [0, 0, 0, 4],
-  });
-  content.push({ text: PIE_COLOR, fontSize: 7, italics: true, color: '#6B7280', margin: [0, 0, 0, 8] });
-
-  const resumen = doc.resumenCronologico || [];
+  const resumen = ordenarPorFechaAsc(doc.resumenCronologico || []);
   content.push({ text: 'Resumen de cada audiometría', style: 'sectionHeader' });
-  content.push({
-    table: {
-      widths: [55, 45, 35, '*', '*', '*'],
-      body: [
-        [
-          { text: 'Fecha', style: 'tableHeader' },
-          { text: 'Tipo', style: 'tableHeader' },
-          { text: 'Método', style: 'tableHeader' },
-          { text: 'Resultado OD', style: 'tableHeader' },
-          { text: 'Resultado OI', style: 'tableHeader' },
-          { text: 'Cambio vs basal', style: 'tableHeader' },
-        ],
-        ...resumen.map((r) => [
-          { text: fmtFecha(r.fechaAudiometria), style: 'tableCell' },
-          { text: fmt(r.tipo), style: 'tableCell' },
-          { text: fmt(r.metodoAudiometria), style: 'tableCell' },
-          { text: fmt(r.resultadoOD), fontSize: 6.5, alignment: 'left' as const },
-          { text: fmt(r.resultadoOI), fontSize: 6.5, alignment: 'left' as const },
-          { text: fmt(r.cambioRespectoBasal), fontSize: 6.5, alignment: 'left' as const },
-        ]),
-      ],
-    },
-    layout: { hLineColor: '#e5e7eb', vLineColor: '#e5e7eb' },
-    margin: [0, 0, 0, 8],
-  });
+  content.push(tablaResumenPdf(resumen));
 
-  if (doc.advertencias?.length) {
-    content.push({ text: 'Advertencias técnicas', style: 'sectionHeader' });
-    content.push({
-      ul: doc.advertencias.map((a) => ({ text: a, fontSize: 8, color: '#92400E' })),
-      margin: [0, 0, 0, 8],
-    });
+  const legado = textoInterpretacionLegadoPdf(doc);
+  if (legado) {
+    content.push({ text: 'Interpretación longitudinal', style: 'sectionHeader' });
+    content.push({ text: legado, style: 'paragraph', margin: [0, 0, 0, 8] });
   }
 
-  content.push({ text: 'Interpretación longitudinal', style: 'sectionHeader' });
   content.push({
-    text: doc.interpretacionLongitudinal?.trim() || 'Sin interpretación registrada.',
-    style: 'paragraph',
-    margin: [0, 0, 0, 8],
+    text: 'Basal en negro grueso; más reciente destacada; intermedias tenues.',
+    fontSize: 7,
+    italics: true,
+    color: '#6B7280',
+    margin: [0, 0, 0, 4],
   });
+  content.push(
+    ...bloqueOidoPdf(
+      'derecho',
+      doc.graficaAudiogramaOidoDerecho,
+      filasMatrizPorOido(matriz, 'Derecho'),
+      textoInterpretacionOidoPdf(doc, 'Derecho'),
+    ),
+    ...bloqueOidoPdf(
+      'izquierdo',
+      doc.graficaAudiogramaOidoIzquierdo,
+      filasMatrizPorOido(matriz, 'Izquierdo'),
+      textoInterpretacionOidoPdf(doc, 'Izquierdo'),
+      true,
+    ),
+  );
+
   content.push({ text: 'Recomendaciones', style: 'sectionHeader' });
   content.push({
     text: doc.recomendacionesSeguimientoAudiometrico?.trim() || 'Sin recomendaciones registradas.',
